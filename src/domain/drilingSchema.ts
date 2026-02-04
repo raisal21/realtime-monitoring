@@ -1,39 +1,42 @@
 import * as z from "zod"
 
-const drillingSchema = z.object({
-    timestapms: z.number(),
-    depth: z.number().min(0),
-    ROP: z.number().min(0),
-    WOB: z.number().min(0)
+const channelSchema = z.object({
+    mnemonic: z.string(),
+    unit: z.string(),
+    dataType: z.enum(["float64", "int32", "int64"])
 });
 
-type drillingSchema = z.infer<typeof drillingSchema>;
+type channel = z.infer<typeof channelSchema>;
 
-drillingSchema.parse({
-    timestapms:1,
-    depth:2,
-})
+const handshakeSchema = z.object({
+    messageType: z.string(),
+    schemaId: z.number(),
+    wellIdentity: z.object({
+        wellName: z.string(),
+        wellboreName: z.string(),
+        uni: z.string()
+    }),
+    channel: z.array(channelSchema),
+    roles: z.object({
+        timeIndex: z.string(),
+        depthIndex: z.string()
+    })
+});
 
-const drillingLog = z.object({
-    timestamp: z.iso.time(),
-    depth: z.number(),
-    pass: z.number(),   
-    direction: z.enum(["up", "down", "steady"])
-})
+type handshake = z.infer<typeof handshakeSchema>;
 
-const chanelState = z.object({
-    mnemonic: z.string(),
-    uom: z.string(),
-    value: z.number()
-})
+const rigActivitySchema = z.object({
+    messageType: z.string(),
+    state: z.string(),
+    timestamp: z.iso.time()
+});
 
-const depth = z.object({
+type rigActivity = z.infer<typeof rigActivitySchema>;
+
+const inclineSchema = z.object({
+    messageType: z.string(),
     value: z.number(),
-    pass: z.number(),
-    direction: z.enum(["up", "down", "steady"])
+    timestamp: z.iso.time()
 })
 
-const drillingLog2 = z.object({
-    timestamp: z.iso.time(),
-    depth: depth
-})
+type incline = z.infer<typeof inclineSchema>;

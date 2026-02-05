@@ -21,7 +21,13 @@ const handshakeSchema = z.object({
         timeIndex: z.string(),
         depthIndex: z.string()
     })
-});
+}).refine((d) => {
+    const mnemonic = d.channel.map((c) => (c.mnemonic));
+    return mnemonic.includes(d.roles.timeIndex);
+},{
+        message: "timeIndex must exist in channel array",
+        path: ["roles", "timeIndex"]
+    });
 
 type handshake = z.infer<typeof handshakeSchema>;
 

@@ -2,6 +2,7 @@ import { Aedes } from "aedes";
 import { createServer as createHttpServer } from "http";
 import { createServer as createNetServer } from "net";
 import { WebSocketServer, createWebSocketStream } from "ws";
+// import type { PublishPacket } from "aedes";
 
 // ============================================================
 // CONFIGURATION & TYPES
@@ -75,6 +76,18 @@ function getRandom(min: number, max: number) {
   // ============================================================
   const aedes = await Aedes.createBroker();
 
+  aedes.authenticate = (_client, _username, _password, callback) => {
+    callback(null, true); // allow all (dev mode)
+  };
+
+  aedes.authorizePublish = (_client, _packet, callback) => {
+    callback(null); // allow all publish
+  };
+
+  aedes.authorizeSubscribe = (_client, sub, callback) => {
+    callback(null, sub);
+  };
+
   const tcpServer = createNetServer(aedes.handle);
 
   tcpServer.on("error", (err) => {
@@ -90,7 +103,7 @@ function getRandom(min: number, max: number) {
   const wss = new WebSocketServer({ server: httpServer });
 
   wss.on("connection", (conn, req) => {
-    console.log(`🔌  New WebSocket connection attempt...`);
+    console.log(`🔌  WS from:`, req.socket.remoteAddress);
     const stream = createWebSocketStream(conn as any);
     aedes.handle(stream as any, req);
   });
@@ -106,6 +119,7 @@ function getRandom(min: number, max: number) {
   // ============================================================
   // EVENT LISTENERS (DEBUGGING)
   // ============================================================
+
   aedes.on("client", (client) => {
     console.log(`✅ Client Connected: ${client ? client.id : "Unknown"}`);
   });
@@ -121,7 +135,7 @@ function getRandom(min: number, max: number) {
     );
   });
 
-  aedes.on("connectionError", (client, err) => {
+  aedes.on("connectionError", (_client, err) => {
     console.error(`⚠️ Connection Error:`, err.message);
   });
 
@@ -135,10 +149,10 @@ function getRandom(min: number, max: number) {
   //  INTERVAL LOOP
   // ============================================================
   setInterval(() => {
-    const payload = {
+    const payload: HeartbeatPayload = {
       timestamp: Date.now(),
       status: "LIVE",
-      msg: "Server is running",
+      uptime: process.uptime(),
     };
 
     aedes.publish(
@@ -168,14 +182,14 @@ function getRandom(min: number, max: number) {
 
       drillView.setUint8(0, 101); // ID
       drillView.setUint8(1, 1); // Version
-      drillView.setUint32(4, seqDrill++); // Sequence
-      drillView.setBigUint64(8, rigState.timestamp);
-      drillView.setFloat32(16, rigState.depth);
-      drillView.setFloat32(20, rigState.rpm);
-      drillView.setFloat32(24, rigState.wob);
-      drillView.setFloat32(28, rigState.torque);
-      drillView.setFloat32(32, rigState.hkld);
-      drillView.setFloat32(36, rigState.spp);
+      drillView.setUint32(4, seqDrill++, false); // Sequence
+      drillView.setBigUint64(8, rigState.timestamp, false);
+      drillView.setFloat32(16, rigState.depth, false);
+      drillView.setFloat32(20, rigState.rpm, false);
+      drillView.setFloat32(24, rigState.wob, false);
+      drillView.setFloat32(28, rigState.torque, false);
+      drillView.setFloat32(32, rigState.hkld, false);
+      drillView.setFloat32(36, rigState.spp, false);
 
       // PUBLISH DRILL BUFFER 🚀
       aedes.publish(
@@ -248,6 +262,7 @@ function getRandom(min: number, max: number) {
         {
           cmd: "publish",
           qos: 1, // QoS 1: Wajib sampai (Penting!)
+          dup: false,
           topic: "alarms/new",
           payload: Buffer.from(JSON.stringify(alarmData)),
           retain: false,
@@ -260,36 +275,63 @@ function getRandom(min: number, max: number) {
   }, 15000); // Cek tiap 15 detik
 
   aedes.on("publish", (packet, client) => {
-    if (client && packet.topic === "alarms/ack") {
-      try {
-        const ackData = JSON.parse(packet.payload.toString()) as AckPayload;
+    if (!client) return;
 
-        console.log(
-          `👮 User [${ackData.operator}] ACKNOWLEDGED Alarm [${ackData.alarmId}]`,
-        );
+    if (packet.topic !== "alarm/ack") return;
 
-        const syncPayload = {
-          alarmId: ackData.alarmId,
-          status: "ACKNOWLEDGED",
-          by: ackData.operator,
-          at: Date.now(),
-        };
+    try {
+      const ackData = JSON.parse(packet.payload.toString()) as AckPayload;
 
-        aedes.publish(
-          {
-            cmd: "publish",
-            qos: 1,
-            topic: "alarms/sync",
-            payload: Buffer.from(JSON.stringify(syncPayload)),
-            retain: false,
-          },
-          (err) => {
-            if (err) console.error(err);
-          },
-        );
-      } catch (error) {
-        console.error("❌ Invalid ACK Payload:", error);
-      }
+      console.log(
+        `👮 User [${ackData.operator}] ACKNOWLEDGED Alarm [${ackData.alarmId}]`,
+      );
+
+      const syncPayload = {
+        alarmId: ackData.alarmId,
+        status: "ACKNOWLEDGED",
+        by: ackData.operator,
+        at: Date.now(),
+      };
+
+      aedes.publish(
+        {
+          cmd: "publish",
+          qos: 1,
+          dup: false,
+          topic: "alarms/sync",
+          payload: Buffer.from(JSON.stringify(syncPayload)),
+          retain: false,
+        },
+        (err) => {
+          if (err) console.error(err);
+        },
+      );
+    } catch (error) {
+      console.error("❌ Invalid ACK Payload:", error);
     }
   });
+
+  // function _safePublish(packet: PublishPacket) {
+  //   if (aedes.connectedClients === 0) return;
+  //
+  //   aedes.publish(packet, (err) => {
+  //     if (err) console.error("Publish error:", err);
+  //   });
+  // }
+  //
+
+  function shutdown() {
+    console.log("🛑 Shutting down gracefully...");
+
+    tcpServer.close();
+    httpServer.close();
+
+    aedes.close(() => {
+      console.log("Broker closed");
+      process.exit(0);
+    });
+  }
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 })();

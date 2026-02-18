@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Realtime Monitoring - WebSocketStream</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #121212;
+        color: #e0e0e0;
+        padding: 20px;
+      }
+      #log {
+        background: #000;
+        padding: 10px;
+        border-radius: 5px;
+        height: 300px;
+        overflow-y: auto;
+        font-family: monospace;
+      }
+      .error {
+        color: #ff5555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Monitoring Status</h1>
+    <div id="status">Checking support...</div>
+    <hr />
+    <h3>Incoming Data:</h3>
+    <div id="log"></div>
+
+    <script type="module" src="./src/services/minimal-client.ts"></script>
+  </body>
+</html>

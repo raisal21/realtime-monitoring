@@ -3,6 +3,7 @@ import { WebSocket, WebSocketServer } from "ws";
 
 interface RigWebSocket extends WebSocket {
   isHandshake: boolean;
+  isAlive: boolean;
 }
 const wss = new WebSocketServer({ port: 8080 });
 
@@ -31,6 +32,10 @@ let rigState = {
 
 let seqDrill = 0;
 let seqGeo = 0;
+
+function heartbeat(ws: RigWebSocket) {
+  ws.isAlive = true;
+}
 
 function getRandom(min: number, max: number) {
   return Math.random() * (max - min) + min;
@@ -82,13 +87,18 @@ let tick = 0;
 wss.on("connection", (ws: WebSocket) => {
   const rigWs = ws as RigWebSocket;
   rigWs.isHandshake = false;
+  rigWs.isAlive = true;
 
   console.log("Client connected. Waiting for handshake");
+
+  const handshakeTimer = setTimeout(() => {
+    rigWs.close(1008, "Handshake timeout");
+  }, 5000);
 
   rigWs.on("error", console.error);
 
   rigWs.on("message", (message) => {
-    if (rigWs.isHandshake) return;
+    if (rigWs.isHandshake === true) return;
 
     try {
       const data = JSON.parse(message.toString());
@@ -105,15 +115,38 @@ wss.on("connection", (ws: WebSocket) => {
           }),
         );
         console.log("Client Handshaked!");
+        clearTimeout(handshakeTimer);
       } else {
-        rigWs.close();
+        rigWs.close(1002, "Invalid handshake schema");
+
+        clearTimeout(handshakeTimer);
       }
     } catch (error) {
       console.error("Invalid JSON Handshake", error);
-      rigWs.close();
+      rigWs.close(1002, "Invalid handshake schema");
+
+      clearTimeout(handshakeTimer);
     }
   });
+
+  rigWs.on("pong", () => heartbeat(rigWs));
+  rigWs.on("close", () => {
+    clearTimeout(handshakeTimer);
+  });
 });
+
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws: WebSocket) {
+    const rigClient = ws as RigWebSocket;
+    if (rigClient.isAlive === false) return rigClient.terminate();
+
+    rigClient.isAlive = false;
+
+    if (rigClient.readyState === WebSocket.OPEN && rigClient.isHandshake) {
+      rigClient.ping();
+    }
+  });
+}, 5000);
 
 setInterval(() => {
   try {
@@ -139,3 +172,7 @@ setInterval(() => {
     console.error("Critical Tick Error", error);
   }
 }, 100);
+
+wss.on("close", function close() {
+  clearInterval(interval);
+});

@@ -1,11 +1,61 @@
 import { setInterval } from "node:timers";
 import { WebSocket, WebSocketServer } from "ws";
 
-interface RigWebSocket extends WebSocket {
-  isHandshake: boolean;
-  isAlive: boolean;
+enum ClientState {
+  CONNECTING = "CONNECTING",
+  HANDSHAKING = "HANDSHAKING",
+  // READY = "READY",
+  ACTIVE = "ACTIVE",
+  IDLE = "IDLE",
+  CLOSING = "CLOSING",
+  CLOSED = "CLOSED",
 }
+
+const ValidTransitions: Record<ClientState, ClientState[]> = {
+  [ClientState.CONNECTING]: [ClientState.HANDSHAKING, ClientState.CLOSING],
+  [ClientState.HANDSHAKING]: [
+    // ClientState.READY,
+    ClientState.CLOSED,
+  ],
+  // [ClientState.READY]: [
+  //   ClientState.ACTIVE,
+  //   ClientState.CLOSING,
+  //   ClientState.CLOSED,
+  // ],
+  [ClientState.ACTIVE]: [
+    ClientState.IDLE,
+    ClientState.CLOSING,
+    ClientState.CLOSED,
+  ],
+  [ClientState.IDLE]: [
+    ClientState.ACTIVE,
+    ClientState.CLOSING,
+    ClientState.CLOSED,
+  ],
+  [ClientState.CLOSING]: [ClientState.CLOSED],
+  [ClientState.CLOSED]: [],
+};
+
+interface RigWebSocket extends WebSocket {
+  state: ClientState;
+  isAlive: boolean;
+  lastActivity: number;
+}
+
 const wss = new WebSocketServer({ port: 8080 });
+
+function transitionState(client: RigWebSocket, nextState: ClientState) {
+  if (client.state === ClientState.CLOSED) return;
+
+  const allowed = ValidTransitions[client.state] || [];
+  if (allowed.includes(nextState)) {
+    client.state = nextState;
+  } else {
+    console.warn(
+      `[STATE ERROR] Ilegal transisi: ${client.state} -> ${nextState}`,
+    );
+  }
+}
 
 // --- Memory & State ---
 // Header (8) + Time (8) + Depth (4) + Sensor (5x4 = 20) = 40 Byte
@@ -33,8 +83,15 @@ let rigState = {
 let seqDrill = 0;
 let seqGeo = 0;
 
+const IDLE_TIMEOUT_MS = 15000;
+
 function heartbeat(ws: RigWebSocket) {
   ws.isAlive = true;
+  ws.lastActivity = Date.now();
+  // Hanya kembalikan ke ACTIVE jika sebelumnya dia benar-benar IDLE
+  if (ws.state === ClientState.IDLE) {
+    transitionState(ws, ClientState.ACTIVE);
+  }
 }
 
 function getRandom(min: number, max: number) {
@@ -44,7 +101,10 @@ function getRandom(min: number, max: number) {
 function broadcast(buffer: ArrayBuffer) {
   wss.clients.forEach((client) => {
     const rigClient = client as RigWebSocket;
-    if (rigClient.readyState === WebSocket.OPEN && rigClient.isHandshake) {
+    if (
+      rigClient.readyState === WebSocket.OPEN &&
+      rigClient.state === ClientState.ACTIVE
+    ) {
       rigClient.send(buffer);
     }
   });
@@ -86,27 +146,31 @@ let tick = 0;
 
 wss.on("connection", (ws: WebSocket) => {
   const rigWs = ws as RigWebSocket;
-  rigWs.isHandshake = false;
+
+  rigWs.state = ClientState.CONNECTING;
   rigWs.isAlive = true;
+  rigWs.lastActivity = Date.now();
 
   console.log("Client connected. Waiting for handshake");
 
+  transitionState(rigWs, ClientState.HANDSHAKING);
+
   const handshakeTimer = setTimeout(() => {
+    transitionState(rigWs, ClientState.CLOSING);
     rigWs.close(1008, "Handshake timeout");
   }, 5000);
 
   rigWs.on("error", console.error);
 
   rigWs.on("message", (message) => {
-    if (rigWs.isHandshake === true) return;
-
+    rigWs.lastActivity = Date.now();
+    if (rigWs.state !== ClientState.HANDSHAKING) return;
     try {
       const data = JSON.parse(message.toString());
 
       // Validate handshake
       if (data.messageType === "HANDSHAKE" && data.schemaId === 1) {
-        rigWs.isHandshake = true;
-
+        transitionState(rigWs, ClientState.ACTIVE);
         rigWs.send(
           JSON.stringify({
             messagetype: "HANDSHAKE",
@@ -114,15 +178,18 @@ wss.on("connection", (ws: WebSocket) => {
             streams: [101, 102],
           }),
         );
+
         console.log("Client Handshaked!");
         clearTimeout(handshakeTimer);
       } else {
+        transitionState(rigWs, ClientState.CLOSING);
         rigWs.close(1002, "Invalid handshake schema");
 
         clearTimeout(handshakeTimer);
       }
     } catch (error) {
       console.error("Invalid JSON Handshake", error);
+      transitionState(rigWs, ClientState.CLOSING);
       rigWs.close(1002, "Invalid handshake schema");
 
       clearTimeout(handshakeTimer);
@@ -132,17 +199,33 @@ wss.on("connection", (ws: WebSocket) => {
   rigWs.on("pong", () => heartbeat(rigWs));
   rigWs.on("close", () => {
     clearTimeout(handshakeTimer);
+    transitionState(rigWs, ClientState.CLOSED);
+    console.log(`Client disconnected. Final State: ${rigWs.state}`);
   });
 });
 
 const interval = setInterval(function ping() {
+  const now = Date.now();
+
   wss.clients.forEach(function each(ws: WebSocket) {
     const rigClient = ws as RigWebSocket;
-    if (rigClient.isAlive === false) return rigClient.terminate();
+
+    if (rigClient.isAlive === false) {
+      transitionState(rigClient, ClientState.CLOSING);
+      return rigClient.terminate();
+    }
 
     rigClient.isAlive = false;
 
-    if (rigClient.readyState === WebSocket.OPEN && rigClient.isHandshake) {
+    if (
+      rigClient.state === ClientState.ACTIVE &&
+      now - rigClient.lastActivity > IDLE_TIMEOUT_MS
+    ) {
+      transitionState(rigClient, ClientState.IDLE);
+      console.log("Client masuk ke mode IDLE karena tidak ada aktivitas.");
+    }
+
+    if (rigClient.readyState === WebSocket.OPEN) {
       rigClient.ping();
     }
   });

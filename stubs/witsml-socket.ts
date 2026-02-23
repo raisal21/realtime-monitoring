@@ -11,6 +11,11 @@ enum ClientState {
   CLOSED = "CLOSED",
 }
 
+enum StreamDef {
+  DRILL = 101,
+  GEO = 102,
+}
+
 const ValidTransitions: Record<ClientState, ClientState[]> = {
   [ClientState.CONNECTING]: [ClientState.HANDSHAKING, ClientState.CLOSING],
   [ClientState.HANDSHAKING]: [
@@ -40,6 +45,9 @@ interface RigWebSocket extends WebSocket {
   state: ClientState;
   isAlive: boolean;
   lastActivity: number;
+  subscriptions: Set<StreamDef>;
+  slowSince?: number;
+  droppedFrames: number;
 }
 
 const wss = new WebSocketServer({ port: 8080 });
@@ -58,7 +66,11 @@ function transitionState(client: RigWebSocket, nextState: ClientState) {
 }
 
 // --- Memory & State ---
-// Header (8) + Time (8) + Depth (4) + Sensor (5x4 = 20) = 40 Byte
+const MAX_BUFFER = 2 * 1024 * 1024;
+const SLOW_TIMEOUT = 5000;
+const MAX_DROPS = 100;
+
+// Header (8) + Time (8) + Depth (4) + Sensor (5x4 = 20) = 40 Bytek
 const drillBuff = new ArrayBuffer(40);
 const drillView = new DataView(drillBuff);
 
@@ -98,15 +110,39 @@ function getRandom(min: number, max: number) {
   return Math.random() * (max - min) + min;
 }
 
-function broadcast(buffer: ArrayBuffer) {
+function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
+  const now = Date.now();
+
   wss.clients.forEach((client) => {
     const rigClient = client as RigWebSocket;
     if (
-      rigClient.readyState === WebSocket.OPEN &&
-      rigClient.state === ClientState.ACTIVE
+      rigClient.readyState !== WebSocket.OPEN ||
+      rigClient.state !== ClientState.ACTIVE ||
+      rigClient.subscriptions.has(streamId)
     ) {
-      rigClient.send(buffer);
+      return;
     }
+
+    if (rigClient.bufferedAmount > MAX_BUFFER) {
+      rigClient.droppedFrames++;
+
+      if (!rigClient.slowSince) {
+        rigClient.slowSince = now;
+      }
+
+      if (now - rigClient.slowSince > SLOW_TIMEOUT) {
+        console.warn("Disconnecting slow client");
+
+        transitionState(rigClient, ClientState.CLOSING);
+        rigClient.close(1009, "Client too slow");
+      }
+
+      return;
+    }
+
+    rigClient.slowSince = undefined;
+
+    rigClient.send(buffer);
   });
 }
 
@@ -123,7 +159,7 @@ function sendDrillBuff() {
   drillView.setFloat32(32, rigState.hkld);
   drillView.setFloat32(36, rigState.spp);
 
-  broadcast(drillBuff);
+  broadcast(drillBuff, StreamDef.DRILL);
 }
 
 function sendGeoBuff() {
@@ -139,7 +175,160 @@ function sendGeoBuff() {
   geoView.setFloat32(32, rigState.inc);
   geoView.setFloat32(36, rigState.azi);
 
-  broadcast(geoBuff);
+  broadcast(geoBuff, StreamDef.GEO);
+}
+
+function sendMessage(
+  ws: RigWebSocket,
+  messageType: string,
+  payload?: Record<string, any>,
+  error?: { code: string; message: string },
+) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+
+  ws.send(
+    JSON.stringify({
+      messageType,
+      timestamp: Date.now(),
+      ...(payload && { payload }),
+      ...(error && { error }),
+    }),
+  );
+}
+
+function handleHandshake(
+  rigWs: RigWebSocket,
+  data: any,
+  handshakeTimer: NodeJS.Timeout,
+) {
+  if (rigWs.state !== ClientState.HANDSHAKING) return;
+
+  if (typeof data.schemaId !== "number") {
+    sendMessage(rigWs, "HANDSHAKE_ACK", undefined, {
+      code: "INVALID_SCHEMA",
+      message: "schemaId must be a number",
+    });
+    return;
+  }
+
+  if (data.schemaId !== 1) {
+    transitionState(rigWs, ClientState.CLOSING);
+
+    sendMessage(rigWs, "HANDSHAKE_ACK", undefined, {
+      code: "UNSUPPORTED_SCHEMA",
+      message: "Unsupported schemaId",
+    });
+
+    rigWs.close(1002, "Unsupported schema");
+    clearTimeout(handshakeTimer);
+    return;
+  }
+
+  transitionState(rigWs, ClientState.ACTIVE);
+
+  sendMessage(rigWs, "HANDSHAKE_ACK", {
+    status: "OK",
+    availableStreams: Object.values(StreamDef),
+  });
+
+  console.log("Client Handshaked!");
+
+  clearTimeout(handshakeTimer);
+}
+
+function handleSubscribe(rigWs: RigWebSocket, data: any) {
+  if (![ClientState.ACTIVE, ClientState.IDLE].includes(rigWs.state)) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "INVALID_STATE",
+      message: "Client must be ACTIVE or IDLE to subscribe",
+    });
+    return;
+  }
+
+  if (!Array.isArray(data.streams)) {
+    sendMessage(rigWs, "SUBSCRIBE_ACK", undefined, {
+      code: "INVALID_PAYLOAD",
+      message: "streams must be an array",
+    });
+    return;
+  }
+
+  const accepted: StreamDef[] = [];
+  const rejected: number[] = [];
+
+  for (const id of data.streams) {
+    if (typeof id !== "number") {
+      rejected.push(id);
+      continue;
+    }
+
+    if (Object.values(StreamDef).includes(id)) {
+      rigWs.subscriptions.add(id);
+      accepted.push(id);
+    } else {
+      rejected.push(id);
+    }
+  }
+
+  sendMessage(rigWs, "SUBSCRIBE_ACK", {
+    accepted,
+    rejected,
+    currentSubscriptions: Array.from(rigWs.subscriptions),
+  });
+
+  console.log(`Subscription updated →`, Array.from(rigWs.subscriptions));
+}
+
+function handleUnsubscribe(rigWs: RigWebSocket, data: any) {
+  if (![ClientState.ACTIVE, ClientState.IDLE].includes(rigWs.state)) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "INVALID_STATE",
+      message: "Client must be ACTIVE or IDLE to unsubscribe",
+    });
+    return;
+  }
+
+  if (!Array.isArray(data.streams)) {
+    sendMessage(rigWs, "UNSUBSCRIBE_ACK", undefined, {
+      code: "INVALID_PAYLOAD",
+      message: "streams must be an array",
+    });
+    return;
+  }
+
+  const removed: StreamDef[] = [];
+  const notFound: number[] = [];
+
+  for (const id of data.streams) {
+    if (typeof id !== "number") {
+      notFound.push(id);
+      continue;
+    }
+
+    if (rigWs.subscriptions.has(id)) {
+      rigWs.subscriptions.delete(id);
+      removed.push(id);
+    } else {
+      notFound.push(id);
+    }
+  }
+
+  sendMessage(rigWs, "UNSUBSCRIBE_ACK", {
+    removed,
+    notFound,
+    currentSubscriptions: Array.from(rigWs.subscriptions),
+  });
+
+  console.log(`Subscription updated →`, Array.from(rigWs.subscriptions));
+}
+
+function handleUnknownMessage(rigWs: RigWebSocket, data: any) {
+  console.warn(`[PROTOCOL WARNING] Unknown message:`, data);
+
+  sendMessage(rigWs, "ERROR", undefined, {
+    code: "UNKNOWN_MESSAGE_TYPE",
+    message: `Unsupported messageType: ${data.messageType ?? "undefined"}`,
+  });
 }
 
 let tick = 0;
@@ -150,6 +339,7 @@ wss.on("connection", (ws: WebSocket) => {
   rigWs.state = ClientState.CONNECTING;
   rigWs.isAlive = true;
   rigWs.lastActivity = Date.now();
+  rigWs.subscriptions = new Set();
 
   console.log("Client connected. Waiting for handshake");
 
@@ -164,28 +354,37 @@ wss.on("connection", (ws: WebSocket) => {
 
   rigWs.on("message", (message) => {
     rigWs.lastActivity = Date.now();
-    if (rigWs.state !== ClientState.HANDSHAKING) return;
     try {
       const data = JSON.parse(message.toString());
 
-      // Validate handshake
-      if (data.messageType === "HANDSHAKE" && data.schemaId === 1) {
-        transitionState(rigWs, ClientState.ACTIVE);
-        rigWs.send(
-          JSON.stringify({
-            messagetype: "HANDSHAKE",
-            status: "OK",
-            streams: [101, 102],
-          }),
+      if (
+        rigWs.state === ClientState.HANDSHAKING &&
+        data.messageType !== "HANDSHAKE"
+      ) {
+        console.warn(
+          `[PROTOCOL VIOLATION] Client sent ${data.messageType} during HANDSHAKING`,
         );
-
-        console.log("Client Handshaked!");
-        clearTimeout(handshakeTimer);
-      } else {
         transitionState(rigWs, ClientState.CLOSING);
-        rigWs.close(1002, "Invalid handshake schema");
-
+        if (rigWs.readyState === WebSocket.OPEN) {
+          rigWs.close(1002, "Expected HANDSHAKE as the first message");
+        }
         clearTimeout(handshakeTimer);
+        return;
+      }
+
+      switch (data.messageType) {
+        case "HANDSHAKE":
+          handleHandshake(rigWs, data, handshakeTimer);
+          break;
+        case "SUBSCRIBE":
+          handleSubscribe(rigWs, data);
+          break;
+        case "UNSUBSCRIBE":
+          handleUnsubscribe(rigWs, data);
+          break;
+        default:
+          handleUnknownMessage(rigWs, data);
+          break;
       }
     } catch (error) {
       console.error("Invalid JSON Handshake", error);

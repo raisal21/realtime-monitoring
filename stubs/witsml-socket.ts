@@ -41,6 +41,28 @@ const ValidTransitions: Record<ClientState, ClientState[]> = {
   [ClientState.CLOSED]: [],
 };
 
+enum AlarmSeverity {
+  INFO = "INFO",
+  WARNING = "WARNING",
+  CRITICAL = "CRITICAL",
+}
+
+interface AlarmAcknowledgement {
+  operatorName: string;
+  role: string;
+  timestamp: number;
+}
+
+interface Alarm {
+  id: string;
+  code: string;
+  message: string;
+  severity: AlarmSeverity;
+  raisedAt: number;
+  acknowledged: boolean;
+  acknowledgedBy?: AlarmAcknowledgement;
+}
+
 interface RigWebSocket extends WebSocket {
   state: ClientState;
   isAlive: boolean;
@@ -68,7 +90,6 @@ function transitionState(client: RigWebSocket, nextState: ClientState) {
 // --- Memory & State ---
 const MAX_BUFFER = 2 * 1024 * 1024;
 const SLOW_TIMEOUT = 5000;
-const MAX_DROPS = 100;
 
 // Header (8) + Time (8) + Depth (4) + Sensor (5x4 = 20) = 40 Bytek
 const drillBuff = new ArrayBuffer(40);
@@ -76,6 +97,11 @@ const drillView = new DataView(drillBuff);
 
 const geoBuff = new ArrayBuffer(40);
 const geoView = new DataView(geoBuff);
+
+let activeAlarms: Map<string, Alarm> = new Map();
+let alarmSequence: number = 0;
+
+const activeAlarmCodes = new Set<string>();
 
 let rigState = {
   timestamp: BigInt(Date.now()),
@@ -110,19 +136,52 @@ function getRandom(min: number, max: number) {
   return Math.random() * (max - min) + min;
 }
 
+function raiseAlarm(code: string, message: string, severity: AlarmSeverity) {
+  if (activeAlarmCodes.has(code)) return;
+
+  let id = `ALM-${alarmSequence++}`;
+  const now = Date.now();
+
+  const alarm: Alarm = {
+    id: id,
+    code: code,
+    message: message,
+    severity: severity,
+    raisedAt: now,
+    acknowledged: false,
+    acknowledgedBy: undefined,
+  };
+
+  activeAlarms.set(id, alarm);
+  activeAlarmCodes.add(code);
+
+  broadcastAlarmRaised(alarm);
+}
+
+function broadcastAlarmRaised(alarm: Alarm) {
+  for (const client of wss.clients) {
+    const rigClient = client as RigWebSocket;
+
+    if (rigClient.state !== ClientState.ACTIVE) continue;
+
+    rigClient.send(
+      JSON.stringify({
+        messageType: "ALARM_RAISED",
+        payload: { alarm },
+      }),
+    );
+  }
+}
+
 function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
   const now = Date.now();
 
-  wss.clients.forEach((client) => {
+  for (const client of wss.clients) {
     const rigClient = client as RigWebSocket;
-    if (
-      rigClient.readyState !== WebSocket.OPEN ||
-      rigClient.state !== ClientState.ACTIVE ||
-      rigClient.subscriptions.has(streamId)
-    ) {
-      return;
-    }
 
+    if (rigClient.readyState !== WebSocket.OPEN) continue;
+    if (rigClient.state !== ClientState.ACTIVE) continue;
+    if (!rigClient.subscriptions.has(streamId)) continue;
     if (rigClient.bufferedAmount > MAX_BUFFER) {
       rigClient.droppedFrames++;
 
@@ -143,7 +202,7 @@ function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
     rigClient.slowSince = undefined;
 
     rigClient.send(buffer);
-  });
+  }
 }
 
 function sendDrillBuff() {
@@ -331,6 +390,96 @@ function handleUnknownMessage(rigWs: RigWebSocket, data: any) {
   });
 }
 
+function handleAlarmAck(rigWs: RigWebSocket, data: any) {
+  if (![ClientState.ACTIVE, ClientState.IDLE].includes(rigWs.state)) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "INVALID_STATE",
+      message: "Client must be ACTIVE or IDLE to unsubscribe",
+    });
+  }
+
+  if (!data.payload) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "INVALID_PAYLOAD",
+      message: "Missing payload",
+    });
+    return;
+  }
+
+  const { alarmId, operatorName, role } = data.payload;
+
+  if (
+    typeof alarmId !== "string" ||
+    typeof operatorName !== "string" ||
+    typeof role !== "string"
+  ) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "INVALID_PAYLOAD",
+      message: "alarmId, operatorName, role must be valid strings",
+    });
+    return;
+  }
+
+  const alarm = activeAlarms.get(alarmId);
+
+  if (!alarm) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "ALARM_NOT_FOUND",
+      message: `Alarm ${alarmId} not found`,
+    });
+    return;
+  }
+
+  if (alarm.acknowledged) {
+    sendMessage(rigWs, "ERROR", undefined, {
+      code: "ALREADY_ACKED",
+      message: `Alarm ${alarmId} already acknowledged`,
+    });
+    return;
+  }
+
+  const now = Date.now();
+
+  alarm.acknowledged = true;
+  alarm.acknowledgedBy = {
+    operatorName,
+    role,
+    timestamp: now,
+  };
+
+  activeAlarmCodes.delete(alarm.code);
+
+  broadcastAlarmAcked(alarm);
+}
+
+function broadcastAlarmAcked(alarm: Alarm) {
+  for (const client of wss.clients) {
+    const rigClient = client as RigWebSocket;
+    if (rigClient.state !== ClientState.ACTIVE) continue;
+
+    rigClient.send(
+      JSON.stringify({
+        messageType: "ALARM_ACKED",
+        payload: { alarm },
+      }),
+    );
+  }
+}
+
+function mockAlarmGenerator() {
+  const probability = Math.random();
+
+  if (probability < 0.005) {
+    if (!activeAlarmCodes.has("HIGH_GAS")) {
+      raiseAlarm(
+        "HIGH_GAS",
+        "Gas exceeded safety threshold",
+        AlarmSeverity.CRITICAL,
+      );
+    }
+  }
+}
+
 let tick = 0;
 
 wss.on("connection", (ws: WebSocket) => {
@@ -381,6 +530,9 @@ wss.on("connection", (ws: WebSocket) => {
           break;
         case "UNSUBSCRIBE":
           handleUnsubscribe(rigWs, data);
+          break;
+        case "ALARM_ACKED":
+          handleAlarmAck(rigWs, data);
           break;
         default:
           handleUnknownMessage(rigWs, data);
@@ -449,6 +601,9 @@ setInterval(() => {
 
       sendGeoBuff();
     }
+
+    mockAlarmGenerator();
+
     tick++;
   } catch (error) {
     console.error("Critical Tick Error", error);

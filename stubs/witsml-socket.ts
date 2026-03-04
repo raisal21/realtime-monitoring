@@ -4,7 +4,6 @@ import { WebSocket, WebSocketServer } from "ws";
 enum ClientState {
   CONNECTING = "CONNECTING",
   HANDSHAKING = "HANDSHAKING",
-  // READY = "READY",
   ACTIVE = "ACTIVE",
   IDLE = "IDLE",
   CLOSING = "CLOSING",
@@ -18,15 +17,7 @@ enum StreamDef {
 
 const ValidTransitions: Record<ClientState, ClientState[]> = {
   [ClientState.CONNECTING]: [ClientState.HANDSHAKING, ClientState.CLOSING],
-  [ClientState.HANDSHAKING]: [
-    // ClientState.READY,
-    ClientState.CLOSED,
-  ],
-  // [ClientState.READY]: [
-  //   ClientState.ACTIVE,
-  //   ClientState.CLOSING,
-  //   ClientState.CLOSED,
-  // ],
+  [ClientState.HANDSHAKING]: [ClientState.CLOSED],
   [ClientState.ACTIVE]: [
     ClientState.IDLE,
     ClientState.CLOSING,
@@ -75,10 +66,12 @@ interface RigWebSocket extends WebSocket {
 const wss = new WebSocketServer({ port: 8080 });
 
 function transitionState(client: RigWebSocket, nextState: ClientState) {
+  // Prevent illegal state mutation to keep client lifecycle deterministic
   if (client.state === ClientState.CLOSED) return;
 
   const allowed = ValidTransitions[client.state] || [];
   if (allowed.includes(nextState)) {
+    console.debug(`[STATE] ${client.state} → ${nextState}`);
     client.state = nextState;
   } else {
     console.warn(
@@ -137,9 +130,10 @@ function getRandom(min: number, max: number) {
 }
 
 function raiseAlarm(code: string, message: string, severity: AlarmSeverity) {
+  // Prevent duplicate active alarms with same business code
   if (activeAlarmCodes.has(code)) return;
 
-  let id = `ALM-${alarmSequence++}`;
+  let id = `ALM-${Date.now()}-${alarmSequence++}`;
   const now = Date.now();
 
   const alarm: Alarm = {
@@ -152,6 +146,8 @@ function raiseAlarm(code: string, message: string, severity: AlarmSeverity) {
     acknowledgedBy: undefined,
   };
 
+  console.info(`[ALARM RAISED] ${alarm.code} (${alarm.id})`);
+
   activeAlarms.set(id, alarm);
   activeAlarmCodes.add(code);
 
@@ -163,6 +159,7 @@ function broadcastAlarmRaised(alarm: Alarm) {
     const rigClient = client as RigWebSocket;
 
     if (rigClient.state !== ClientState.ACTIVE) continue;
+    if (rigClient.readyState !== WebSocket.OPEN) continue;
 
     rigClient.send(
       JSON.stringify({
@@ -183,6 +180,7 @@ function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
     if (rigClient.state !== ClientState.ACTIVE) continue;
     if (!rigClient.subscriptions.has(streamId)) continue;
     if (rigClient.bufferedAmount > MAX_BUFFER) {
+      // Protect server from memory pressure caused by slow consumers
       rigClient.droppedFrames++;
 
       if (!rigClient.slowSince) {
@@ -190,7 +188,10 @@ function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
       }
 
       if (now - rigClient.slowSince > SLOW_TIMEOUT) {
-        console.warn("Disconnecting slow client");
+        // Disconnect persistently slow clients to maintain realtime guarantees
+        console.warn(
+          `[SLOW CLIENT] Disconnected after ${SLOW_TIMEOUT}ms buffer overflow`,
+        );
 
         transitionState(rigClient, ClientState.CLOSING);
         rigClient.close(1009, "Client too slow");
@@ -396,6 +397,7 @@ function handleAlarmAck(rigWs: RigWebSocket, data: any) {
       code: "INVALID_STATE",
       message: "Client must be ACTIVE or IDLE to unsubscribe",
     });
+    return;
   }
 
   if (!data.payload) {
@@ -430,6 +432,7 @@ function handleAlarmAck(rigWs: RigWebSocket, data: any) {
     return;
   }
 
+  // Idempotency guard to prevent double mutation from repeated ACK
   if (alarm.acknowledged) {
     sendMessage(rigWs, "ERROR", undefined, {
       code: "ALREADY_ACKED",
@@ -447,6 +450,9 @@ function handleAlarmAck(rigWs: RigWebSocket, data: any) {
     timestamp: now,
   };
 
+  console.info(`[ALARM ACKED] ${alarm.id} by ${operatorName} (${role})`);
+
+  // Allow future re-raise of same alarm code after acknowledgement
   activeAlarmCodes.delete(alarm.code);
 
   broadcastAlarmAcked(alarm);
@@ -510,6 +516,7 @@ wss.on("connection", (ws: WebSocket) => {
         rigWs.state === ClientState.HANDSHAKING &&
         data.messageType !== "HANDSHAKE"
       ) {
+        // Enforce protocol contract — first message must be HANDSHAKE
         console.warn(
           `[PROTOCOL VIOLATION] Client sent ${data.messageType} during HANDSHAKING`,
         );
@@ -531,7 +538,7 @@ wss.on("connection", (ws: WebSocket) => {
         case "UNSUBSCRIBE":
           handleUnsubscribe(rigWs, data);
           break;
-        case "ALARM_ACKED":
+        case "ALARM_ACK":
           handleAlarmAck(rigWs, data);
           break;
         default:
@@ -572,6 +579,7 @@ const interval = setInterval(function ping() {
       rigClient.state === ClientState.ACTIVE &&
       now - rigClient.lastActivity > IDLE_TIMEOUT_MS
     ) {
+      // Automatically downgrade inactive clients to reduce broadcast load
       transitionState(rigClient, ClientState.IDLE);
       console.log("Client masuk ke mode IDLE karena tidak ada aktivitas.");
     }
@@ -602,6 +610,7 @@ setInterval(() => {
       sendGeoBuff();
     }
 
+    // Simulate rare critical condition for testing alarm lifecycle
     mockAlarmGenerator();
 
     tick++;

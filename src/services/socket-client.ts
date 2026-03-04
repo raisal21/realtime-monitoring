@@ -1,76 +1,82 @@
-// import type { handshake } from "../domain/drilingSchema"
-// import { handshakeSchema } from "../domain/drilingSchema"
-// import * as z from "zod"
-//
-// const rawData:handshake = {
-//     messageType: 'HANSHAKE',
-//     schemaId: 1
-// }
-//
-//  const socket = new WebSocket("ws://localhost:8080")
-//
-// const sendHandshake = (ws: WebSocket, data: handshake) => ({
-//     const payload = JSON.stringify(data);
-//     ws.send(payload)
-// })
-//
+export const ClientState = {
+  CONNECTING: "CONNECTING",
+  HANDSHAKING: "HANDSHAKING",
+  ACTIVE: "ACTIVE",
+  IDLE: "IDLE",
+  CLOSING: "CLOSING",
+  CLOSED: "CLOSED",
+} as const;
 
-const output = document.querySelector("#output");
-const closeBtn = document.querySelector("#close");
+export type ClientState = (typeof ClientState)[keyof typeof ClientState];
 
-function writeToScreen(message) {
-  const pElem = document.createElement("p");
-  pElem.textContent = message;
-  output.appendChild(pElem);
+export const StreamDef = {
+  DRILL: 101,
+  GEO: 102,
+} as const;
+
+export type StreamDef = (typeof StreamDef)[keyof typeof StreamDef];
+
+const ValidTransitions: Record<ClientState, ClientState[]> = {
+  [ClientState.CONNECTING]: [ClientState.HANDSHAKING, ClientState.CLOSING],
+  [ClientState.HANDSHAKING]: [ClientState.CLOSED],
+  [ClientState.ACTIVE]: [
+    ClientState.IDLE,
+    ClientState.CLOSING,
+    ClientState.CLOSED,
+  ],
+  [ClientState.IDLE]: [
+    ClientState.ACTIVE,
+    ClientState.CLOSING,
+    ClientState.CLOSED,
+  ],
+  [ClientState.CLOSING]: [ClientState.CLOSED],
+  [ClientState.CLOSED]: [],
+};
+
+type RigClient = {
+  socket: WebSocketStream | null;
+  state: ClientState;
+};
+
+function transitionState(client: RigClient, nextState: ClientState) {
+  // Prevent illegal state mutation to keep client lifecycle deterministic
+  if (client.state === ClientState.CLOSED) return;
+
+  const allowed = ValidTransitions[client.state] || [];
+  if (allowed.includes(nextState)) {
+    console.debug(`[STATE] ${client.state} → ${nextState}`);
+    client.state = nextState;
+  } else {
+    console.warn(
+      `[STATE ERROR] Ilegal transisi: ${client.state} -> ${nextState}`,
+    );
+  }
 }
 
-if ("WebSocketStream" in self) {
-  const controller = new AbortController();
-  const wsURL = "ws://localhost:8888";
+export function createRigClient(): RigClient {
+  return {
+    socket: null,
+    state: ClientState.CLOSED,
+  };
+}
+
+export async function connect(client: RigClient) {
+  if (!("WebSocketStream" in globalThis)) {
+    throw new Error("WebSocketStream not supported");
+  }
+
+  transitionState(client, ClientState.CONNECTING);
+
+  const wsURL = "ws://localhost:8080";
   const socket = new WebSocketStream(wsURL, {
-    protocols: "mqtt",
     signal: AbortSignal.timeout(5000),
   });
 
-  async function start() {
-    const { readable, writable } = await socket.opened;
-    writeToScreen("CONNECTED");
-    closeBtn.disabled = false;
+  client.socket = socket;
 
-    const reader = readable.getReader();
-    const writer = writable.getWriter();
+  const { readable, writable } = await socket.opened;
 
-    writer.write("ping");
-    writeToScreen("SENT: ping");
+  transitionState(client, ClientState.HANDSHAKING);
 
-    while (true) {
-      const { value, done } = reader.read();
-      if (done) {
-        break;
-      }
-    }
-
-    setTimeout(async () => {
-      try {
-        await writer.write("ping");
-        writeToScreen("SENT: ping");
-      } catch (e) {
-        writeToScreen(`Error Writing to Socket: ${e.message}`);
-      }
-    });
-  }
-
-  start();
-
-  closeBtn?.addEventListener("click", () => {
-    socket.close({
-      closeCode: 1000,
-      reason: "That's all folks",
-    });
-  });
-
-  closeBtn.disabled = true;
-} else {
-  writeToScreen("Browser does not support");
-  console.log("Browser does not support");
+  return { readable, writable };
 }

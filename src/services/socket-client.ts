@@ -38,7 +38,7 @@ type RigClient = {
   state: ClientState;
 };
 
-function transitionState(client: RigClient, nextState: ClientState) {
+export function transitionState(client: RigClient, nextState: ClientState) {
   // Prevent illegal state mutation to keep client lifecycle deterministic
   if (client.state === ClientState.CLOSED) return;
 

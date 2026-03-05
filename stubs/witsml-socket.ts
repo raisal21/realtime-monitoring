@@ -1,6 +1,94 @@
 import { setInterval } from "node:timers";
 import { WebSocket, WebSocketServer } from "ws";
 
+// =============================================================================
+// Protocol Types
+// =============================================================================
+
+type ClientPayloadMap = {
+  HANDSHAKE: HandshakePayload;
+  SUBSCRIBE: SubscribePayload;
+  UNSUBSCRIBE: UnsubscribePayload;
+  ALARM_ACK: AlarmAckPayload;
+};
+
+// Protocol envelope used by all client messages.
+// The messageType determines the payload schema via ClientPayloadMap.
+// This pattern ensures compile-time type safety for message routing.
+type ClientMessage<T extends keyof ClientPayloadMap = keyof ClientPayloadMap> =
+  {
+    messageType: T;
+    payload: ClientPayloadMap[T];
+  };
+
+type MessageHandler<K extends keyof ClientPayloadMap> = (
+  ws: RigWebSocket,
+  payload: ClientPayloadMap[K],
+) => void;
+
+// =============================================================================
+// Domain Models
+// =============================================================================
+
+interface HandshakePayload {
+  schemaId: number;
+  protocolVersion: number;
+}
+
+interface SubscribePayload {
+  streams: number[];
+}
+
+interface UnsubscribePayload {
+  streams: number[];
+}
+
+interface AlarmAckPayload extends AlarmAcknowledgement {
+  alarmId: string;
+}
+
+interface Alarm {
+  id: string;
+  code: string;
+  message: string;
+  severity: AlarmSeverity;
+  raisedAt: number;
+  acknowledged: boolean;
+  acknowledgedBy?: AlarmAcknowledgement;
+}
+
+interface AlarmAcknowledgement {
+  operatorName: string;
+  role: string;
+  timestamp: number;
+}
+
+interface ServerMessage<T = any> {
+  messageType: string;
+  timestamp: number;
+  payload?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+// Extended WebSocket with runtime metadata used by the rig server.
+// This avoids external maps and keeps connection state co-located.
+interface RigWebSocket extends WebSocket {
+  state: ClientState;
+  isAlive: boolean;
+  lastActivity: number;
+  subscriptions: Set<StreamDef>;
+  slowSince?: number;
+  droppedFrames: number;
+  handshakeTimer?: NodeJS.Timeout;
+}
+
+// =============================================================================
+// Enums & Constants
+// =============================================================================
+
 enum ClientState {
   CONNECTING = "CONNECTING",
   HANDSHAKING = "HANDSHAKING",
@@ -15,9 +103,29 @@ enum StreamDef {
   GEO = 102,
 }
 
+enum AlarmSeverity {
+  INFO = "INFO",
+  WARNING = "WARNING",
+  CRITICAL = "CRITICAL",
+}
+
+const MAX_BUFFER = 2 * 1024 * 1024;
+const SLOW_TIMEOUT = 5000;
+const IDLE_TIMEOUT_MS = 15000;
+
+// =============================================================================
+// State Machine
+// =============================================================================
+
+// Defines allowed lifecycle transitions for a connected client.
+// Prevents invalid state mutations that could break protocol guarantees.
 const ValidTransitions: Record<ClientState, ClientState[]> = {
   [ClientState.CONNECTING]: [ClientState.HANDSHAKING, ClientState.CLOSING],
-  [ClientState.HANDSHAKING]: [ClientState.CLOSED],
+  [ClientState.HANDSHAKING]: [
+    ClientState.ACTIVE,
+    ClientState.CLOSING,
+    ClientState.CLOSED,
+  ],
   [ClientState.ACTIVE]: [
     ClientState.IDLE,
     ClientState.CLOSING,
@@ -31,39 +139,6 @@ const ValidTransitions: Record<ClientState, ClientState[]> = {
   [ClientState.CLOSING]: [ClientState.CLOSED],
   [ClientState.CLOSED]: [],
 };
-
-enum AlarmSeverity {
-  INFO = "INFO",
-  WARNING = "WARNING",
-  CRITICAL = "CRITICAL",
-}
-
-interface AlarmAcknowledgement {
-  operatorName: string;
-  role: string;
-  timestamp: number;
-}
-
-interface Alarm {
-  id: string;
-  code: string;
-  message: string;
-  severity: AlarmSeverity;
-  raisedAt: number;
-  acknowledged: boolean;
-  acknowledgedBy?: AlarmAcknowledgement;
-}
-
-interface RigWebSocket extends WebSocket {
-  state: ClientState;
-  isAlive: boolean;
-  lastActivity: number;
-  subscriptions: Set<StreamDef>;
-  slowSince?: number;
-  droppedFrames: number;
-}
-
-const wss = new WebSocketServer({ port: 8080 });
 
 function transitionState(client: RigWebSocket, nextState: ClientState) {
   // Prevent illegal state mutation to keep client lifecycle deterministic
@@ -80,16 +155,9 @@ function transitionState(client: RigWebSocket, nextState: ClientState) {
   }
 }
 
-// --- Memory & State ---
-const MAX_BUFFER = 2 * 1024 * 1024;
-const SLOW_TIMEOUT = 5000;
-
-// Header (8) + Time (8) + Depth (4) + Sensor (5x4 = 20) = 40 Bytek
-const drillBuff = new ArrayBuffer(40);
-const drillView = new DataView(drillBuff);
-
-const geoBuff = new ArrayBuffer(40);
-const geoView = new DataView(geoBuff);
+// =============================================================================
+// Runtime State
+// =============================================================================
 
 let activeAlarms: Map<string, Alarm> = new Map();
 let alarmSequence: number = 0;
@@ -114,97 +182,20 @@ let rigState = {
 let seqDrill = 0;
 let seqGeo = 0;
 
-const IDLE_TIMEOUT_MS = 15000;
+// Binary packet layout (40 bytes)
+// ------------------------------------------------
+// 0   : streamId (uint8)
+// 1   : protocol version (uint8)
+// 4   : sequence number (uint32)
+// 8   : timestamp (uint64)
+// 16+ : sensor values (float32)
+// ------------------------------------------------
+// Layout must stay stable because clients parse this directly.
+const drillBuff = new ArrayBuffer(40);
+const drillView = new DataView(drillBuff);
 
-function heartbeat(ws: RigWebSocket) {
-  ws.isAlive = true;
-  ws.lastActivity = Date.now();
-  // Hanya kembalikan ke ACTIVE jika sebelumnya dia benar-benar IDLE
-  if (ws.state === ClientState.IDLE) {
-    transitionState(ws, ClientState.ACTIVE);
-  }
-}
-
-function getRandom(min: number, max: number) {
-  return Math.random() * (max - min) + min;
-}
-
-function raiseAlarm(code: string, message: string, severity: AlarmSeverity) {
-  // Prevent duplicate active alarms with same business code
-  if (activeAlarmCodes.has(code)) return;
-
-  let id = `ALM-${Date.now()}-${alarmSequence++}`;
-  const now = Date.now();
-
-  const alarm: Alarm = {
-    id: id,
-    code: code,
-    message: message,
-    severity: severity,
-    raisedAt: now,
-    acknowledged: false,
-    acknowledgedBy: undefined,
-  };
-
-  console.info(`[ALARM RAISED] ${alarm.code} (${alarm.id})`);
-
-  activeAlarms.set(id, alarm);
-  activeAlarmCodes.add(code);
-
-  broadcastAlarmRaised(alarm);
-}
-
-function broadcastAlarmRaised(alarm: Alarm) {
-  for (const client of wss.clients) {
-    const rigClient = client as RigWebSocket;
-
-    if (rigClient.state !== ClientState.ACTIVE) continue;
-    if (rigClient.readyState !== WebSocket.OPEN) continue;
-
-    rigClient.send(
-      JSON.stringify({
-        messageType: "ALARM_RAISED",
-        payload: { alarm },
-      }),
-    );
-  }
-}
-
-function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
-  const now = Date.now();
-
-  for (const client of wss.clients) {
-    const rigClient = client as RigWebSocket;
-
-    if (rigClient.readyState !== WebSocket.OPEN) continue;
-    if (rigClient.state !== ClientState.ACTIVE) continue;
-    if (!rigClient.subscriptions.has(streamId)) continue;
-    if (rigClient.bufferedAmount > MAX_BUFFER) {
-      // Protect server from memory pressure caused by slow consumers
-      rigClient.droppedFrames++;
-
-      if (!rigClient.slowSince) {
-        rigClient.slowSince = now;
-      }
-
-      if (now - rigClient.slowSince > SLOW_TIMEOUT) {
-        // Disconnect persistently slow clients to maintain realtime guarantees
-        console.warn(
-          `[SLOW CLIENT] Disconnected after ${SLOW_TIMEOUT}ms buffer overflow`,
-        );
-
-        transitionState(rigClient, ClientState.CLOSING);
-        rigClient.close(1009, "Client too slow");
-      }
-
-      return;
-    }
-
-    rigClient.slowSince = undefined;
-
-    rigClient.send(buffer);
-  }
-}
+const geoBuff = new ArrayBuffer(40);
+const geoView = new DataView(geoBuff);
 
 function sendDrillBuff() {
   drillView.setUint8(0, 101);
@@ -237,6 +228,22 @@ function sendGeoBuff() {
 
   broadcast(geoBuff, StreamDef.GEO);
 }
+// =============================================================================
+// Utilities
+// =============================================================================
+
+function heartbeat(ws: RigWebSocket) {
+  ws.isAlive = true;
+  ws.lastActivity = Date.now();
+  // Hanya kembalikan ke ACTIVE jika sebelumnya dia benar-benar IDLE
+  if (ws.state === ClientState.IDLE) {
+    transitionState(ws, ClientState.ACTIVE);
+  }
+}
+
+function getRandom(min: number, max: number) {
+  return Math.random() * (max - min) + min;
+}
 
 function sendMessage(
   ws: RigWebSocket,
@@ -246,57 +253,161 @@ function sendMessage(
 ) {
   if (ws.readyState !== WebSocket.OPEN) return;
 
-  ws.send(
-    JSON.stringify({
-      messageType,
-      timestamp: Date.now(),
-      ...(payload && { payload }),
-      ...(error && { error }),
-    }),
-  );
+  const message: ServerMessage = {
+    messageType,
+    timestamp: Date.now(),
+    payload,
+    error,
+  };
+
+  ws.send(JSON.stringify(message));
 }
+
+function broadcast(buffer: ArrayBuffer, streamId: StreamDef) {
+  const now = Date.now();
+
+  for (const client of wss.clients) {
+    const rigClient = client as RigWebSocket;
+
+    if (rigClient.readyState !== WebSocket.OPEN) continue;
+    if (rigClient.state !== ClientState.ACTIVE) continue;
+    if (!rigClient.subscriptions.has(streamId)) continue;
+
+    // Protect server from memory pressure caused by slow consumers.
+    // If a client cannot keep up with the stream rate we drop frames
+    // and eventually disconnect to preserve realtime guarantees.
+    if (rigClient.bufferedAmount > MAX_BUFFER) {
+      rigClient.droppedFrames++;
+
+      if (!rigClient.slowSince) {
+        rigClient.slowSince = now;
+      }
+
+      if (now - rigClient.slowSince > SLOW_TIMEOUT) {
+        // Disconnect persistently slow clients to maintain realtime guarantees
+        console.warn(
+          `[SLOW CLIENT] Disconnected after ${SLOW_TIMEOUT}ms buffer overflow`,
+        );
+
+        transitionState(rigClient, ClientState.CLOSING);
+        rigClient.close(1009, "Client too slow");
+      }
+
+      return;
+    }
+
+    rigClient.slowSince = undefined;
+
+    rigClient.send(buffer);
+  }
+}
+
+function broadcastAlarmRaised(alarm: Alarm) {
+  for (const client of wss.clients) {
+    const rigClient = client as RigWebSocket;
+
+    if (rigClient.state !== ClientState.ACTIVE) continue;
+    if (rigClient.readyState !== WebSocket.OPEN) continue;
+
+    sendMessage(rigClient, "ALARM_RAISED", { alarm });
+  }
+}
+
+function broadcastAlarmAcked(alarm: Alarm) {
+  for (const client of wss.clients) {
+    const rigClient = client as RigWebSocket;
+    if (rigClient.state !== ClientState.ACTIVE) continue;
+
+    sendMessage(rigClient, "ALARM_ACKED", { alarm });
+  }
+}
+
+function raiseAlarm(code: string, message: string, severity: AlarmSeverity) {
+  // Prevent duplicate active alarms with same business code
+  if (activeAlarmCodes.has(code)) return;
+
+  let id = `ALM-${Date.now()}-${alarmSequence++}`;
+  const now = Date.now();
+
+  const alarm: Alarm = {
+    id: id,
+    code: code,
+    message: message,
+    severity: severity,
+    raisedAt: now,
+    acknowledged: false,
+    acknowledgedBy: undefined,
+  };
+
+  console.info(`[ALARM RAISED] ${alarm.code} (${alarm.id})`);
+
+  activeAlarms.set(id, alarm);
+  activeAlarmCodes.add(code);
+
+  broadcastAlarmRaised(alarm);
+}
+
+function mockAlarmGenerator() {
+  const probability = Math.random();
+
+  if (probability < 0.005) {
+    if (!activeAlarmCodes.has("HIGH_GAS")) {
+      raiseAlarm(
+        "HIGH_GAS",
+        "Gas exceeded safety threshold",
+        AlarmSeverity.CRITICAL,
+      );
+    }
+  }
+}
+
+// =============================================================================
+// Protocol Handlers
+// =============================================================================
 
 function handleHandshake(
   rigWs: RigWebSocket,
-  data: any,
-  handshakeTimer: NodeJS.Timeout,
+  payload: HandshakePayload | undefined,
 ) {
   if (rigWs.state !== ClientState.HANDSHAKING) return;
 
-  if (typeof data.schemaId !== "number") {
-    sendMessage(rigWs, "HANDSHAKE_ACK", undefined, {
+  if (!payload || typeof payload.schemaId !== "number") {
+    sendMessage(rigWs, "WELCOME", undefined, {
       code: "INVALID_SCHEMA",
       message: "schemaId must be a number",
     });
     return;
   }
 
-  if (data.schemaId !== 1) {
+  if (payload.schemaId !== 1) {
     transitionState(rigWs, ClientState.CLOSING);
 
-    sendMessage(rigWs, "HANDSHAKE_ACK", undefined, {
+    sendMessage(rigWs, "WELCOME", undefined, {
       code: "UNSUPPORTED_SCHEMA",
       message: "Unsupported schemaId",
     });
 
     rigWs.close(1002, "Unsupported schema");
-    clearTimeout(handshakeTimer);
+    clearTimeout(rigWs.handshakeTimer);
     return;
   }
 
   transitionState(rigWs, ClientState.ACTIVE);
 
-  sendMessage(rigWs, "HANDSHAKE_ACK", {
+  sendMessage(rigWs, "WELCOME", {
     status: "OK",
     availableStreams: Object.values(StreamDef),
   });
 
   console.log("Client Handshaked!");
 
-  clearTimeout(handshakeTimer);
+  clearTimeout(rigWs.handshakeTimer);
 }
 
-function handleSubscribe(rigWs: RigWebSocket, data: any) {
+function handleSubscribe(
+  rigWs: RigWebSocket,
+  payload: SubscribePayload | undefined,
+) {
   if (![ClientState.ACTIVE, ClientState.IDLE].includes(rigWs.state)) {
     sendMessage(rigWs, "ERROR", undefined, {
       code: "INVALID_STATE",
@@ -305,7 +416,7 @@ function handleSubscribe(rigWs: RigWebSocket, data: any) {
     return;
   }
 
-  if (!Array.isArray(data.streams)) {
+  if (!payload || !Array.isArray(payload.streams)) {
     sendMessage(rigWs, "SUBSCRIBE_ACK", undefined, {
       code: "INVALID_PAYLOAD",
       message: "streams must be an array",
@@ -316,7 +427,7 @@ function handleSubscribe(rigWs: RigWebSocket, data: any) {
   const accepted: StreamDef[] = [];
   const rejected: number[] = [];
 
-  for (const id of data.streams) {
+  for (const id of payload.streams) {
     if (typeof id !== "number") {
       rejected.push(id);
       continue;
@@ -339,7 +450,10 @@ function handleSubscribe(rigWs: RigWebSocket, data: any) {
   console.log(`Subscription updated →`, Array.from(rigWs.subscriptions));
 }
 
-function handleUnsubscribe(rigWs: RigWebSocket, data: any) {
+function handleUnsubscribe(
+  rigWs: RigWebSocket,
+  payload: UnsubscribePayload | undefined,
+) {
   if (![ClientState.ACTIVE, ClientState.IDLE].includes(rigWs.state)) {
     sendMessage(rigWs, "ERROR", undefined, {
       code: "INVALID_STATE",
@@ -348,7 +462,7 @@ function handleUnsubscribe(rigWs: RigWebSocket, data: any) {
     return;
   }
 
-  if (!Array.isArray(data.streams)) {
+  if (!payload || !Array.isArray(payload.streams)) {
     sendMessage(rigWs, "UNSUBSCRIBE_ACK", undefined, {
       code: "INVALID_PAYLOAD",
       message: "streams must be an array",
@@ -359,7 +473,7 @@ function handleUnsubscribe(rigWs: RigWebSocket, data: any) {
   const removed: StreamDef[] = [];
   const notFound: number[] = [];
 
-  for (const id of data.streams) {
+  for (const id of payload.streams) {
     if (typeof id !== "number") {
       notFound.push(id);
       continue;
@@ -382,25 +496,19 @@ function handleUnsubscribe(rigWs: RigWebSocket, data: any) {
   console.log(`Subscription updated →`, Array.from(rigWs.subscriptions));
 }
 
-function handleUnknownMessage(rigWs: RigWebSocket, data: any) {
-  console.warn(`[PROTOCOL WARNING] Unknown message:`, data);
-
-  sendMessage(rigWs, "ERROR", undefined, {
-    code: "UNKNOWN_MESSAGE_TYPE",
-    message: `Unsupported messageType: ${data.messageType ?? "undefined"}`,
-  });
-}
-
-function handleAlarmAck(rigWs: RigWebSocket, data: any) {
+function handleAlarmAck(
+  rigWs: RigWebSocket,
+  payload: AlarmAckPayload | undefined,
+) {
   if (![ClientState.ACTIVE, ClientState.IDLE].includes(rigWs.state)) {
     sendMessage(rigWs, "ERROR", undefined, {
       code: "INVALID_STATE",
-      message: "Client must be ACTIVE or IDLE to unsubscribe",
+      message: "Client must be ACTIVE or IDLE to acknowledge alarms",
     });
     return;
   }
 
-  if (!data.payload) {
+  if (!payload) {
     sendMessage(rigWs, "ERROR", undefined, {
       code: "INVALID_PAYLOAD",
       message: "Missing payload",
@@ -408,7 +516,7 @@ function handleAlarmAck(rigWs: RigWebSocket, data: any) {
     return;
   }
 
-  const { alarmId, operatorName, role } = data.payload;
+  const { alarmId, operatorName, role } = payload;
 
   if (
     typeof alarmId !== "string" ||
@@ -458,35 +566,49 @@ function handleAlarmAck(rigWs: RigWebSocket, data: any) {
   broadcastAlarmAcked(alarm);
 }
 
-function broadcastAlarmAcked(alarm: Alarm) {
-  for (const client of wss.clients) {
-    const rigClient = client as RigWebSocket;
-    if (rigClient.state !== ClientState.ACTIVE) continue;
+function handleUnknownMessage(rigWs: RigWebSocket, messageType: any) {
+  console.warn(`[PROTOCOL WARNING] Unknown message:`, messageType);
 
-    rigClient.send(
-      JSON.stringify({
-        messageType: "ALARM_ACKED",
-        payload: { alarm },
-      }),
-    );
-  }
+  sendMessage(rigWs, "ERROR", undefined, {
+    code: "UNKNOWN_MESSAGE_TYPE",
+    message: `Unsupported messageType: ${messageType ?? "undefined"}`,
+  });
 }
 
-function mockAlarmGenerator() {
-  const probability = Math.random();
+// =============================================================================
+// Dispatcher
+// =============================================================================
 
-  if (probability < 0.005) {
-    if (!activeAlarmCodes.has("HIGH_GAS")) {
-      raiseAlarm(
-        "HIGH_GAS",
-        "Gas exceeded safety threshold",
-        AlarmSeverity.CRITICAL,
-      );
-    }
+const handlers: {
+  [K in keyof ClientPayloadMap]: MessageHandler<K>;
+} = {
+  HANDSHAKE: handleHandshake,
+  SUBSCRIBE: handleSubscribe,
+  UNSUBSCRIBE: handleUnsubscribe,
+  ALARM_ACK: handleAlarmAck,
+};
+
+// Message dispatcher.
+// Routes incoming client messages to the appropriate protocol handler
+// based on messageType.
+function dispatchMessage<K extends keyof ClientPayloadMap>(
+  ws: RigWebSocket,
+  msg: ClientMessage<K>,
+) {
+  const handler = handlers[msg.messageType];
+
+  if (!handler) {
+    handleUnknownMessage(ws, msg.messageType);
+    return;
   }
+
+  handler(ws, msg.payload);
 }
 
-let tick = 0;
+// =============================================================================
+// WebSocket Lifecycle
+// =============================================================================
+const wss = new WebSocketServer({ port: 8080 });
 
 wss.on("connection", (ws: WebSocket) => {
   const rigWs = ws as RigWebSocket;
@@ -510,17 +632,27 @@ wss.on("connection", (ws: WebSocket) => {
   rigWs.on("message", (message) => {
     rigWs.lastActivity = Date.now();
     try {
-      const data = JSON.parse(message.toString());
+      const msg: ClientMessage = JSON.parse(message.toString());
+
+      if (!msg.messageType) {
+        sendMessage(rigWs, "ERROR", undefined, {
+          code: "INVALID_MESSAGE",
+          message: "messageType missing",
+        });
+        return;
+      }
 
       if (
         rigWs.state === ClientState.HANDSHAKING &&
-        data.messageType !== "HANDSHAKE"
+        msg.messageType !== "HANDSHAKE"
       ) {
         // Enforce protocol contract — first message must be HANDSHAKE
         console.warn(
-          `[PROTOCOL VIOLATION] Client sent ${data.messageType} during HANDSHAKING`,
+          `[PROTOCOL VIOLATION] Client sent ${msg.messageType} during HANDSHAKING`,
         );
+
         transitionState(rigWs, ClientState.CLOSING);
+
         if (rigWs.readyState === WebSocket.OPEN) {
           rigWs.close(1002, "Expected HANDSHAKE as the first message");
         }
@@ -528,23 +660,7 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
-      switch (data.messageType) {
-        case "HANDSHAKE":
-          handleHandshake(rigWs, data, handshakeTimer);
-          break;
-        case "SUBSCRIBE":
-          handleSubscribe(rigWs, data);
-          break;
-        case "UNSUBSCRIBE":
-          handleUnsubscribe(rigWs, data);
-          break;
-        case "ALARM_ACK":
-          handleAlarmAck(rigWs, data);
-          break;
-        default:
-          handleUnknownMessage(rigWs, data);
-          break;
-      }
+      dispatchMessage(rigWs, msg);
     } catch (error) {
       console.error("Invalid JSON Handshake", error);
       transitionState(rigWs, ClientState.CLOSING);
@@ -561,6 +677,10 @@ wss.on("connection", (ws: WebSocket) => {
     console.log(`Client disconnected. Final State: ${rigWs.state}`);
   });
 });
+
+// =============================================================================
+// Background Jobs
+// =============================================================================
 
 const interval = setInterval(function ping() {
   const now = Date.now();
@@ -589,6 +709,8 @@ const interval = setInterval(function ping() {
     }
   });
 }, 5000);
+
+let tick = 0;
 
 setInterval(() => {
   try {

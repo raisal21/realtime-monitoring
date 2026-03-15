@@ -1,10 +1,21 @@
+// App.tsx
+
+import * as z from "zod";
 import { useEffect, useRef } from "react";
 import {
   createRigClient,
   connect,
   ClientState,
-} from "./services/socket-client";
-import { transitionState } from "./services/socket-client";
+  transitionState,
+} from "./services/rig-client.ts";
+import { ServerSchema } from "./domain/message.schema.ts";
+import { handleWelcome, handleSubscribeAck } from "./services/protocol";
+import { log } from "./utils/logger.ts";
+import {
+  SUPPORTED_SCHEMA_ID,
+  PROTOCOL_VERSION,
+  StreamDef,
+} from "./domain/constants.ts";
 
 export default function App() {
   const clientRef = useRef(createRigClient());
@@ -21,45 +32,54 @@ export default function App() {
           JSON.stringify({
             messageType: "HANDSHAKE",
             payload: {
-              protocolVersion: 1,
-              schemaId: 1,
+              protocolVersion: PROTOCOL_VERSION,
+              schemaId: SUPPORTED_SCHEMA_ID,
               clientId: crypto.randomUUID(),
             },
           }),
         );
 
-        writer.releaseLock();
-
         const { value: welcomeValue } = await reader.read();
-        const welcomeMsg = JSON.parse(welcomeValue);
+        const welcomeMsg = ServerSchema.safeParse(welcomeValue);
 
-        if (welcomeMsg.messageType !== "WELCOME") {
-          throw new Error("Handshake rejected");
+        if (!welcomeMsg.success) {
+          const err = z.prettifyError(welcomeMsg.error);
+          log.warn("[PROTOCOL] Invalid WELCOME:", err);
+          return;
         }
 
-        console.log("Server Ack:", welcomeMsg);
-
+        const welcome = handleWelcome(welcomeMsg.data);
         transitionState(clientRef.current, ClientState.ACTIVE);
+
+        const streamsToSubscribe = Object.values(StreamDef).filter((id) =>
+          welcome.availableStreams.includes(id),
+        );
+
+        if (streamsToSubscribe.length === 0) {
+          log.warn("[PROTOCOL] No supported streams available from server");
+          return;
+        }
 
         await writer.write(
           JSON.stringify({
             messageType: "SUBSCRIBE",
             payload: {
-              streams: [101, 102],
+              streams: streamsToSubscribe,
             },
           }),
         );
 
         const { value: subValue } = await reader.read();
-        const subscribeAck = JSON.parse(subValue);
+        const subscribeAck = ServerSchema.safeParse(subValue);
 
-        if (subscribeAck.messageType !== "SUBSCRIBE_ACK") {
-          throw new Error("Subscribe rejected");
+        if (!subscribeAck.success) {
+          const err = z.prettifyError(subscribeAck.error);
+          log.warn("[PROTOCOL] Invalid SUBSCRIBE_ACK:", err);
+          return;
         }
 
-        console.log("Subscribe Ack:", subscribeAck);
-
-        writer.releaseLock();
+        const subsAck = handleSubscribeAck(subscribeAck.data);
+        transitionState(clientRef.current, ClientState.ACTIVE);
 
         while (true) {
           const { value, done } = await reader.read();

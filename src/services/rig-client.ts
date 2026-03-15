@@ -1,3 +1,7 @@
+// rig-client.ts
+
+import { log } from "../utils/logger";
+
 export const ClientState = {
   CONNECTING: "CONNECTING",
   HANDSHAKING: "HANDSHAKING",
@@ -8,13 +12,6 @@ export const ClientState = {
 } as const;
 
 export type ClientState = (typeof ClientState)[keyof typeof ClientState];
-
-export const StreamDef = {
-  DRILL: 101,
-  GEO: 102,
-} as const;
-
-export type StreamDef = (typeof StreamDef)[keyof typeof StreamDef];
 
 const ValidTransitions: Record<ClientState, ClientState[]> = {
   [ClientState.CONNECTING]: [ClientState.HANDSHAKING, ClientState.CLOSING],
@@ -44,12 +41,10 @@ export function transitionState(client: RigClient, nextState: ClientState) {
 
   const allowed = ValidTransitions[client.state] || [];
   if (allowed.includes(nextState)) {
-    console.debug(`[STATE] ${client.state} → ${nextState}`);
+    log.debug(`[STATE] ${client.state} → ${nextState}`);
     client.state = nextState;
   } else {
-    console.warn(
-      `[STATE ERROR] Ilegal transisi: ${client.state} -> ${nextState}`,
-    );
+    log.warn(`[STATE ERROR] Ilegal transisi: ${client.state} -> ${nextState}`);
   }
 }
 

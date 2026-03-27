@@ -1,4 +1,4 @@
-// message.schema.ts
+// domain/message.schema.ts
 
 import { z } from "zod";
 
@@ -38,44 +38,52 @@ export const Alarm = z.strictObject({
   acknowledgedBy: z.optional(AlarmAcknowledgement),
 });
 
+export const ClosingPayload = z.strictObject({
+  code: z.string(),
+  reason: z.string(),
+  retryable: z.boolean(),
+  closeCode: z.number(),
+});
+
 export const ErrorSchema = z.strictObject({
   code: z.string(),
   message: z.string(),
 });
 
-const SuccessMessage = z.discriminatedUnion("messageType", [
+export const ServerSchema = z.discriminatedUnion("messageType", [
   z.strictObject({
     messageType: z.literal("WELCOME"),
+    timestamp: z.number(),
     payload: WelcomePayload,
   }),
   z.strictObject({
     messageType: z.literal("SUBSCRIBE_ACK"),
+    timestamp: z.number(),
     payload: SubsAckPayload,
   }),
   z.strictObject({
     messageType: z.literal("UNSUBSCRIBE_ACK"),
+    timestamp: z.number(),
     payload: UnsubsAckPayload,
-  }),
-  z.strictObject({ messageType: z.literal("ALARM_RAISED"), payload: Alarm }),
-  z.strictObject({ messageType: z.literal("ALARM_ACKED"), payload: Alarm }),
-]);
-
-const ErrorMessage = z.discriminatedUnion("messageType", [
-  z.strictObject({ messageType: z.literal("ERROR") }),
-  z.strictObject({ messageType: z.literal("WELCOME"), error: ErrorSchema }),
-  z.strictObject({
-    messageType: z.literal("SUBSCRIBE_ACK"),
-    error: ErrorSchema,
-  }),
-  z.strictObject({
-    messageType: z.literal("UNSUBSCRIBE_ACK"),
-    error: ErrorSchema,
   }),
   z.strictObject({
     messageType: z.literal("ALARM_RAISED"),
+    timestamp: z.number(),
+    payload: z.strictObject({ alarm: Alarm }),
+  }),
+  z.strictObject({
+    messageType: z.literal("ALARM_ACKED"),
+    timestamp: z.number(),
+    payload: z.strictObject({ alarm: Alarm }),
+  }),
+  z.strictObject({
+    messageType: z.literal("CLOSING"),
+    timestamp: z.number(),
+    payload: ClosingPayload,
+  }),
+  z.strictObject({
+    messageType: z.literal("ERROR"),
+    timestamp: z.number(),
     error: ErrorSchema,
   }),
-  z.strictObject({ messageType: z.literal("ALARM_ACKED"), error: ErrorSchema }),
 ]);
-
-export const ServerSchema = z.union([SuccessMessage, ErrorMessage]);

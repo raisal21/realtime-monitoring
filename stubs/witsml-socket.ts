@@ -71,6 +71,14 @@ interface AlarmAcknowledgement {
   timestamp: number;
 }
 
+interface ClosingPayload {
+  code: string;
+  reason: string;
+  retryable: boolean;
+  retryAfterMs?: number;
+  closeCode: number;
+}
+
 interface ServerMessage<T = unknown> {
   messageType: string;
   timestamp: number;
@@ -324,8 +332,14 @@ function broadcastBinary(buffer: ArrayBuffer, streamId: StreamDef) {
           `[SLOW CLIENT] ${client.clientId} disconnected — ` +
             `${client.droppedFrames} frames dropped over ${SLOW_TIMEOUT_MS}ms`,
         );
-        transitionState(rigClient, ClientState.CLOSING);
-        rigClient.close(1009, "Client too slow");
+        closeClient(
+          rigClient,
+          "SLOW_CLIENT",
+          4429,
+          "Client too slow — backoff and retry",
+          true,
+          5_000,
+        );
       }
 
       continue;
@@ -402,6 +416,30 @@ function purgeExpiredAlarms() {
   if (purged > 0) log.debug(`[ALARM] Purged ${purged} expired alarm(s)`);
 }
 
+function closeClient(
+  rigWs: RigWebSocket,
+  code: string,
+  closeCode: number,
+  reason: string,
+  retryable: boolean,
+  retryAfterMs?: number,
+) {
+  sendMessage(rigWs, "CLOSING", {
+    code,
+    reason,
+    retryable,
+    retryAfterMs,
+    closeCode,
+  } satisfies ClosingPayload);
+
+  transitionState(rigWs, ClientState.CLOSING);
+
+  rigWs.close(closeCode, reason);
+
+  clearTimeout(rigWs.handshakeTimer);
+  rigWs.handshakeTimer = undefined;
+}
+
 // =============================================================================
 // Protocol Handlers
 // =============================================================================
@@ -416,23 +454,24 @@ function handleHandshake(
   rigWs.handshakeTimer = undefined;
 
   if (!payload || typeof payload.schemaId !== "number") {
-    sendMessage(rigWs, "WELCOME", undefined, {
-      code: "INVALID_SCHEMA",
-      message: "schemaId must be a number",
-    });
+    closeClient(
+      rigWs,
+      "INVALID_SCHEMA",
+      4400,
+      "schemaId must be a number",
+      false,
+    );
     return;
   }
 
   if (payload.schemaId !== SUPPORTED_SCHEMA_ID) {
-    transitionState(rigWs, ClientState.CLOSING);
-
-    sendMessage(rigWs, "WELCOME", undefined, {
-      code: "UNSUPPORTED_SCHEMA",
-      message: "Unsupported schemaId",
-    });
-
-    rigWs.close(1002, "Unsupported schema");
-    clearTimeout(rigWs.handshakeTimer);
+    closeClient(
+      rigWs,
+      "UNSUPPORTED_SCHEMA",
+      4409,
+      "Unsupported schema version",
+      false,
+    );
     return;
   }
 
@@ -691,8 +730,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   // Stored on the socket so handleHandshake can cancel it after a successful handshake.
   rigWs.handshakeTimer = setTimeout(() => {
     log.warn(`[HANDSHAKE] Timeout for ${rigWs.clientId}`);
-    transitionState(rigWs, ClientState.CLOSING);
-    rigWs.close(1008, "Handshake timeout");
+    closeClient(rigWs, "HANDSHAKE_TIMEOUT", 1008, "Handshake timeout", true);
   }, HANDSHAKE_TIMEOUT_MS);
 
   rigWs.on("error", (err) => {
@@ -706,13 +744,13 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     try {
       msg = JSON.parse(raw.toString());
     } catch {
-      sendMessage(rigWs, "ERROR", undefined, {
-        code: "INVALID_JSON",
-        message: "Message is not valid JSON",
-      });
-      transitionState(rigWs, ClientState.CLOSING);
-      rigWs.close(1002, "Invalid JSON");
-      clearTimeout(rigWs.handshakeTimer);
+      closeClient(
+        rigWs,
+        "INVALID_JSON",
+        4400,
+        "Message is not valid JSON",
+        false,
+      );
       return;
     }
 
@@ -732,9 +770,13 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       log.warn(
         `[PROTOCOL] ${rigWs.clientId} sent ${msg.messageType} before HANDSHAKE`,
       );
-      transitionState(rigWs, ClientState.CLOSING);
-      rigWs.close(1002, "Expected HANDSHAKE as first message");
-      clearTimeout(rigWs.handshakeTimer);
+      closeClient(
+        rigWs,
+        "HANDSHAKE_REQUIRED",
+        4400,
+        "Expected HANDSHAKE as first message",
+        false,
+      );
       return;
     }
 

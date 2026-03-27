@@ -1,36 +1,44 @@
-// protocol.ts
+// services/protocol.ts
 
 import { log } from "../utils/logger";
 import type {
   ServerMessage,
   WelcomeMessage,
   SubsAckMessage,
+  UnsubsAckMessage,
+  ClosingMessage,
 } from "../domain/message.types.ts";
 
-export function handleWelcome(msg: ServerMessage): WelcomeMessage | null {
-  if (msg.messageType !== "WELCOME") {
-    throw new Error(`[PROTOCOL] Expected WELCOME, got: ${msg.messageType}`);
-  }
-
-  if (!("payload" in msg)) {
-    throw new Error(`[PROTOCOL] WELCOME returned error:", ${msg.error}`);
-  }
-
-  log.debug("[PROTOCOL] WELCOME validated");
+export function handleWelcome(
+  msg: Extract<ServerMessage, { messageType: "WELCOME" }>,
+): WelcomeMessage {
+  log.debug(`[PROTOCOL] WELCOME — clientId=${msg.payload.clientId}`);
   return msg.payload;
 }
 
-export function handleSubscribeAck(msg: ServerMessage): SubsAckMessage | null {
-  if (msg.messageType !== "SUBSCRIBE_ACK") {
-    throw new Error(
-      `[PROTOCOL] Expected SUBSCRIBE_ACK, got:, ${msg.messageType}`,
-    );
-  }
+export function handleSubscribeAck(
+  msg: Extract<ServerMessage, { messageType: "SUBSCRIBE_ACK" }>,
+): SubsAckMessage {
+  log.debug(
+    `[PROTOCOL] SUBSCRIBE_ACK — accepted=[${msg.payload.accepted}] rejected=[${msg.payload.rejected}]`,
+  );
+  return msg.payload;
+}
 
-  if (!("payload" in msg)) {
-    throw new Error(`[PROTOCOL] SUBSCRIBE_ACK returned error:, ${msg.error}`);
-  }
+export function handleUnsubscribeAck(
+  msg: Extract<ServerMessage, { messageType: "UNSUBSCRIBE_ACK" }>,
+): UnsubsAckMessage {
+  log.debug(
+    `[PROTOCOL] UNSUBSCRIBE_ACK — removed=[${msg.payload.removed}] notFound=[${msg.payload.notFound}]`,
+  );
+  return msg.payload;
+}
 
-  log.debug("[PROTOCOL] SUBSCRIBE_ACK validated");
+export function handleClosing(
+  msg: Extract<ServerMessage, { messageType: "CLOSING" }>,
+): ClosingMessage {
+  log.debug(
+    `[PROTOCOL] CLOSING — code=${msg.payload.code} retryable=${msg.payload.retryable}`,
+  );
   return msg.payload;
 }

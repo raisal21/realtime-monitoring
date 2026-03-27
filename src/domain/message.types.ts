@@ -1,8 +1,21 @@
 // message.types.ts
 
 import * as z from "zod";
-import { WelcomePayload, SubsAckPayload, ServerSchema } from "./message.schema";
+import {
+  WelcomePayload,
+  SubsAckPayload,
+  UnsubsAckPayload,
+  Alarm,
+  ErrorSchema,
+  ServerSchema,
+  ClosingPayload,
+} from "./message.schema";
 
 export type WelcomeMessage = z.infer<typeof WelcomePayload>;
 export type SubsAckMessage = z.infer<typeof SubsAckPayload>;
-export type ServerMessage = z.infer<typeof ServerSchema>;
+export type UnsubsAckMessage = z.infer<typeof UnsubsAckPayload>;
+export type AlarmMessage = z.infer<typeof Alarm>;
+export type ClosingMessage = z.infer<typeof ClosingPayload>;
+export type ErrorMessage = z.infer<typeof ErrorSchema>;
+
+export type ServerMessage = z.infer<typeof ServerEnvelope>;

@@ -338,7 +338,6 @@ function broadcastBinary(buffer: ArrayBuffer, streamId: StreamDef) {
           4429,
           "Client too slow — backoff and retry",
           true,
-          5_000,
         );
       }
 
@@ -422,13 +421,11 @@ function closeClient(
   closeCode: number,
   reason: string,
   retryable: boolean,
-  retryAfterMs?: number,
 ) {
   sendMessage(rigWs, "CLOSING", {
     code,
     reason,
     retryable,
-    retryAfterMs,
     closeCode,
   } satisfies ClosingPayload);
 

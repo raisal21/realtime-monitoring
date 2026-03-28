@@ -5,7 +5,7 @@ import { handleClosing } from "./protocol";
 import { createBackoff } from "../utils/backoff";
 import { parseServerMessage } from "../domain/message.schema";
 import { log } from "../utils/logger";
-import { StreamDef } from "../domain/constants";
+import { StreamDef, FAST_RETRY_MS } from "../domain/constants";
 import type { ConnectResult } from "./rig-client";
 import type { ServerMessage } from "../domain/message.types";
 
@@ -126,6 +126,8 @@ export function createConnectionManager(
     setStatus("CONNECTING");
 
     while (!stopped && myGeneration === runGeneration) {
+      let fastRetry = false;
+
       try {
         const result = await attempt();
 
@@ -137,15 +139,36 @@ export function createConnectionManager(
 
         log.warn("[CONNECTION] Disconnected — will retry");
       } catch (err) {
-        // Unexpected error — socket sudah ditutup rapi oleh connect() via try-catch
-        log.error("[CONNECTION] Attempt threw unexpectedly", String(err));
+        if (err instanceof DOMException && err.name === "AbortError") {
+          log.debug("[CONNECTION] Aborted intentionally — exiting loop");
+          return;
+        }
+
+        if (err instanceof Error && err.name === "WebSocketError") {
+          log.warn(`[CONNECTION] Transient network blip — ${err.message}`);
+          fastRetry = true;
+        } else if (
+          err instanceof Error &&
+          err.name === "HandshakeTimeoutError"
+        ) {
+          log.warn(`[CONNECTION] ${err.message}`);
+        } else {
+          log.error("[CONNECTION] Attempt threw unexpectedly", String(err));
+        }
       }
 
-      // Pastikan socket bersih sebelum retry
+      if (stopped || myGeneration !== runGeneration) return;
+
       disconnect(client);
 
-      const next = backoff.next();
+      if (fastRetry) {
+        log.info(`[CONNECTION] Fast retry in ${FAST_RETRY_MS}ms`);
+        setStatus("RECONNECTING");
+        await sleep(FAST_RETRY_MS);
+        continue;
+      }
 
+      const next = backoff.next();
       if (!next.shouldRetry) {
         log.warn(`[CONNECTION] Backoff exhausted — reason=${next.reason}`);
         setStatus("FAILED");

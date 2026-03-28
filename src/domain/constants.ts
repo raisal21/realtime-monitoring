@@ -23,3 +23,4 @@ export const BACKOFF_BASE_MS = 1_000;
 export const BACKOFF_CAP_MS = 30_000;
 export const MAX_RETRY_ATTEMPTS = 10;
 export const MAX_RETRY_ELAPSED_MS = 5 * 60 * 1_000; // 5 minute
+export const FAST_RETRY_MS = 500;

@@ -4,6 +4,7 @@ import { log } from "../utils/logger";
 import { handleWelcome, handleSubscribeAck, handleClosing } from "./protocol";
 import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "../domain/constants";
 import type { StreamDef } from "../domain/constants";
+import { HANDSHAKE_TIMEOUT_MS } from "../domain/constants";
 import { parseServerMessage } from "../domain/message.schema";
 
 const ClientState = {
@@ -91,7 +92,11 @@ export async function connect(
   client.socket = socket;
 
   try {
-    const { readable, writable } = await socket.opened;
+    const { readable, writable } = await withTimeout(
+      socket.opened,
+      HANDSHAKE_TIMEOUT_MS,
+    );
+
     transitionState(client, ClientState.HANDSHAKING);
 
     const reader = readable.getReader();
@@ -108,7 +113,10 @@ export async function connect(
       }),
     );
 
-    const { value: welcomeRaw } = await reader.read();
+    const { value: welcomeRaw } = await withTimeout(
+      reader.read(),
+      HANDSHAKE_TIMEOUT_MS,
+    );
     const welcomeParsed = parseServerMessage(welcomeRaw);
 
     if (!welcomeParsed.success) {
@@ -143,7 +151,10 @@ export async function connect(
       }),
     );
 
-    const { value: subRaw } = await reader.read();
+    const { value: subRaw } = await withTimeout(
+      reader.read(),
+      HANDSHAKE_TIMEOUT_MS,
+    );
     const subParsed = parseServerMessage(subRaw);
 
     if (!subParsed.success) {
@@ -177,11 +188,34 @@ export async function connect(
 }
 
 export function disconnect(client: RigClient): void {
-  if (client.state === ClientState.CLOSED) return;
-  client.abortController?.abort();
-  client.abortController = null;
-  transitionState(client, ClientState.CLOSING);
-  client.socket?.close();
-  client.socket = null;
-  transitionState(client, ClientState.CLOSED);
+  if (client.state !== ClientState.CLOSED) {
+    transitionState(client, ClientState.CLOSING);
+    client.abortController?.abort();
+    client.abortController = null;
+    client.socket = null;
+    transitionState(client, ClientState.CLOSED);
+  }
+}
+
+function makeHandshakeTimeoutError(ms: number): Error {
+  const err = new Error(`Handshake timed out after ${ms}ms`);
+  err.name = "HandshakeTimeoutError";
+  return err;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(makeHandshakeTimeoutError(ms)), ms);
+
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }

@@ -6,6 +6,7 @@ export const WelcomePayload = z.strictObject({
   status: z.string(),
   clientId: z.string(),
   availableStreams: z.array(z.number()),
+  serverVersion: z.number(),
 });
 
 export const SubsAckPayload = z.strictObject({

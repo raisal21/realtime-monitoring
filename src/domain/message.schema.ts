@@ -87,3 +87,8 @@ export const ServerSchema = z.discriminatedUnion("messageType", [
     error: ErrorSchema,
   }),
 ]);
+
+export function parseServerMessage(raw: unknown) {
+  const json = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return ServerSchema.safeParse(json);
+}

@@ -3,7 +3,7 @@
 import { createRigClient, connect, disconnect } from "./rig-client";
 import { handleClosing } from "./protocol";
 import { createBackoff } from "../utils/backoff";
-import { ServerSchema } from "../domain/message.schema";
+import { parseServerMessage } from "../domain/message.schema";
 import { log } from "../utils/logger";
 import { StreamDef } from "../domain/constants";
 import type { ConnectResult } from "./rig-client";
@@ -54,6 +54,7 @@ export function createConnectionManager(
 
   let persistedClientId: string | null = null;
   let stopped = false;
+  let runGeneration = 0;
 
   function setStatus(status: ConnectionStatus): void {
     log.debug(`[CONNECTION] Status → ${status}`);
@@ -74,7 +75,7 @@ export function createConnectionManager(
         return { retryable: true };
       }
 
-      const parsed = ServerSchema.safeParse(value);
+      const parsed = parseServerMessage(value);
 
       if (!parsed.success) {
         log.warn("[CONNECTION] Unparseable message — skipping");
@@ -121,13 +122,14 @@ export function createConnectionManager(
   // Orchestrator — retry loop dengan backoff.
   // ---------------------------------------------------------------------------
   async function run(): Promise<void> {
+    const myGeneration = ++runGeneration;
     setStatus("CONNECTING");
 
-    while (!stopped) {
+    while (!stopped && myGeneration === runGeneration) {
       try {
         const result = await attempt();
 
-        if (!result.retryable || stopped) {
+        if (!result.retryable || stopped || myGeneration !== runGeneration) {
           log.warn("[CONNECTION] Permanent failure or stopped — giving up");
           setStatus("FAILED");
           return;
@@ -162,6 +164,7 @@ export function createConnectionManager(
   return {
     start(): void {
       stopped = false;
+      backoff.reset();
       run();
     },
 

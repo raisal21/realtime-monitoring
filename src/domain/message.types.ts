@@ -18,4 +18,4 @@ export type AlarmMessage = z.infer<typeof Alarm>;
 export type ClosingMessage = z.infer<typeof ClosingPayload>;
 export type ErrorMessage = z.infer<typeof ErrorSchema>;
 
-export type ServerMessage = z.infer<typeof ServerEnvelope>;
+export type ServerMessage = z.infer<typeof ServerSchema>;

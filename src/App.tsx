@@ -1,10 +1,8 @@
 // App.tsx
 
 import { useEffect, useRef } from "react";
-import {
-  createConnectionManager,
-  ConnectionStatus,
-} from "./services/connection-manager";
+import { createConnectionManager } from "./services/connection-manager";
+import type { ConnectionStatus } from "./services/connection-manager";
 import { log } from "./utils/logger";
 import type { ServerMessage } from "./domain/message.types";
 

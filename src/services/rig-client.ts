@@ -1,10 +1,10 @@
 // services/rig-client.ts
 
 import { log } from "../utils/logger";
-import { ServerSchema } from "../domain/message.schema";
 import { handleWelcome, handleSubscribeAck, handleClosing } from "./protocol";
 import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "../domain/constants";
 import type { StreamDef } from "../domain/constants";
+import { parseServerMessage } from "../domain/message.schema";
 
 const ClientState = {
   CLOSED: "CLOSED",
@@ -27,6 +27,7 @@ const ValidTransitions: Record<ClientState, ClientState[]> = {
 type RigClient = {
   socket: WebSocketStream | null;
   state: ClientState;
+  abortController: AbortController | null;
 };
 
 function transitionState(client: RigClient, next: ClientState): void {
@@ -66,12 +67,10 @@ export function createRigClient(): RigClient {
   return {
     socket: null,
     state: ClientState.CLOSED,
+    abortController: null,
   };
 }
 
-// connect() adalah operasi atomik:
-// Buka socket → Handshake → Subscribe → ACTIVE
-// Kalau gagal di titik manapun, socket ditutup dan state dikembalikan ke CLOSED.
 export async function connect(
   client: RigClient,
   options: ConnectOptions,
@@ -80,10 +79,13 @@ export async function connect(
     throw new Error("WebSocketStream is not supported in this environment");
   }
 
+  const ac = new AbortController();
+  client.abortController = ac;
+
   transitionState(client, ClientState.CONNECTING);
 
   const socket = new WebSocketStream("ws://localhost:8080", {
-    signal: AbortSignal.timeout(5_000),
+    signal: ac.signal,
   });
 
   client.socket = socket;
@@ -107,9 +109,7 @@ export async function connect(
     );
 
     const { value: welcomeRaw } = await reader.read();
-    const welcomeVal =
-      typeof welcomeRaw === "string" ? JSON.parse(welcomeRaw) : welcomeRaw;
-    const welcomeParsed = ServerSchema.safeParse(welcomeVal);
+    const welcomeParsed = parseServerMessage(welcomeRaw);
 
     if (!welcomeParsed.success) {
       throw new Error("Invalid WELCOME envelope");
@@ -144,8 +144,7 @@ export async function connect(
     );
 
     const { value: subRaw } = await reader.read();
-    const subValue = typeof subRaw === "string" ? JSON.parse(subRaw) : subRaw;
-    const subParsed = ServerSchema.safeParse(subValue);
+    const subParsed = parseServerMessage(subRaw);
 
     if (!subParsed.success) {
       throw new Error("Invalid SUBSCRIBE_ACK envelope");
@@ -171,6 +170,7 @@ export async function connect(
     transitionState(client, ClientState.CLOSING);
     client.socket?.close();
     client.socket = null;
+    client.abortController = null;
     transitionState(client, ClientState.CLOSED);
     throw err;
   }
@@ -178,6 +178,8 @@ export async function connect(
 
 export function disconnect(client: RigClient): void {
   if (client.state === ClientState.CLOSED) return;
+  client.abortController?.abort();
+  client.abortController = null;
   transitionState(client, ClientState.CLOSING);
   client.socket?.close();
   client.socket = null;

@@ -75,24 +75,33 @@ export function createConnectionManager(
         return { retryable: true };
       }
 
-      const parsed = parseServerMessage(value);
+      if (typeof value === "string") {
+        const parsed = parseServerMessage(value);
 
-      if (!parsed.success) {
-        log.warn("[CONNECTION] Unparseable message — skipping");
-        continue;
-      }
+        if (!parsed.success) {
+          log.warn("[CONNECTION] Unparseable message — skipping");
+          continue;
+        }
 
-      const msg = parsed.data;
+        const msg = parsed.data;
 
-      if (msg.messageType === "CLOSING") {
-        const closing = handleClosing(msg);
-        log.warn(
-          `[CONNECTION] CLOSING — code=${closing.code} retryable=${closing.retryable}`,
+        if (msg.messageType === "CLOSING") {
+          const closing = handleClosing(msg);
+          log.warn(
+            `[CONNECTION] CLOSING — code=${closing.code} retryable=${closing.retryable}`,
+          );
+          return { retryable: closing.retryable };
+        }
+
+        onMessage?.(msg);
+      } else if (value instanceof ArrayBuffer) {
+        log.debug(
+          `[CONNECTION] Binary frame received — ${value.byteLength} bytes`,
         );
-        return { retryable: closing.retryable };
+        // TODO: dispatch ke binary handler
+      } else {
+        log.warn("[CONNECTION] Unknown message type — skipping");
       }
-
-      onMessage?.(msg);
     }
   }
 

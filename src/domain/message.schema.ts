@@ -93,3 +93,25 @@ export function parseServerMessage(raw: unknown) {
   const json = typeof raw === "string" ? JSON.parse(raw) : raw;
   return ServerSchema.safeParse(json);
 }
+
+export const DrillSchema = z.strictObject({
+  timestamp: z.number(),
+  depth: z.number(),
+  sequence: z.number(),
+  rpm: z.number(),
+  wob: z.number(),
+  torque: z.number(),
+  spp: z.number(),
+  hkld: z.number(),
+});
+
+export const GeoSchema = z.strictObject({
+  timestamp: z.number(),
+  depth: z.number(),
+  sequence: z.number(),
+  gamma: z.number(),
+  rop: z.number(),
+  gas: z.number(),
+  inc: z.number(),
+  azi: z.number(),
+});

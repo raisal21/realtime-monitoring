@@ -8,6 +8,7 @@ import { log } from "../utils/logger";
 import { StreamDef, FAST_RETRY_MS } from "../domain/constants";
 import type { ConnectResult } from "./rig-client";
 import type { ServerMessage } from "../domain/message.types";
+import { readDrillBuff, readGeoBuff } from "./binary-parser";
 
 // =============================================================================
 // Types
@@ -98,7 +99,16 @@ export function createConnectionManager(
         log.debug(
           `[CONNECTION] Binary frame received — ${value.byteLength} bytes`,
         );
-        // TODO: dispatch ke binary handler
+
+        const streamId = new DataView(value).getUint8(0);
+
+        if (streamId === StreamDef.DRILL) {
+          readDrillBuff(value);
+        } else if (streamId === StreamDef.GEO) {
+          readGeoBuff(value);
+        } else {
+          log.warn(`[PARSER] Unexpected streamId: ${streamId}`);
+        }
       } else {
         log.warn("[CONNECTION] Unknown message type — skipping");
       }

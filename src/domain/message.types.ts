@@ -9,6 +9,8 @@ import {
   ErrorSchema,
   ServerSchema,
   ClosingPayload,
+  DrillSchema,
+  GeoSchema,
 } from "./message.schema";
 
 export type WelcomeMessage = z.infer<typeof WelcomePayload>;
@@ -19,3 +21,6 @@ export type ClosingMessage = z.infer<typeof ClosingPayload>;
 export type ErrorMessage = z.infer<typeof ErrorSchema>;
 
 export type ServerMessage = z.infer<typeof ServerSchema>;
+
+export type DrillUpdate = z.infer<typeof DrillSchema>;
+export type GeoUpdate = z.infer<typeof GeoSchema>;

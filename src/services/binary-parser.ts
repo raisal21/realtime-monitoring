@@ -14,7 +14,7 @@ export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
 
   const protocol = view.getUint8(1);
 
-  if (protocol !== 1) {
+  if (protocol !== PROTOCOL_VERSION) {
     log.warn(`[PARSER] Unsupported protocol version: ${protocol}`);
   }
 

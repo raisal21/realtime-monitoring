@@ -21,7 +21,7 @@ export const UnsubsAckPayload = z.strictObject({
   currentSubscriptions: z.array(z.number()),
 });
 
-const AlarmSeverity = z.enum(["INFO", "WARNING", "CRITICAL"]);
+export const AlarmSeverity = z.enum(["INFO", "WARNING", "CRITICAL"]);
 
 const AlarmAcknowledgement = z.strictObject({
   operatorName: z.string(),

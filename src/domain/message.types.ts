@@ -5,6 +5,7 @@ import {
   WelcomePayload,
   SubsAckPayload,
   UnsubsAckPayload,
+  AlarmSeverity,
   Alarm,
   ErrorSchema,
   ServerSchema,
@@ -17,6 +18,7 @@ export type WelcomeMessage = z.infer<typeof WelcomePayload>;
 export type SubsAckMessage = z.infer<typeof SubsAckPayload>;
 export type UnsubsAckMessage = z.infer<typeof UnsubsAckPayload>;
 export type AlarmMessage = z.infer<typeof Alarm>;
+export type AlarmSeverity = z.infer<typeof AlarmSeverity>;
 export type ClosingMessage = z.infer<typeof ClosingPayload>;
 export type ErrorMessage = z.infer<typeof ErrorSchema>;
 

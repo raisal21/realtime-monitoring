@@ -81,6 +81,20 @@ export function createConnectionManager(
 
         const msg = parsed.data;
 
+        if (msg.messageType === "ALARM_RAISED") {
+          const { alarm } = msg.payload;
+          globalRigStore.getState().registerAlarm({
+            uuid: alarm.id,
+            severity: alarm.severity,
+            message: alarm.message,
+            timestamp: alarm.raisedAt,
+          });
+        }
+
+        if (msg.messageType === "ALARM_ACKED") {
+          globalRigStore.getState().resolveAlarm(msg.payload.alarm.id);
+        }
+
         if (msg.messageType === "CLOSING") {
           const closing = handleClosing(msg);
           log.warn(

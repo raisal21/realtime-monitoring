@@ -6,6 +6,7 @@ import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "../domain/constants";
 import type { StreamDef } from "../domain/constants";
 import { HANDSHAKE_TIMEOUT_MS } from "../domain/constants";
 import { parseServerMessage } from "../domain/message.schema";
+import { globalRigStore } from "../store/index-store";
 
 const ClientState = {
   CLOSED: "CLOSED",
@@ -123,6 +124,8 @@ export async function connect(
       throw new Error("Invalid WELCOME envelope");
     }
 
+    globalRigStore.getState().updateConnectionStatus("ONLINE");
+
     if (welcomeParsed.data.messageType === "CLOSING") {
       const closing = handleClosing(welcomeParsed.data);
       log.warn(`[RIG] Rejected at handshake — code=${closing.code}`);
@@ -136,8 +139,11 @@ export async function connect(
     }
     const welcome = handleWelcome(welcomeParsed.data);
 
+    globalRigStore.getState().setAvailableStreams(welcome.availableStreams);
+    const currentAvailableStreams = globalRigStore.getState().availableStreams;
+
     const streamsToSubscribe = options.streams.filter((id) =>
-      welcome.availableStreams.includes(id),
+      currentAvailableStreams.includes(id),
     );
 
     if (streamsToSubscribe.length === 0) {

@@ -3,6 +3,7 @@ import type {
   ConnectionStatus,
 } from "../domain/message.types.ts";
 import { StreamDef } from "../domain/constants.ts";
+import type { DrillUpdate, GeoUpdate } from "../domain/message.types.ts";
 
 export interface GlobalRigState
   extends ConnectionSlice, TelemetrySlice, AlarmSlice, SubscriptionSlice {}
@@ -13,7 +14,7 @@ export interface ConnectionError {
 }
 
 export interface ConnectionState {
-  status: "OFFLINE" | "CONNECTING" | "ONLINE" | "ERROR";
+  status: ConnectionStatus;
   clientId: string | null;
   error?: ConnectionError | null;
   availableStreams: number[];
@@ -23,6 +24,7 @@ export interface ConnectionActions {
   updateConnectionStatus: (status: ConnectionState["status"]) => void;
   registerClient: (clientId: string) => void;
   setError: (error: ConnectionState["error"]) => void;
+  setAvailableStreams: (streams: number[]) => void;
 }
 
 export interface ConnectionSlice extends ConnectionState, ConnectionActions {}
@@ -33,9 +35,13 @@ export interface TelemetryPoint {
 }
 
 export interface TelemetrySlice {
-  telemetryStream: TelemetryPoint[];
-  bufferCapacity: number;
-  insertTelemetryPoint: (point: TelemetryPoint) => void;
+  drillStream: DrillUpdate[];
+  geoStream: GeoUpdate[];
+  drillBufferCapacity: number;
+  geoBufferCapacity: number;
+
+  insertDrillPoint: (point: DrillUpdate) => void;
+  insertGeoPoint: (point: GeoUpdate) => void;
 }
 
 export interface AlarmEntity {

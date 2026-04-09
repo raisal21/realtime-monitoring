@@ -16,7 +16,7 @@ export const createConnectionSlice: StateCreator<
   [],
   ConnectionSlice
 > = (set) => ({
-  status: "OFFLINE",
+  status: "IDLE",
   clientId: null,
   error: null,
   availableStreams: [],
@@ -24,10 +24,11 @@ export const createConnectionSlice: StateCreator<
   updateConnectionStatus: (newStatus) =>
     set({
       status: newStatus,
-      ...(newStatus !== "ERROR" && { error: null }),
+      ...(newStatus !== "FAILED" && { error: null }),
     }),
   registerClient: (id) => set({ clientId: id }),
-  setError: (err) => set({ error: err, status: "ERROR" }),
+  setError: (err) => set({ error: err, status: "FAILED" }),
+  setAvailableStreams: (streams) => set({ availableStreams: streams }),
 });
 
 export const createTelemetrySlice: StateCreator<
@@ -36,22 +37,31 @@ export const createTelemetrySlice: StateCreator<
   [],
   TelemetrySlice
 > = (set) => ({
-  telemetryStream: [],
-  bufferCapacity: 200,
+  drillStream: [],
+  geoStream: [],
+  drillBufferCapacity: 200,
+  geoBufferCapacity: 200,
 
-  insertTelemetryPoint: (newPoint) =>
+  insertDrillPoint: (newPoint) =>
     set((state) => {
       if (!newPoint) return state;
-
-      const current = state.telemetryStream;
-      const capacity = state.bufferCapacity;
-
+      const current = state.drillStream;
       const nextStream =
-        current.length >= capacity
+        current.length >= state.drillBufferCapacity
           ? [...current.slice(1), newPoint]
           : [...current, newPoint];
+      return { drillStream: nextStream };
+    }),
 
-      return { telemetryStream: nextStream };
+  insertGeoPoint: (newPoint) =>
+    set((state) => {
+      if (!newPoint) return state;
+      const current = state.geoStream;
+      const nextStream =
+        current.length >= state.geoBufferCapacity
+          ? [...current.slice(1), newPoint]
+          : [...current, newPoint];
+      return { geoStream: nextStream };
     }),
 });
 

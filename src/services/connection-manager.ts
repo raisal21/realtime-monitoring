@@ -7,25 +7,20 @@ import { parseServerMessage } from "../domain/message.schema";
 import { log } from "../utils/logger";
 import { StreamDef, FAST_RETRY_MS } from "../domain/constants";
 import type { ConnectResult } from "./rig-client";
-import type { ServerMessage } from "../domain/message.types";
+import type { ServerMessage, ConnectionStatus } from "../domain/message.types";
 import { readDrillBuff, readGeoBuff } from "./binary-parser";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type ConnectionStatus =
-  | "IDLE"
-  | "CONNECTING"
-  | "CONNECTED"
-  | "RECONNECTING"
-  | "FAILED";
-
 type LoopResult = { retryable: true } | { retryable: false };
 
 export type ConnectionManagerOptions = {
   onMessage?: (msg: ServerMessage) => void;
   onStatusChange?: (status: ConnectionStatus) => void;
+  getClientId?: () => string | null;
+  onClientIdRegistered?: (clientId: string) => void;
 };
 
 export type ConnectionManager = {
@@ -48,12 +43,12 @@ function sleep(ms: number): Promise<void> {
 export function createConnectionManager(
   options: ConnectionManagerOptions = {},
 ): ConnectionManager {
-  const { onMessage, onStatusChange } = options;
+  const { onMessage, onStatusChange, getClientId, onClientIdRegistered } =
+    options;
 
   const backoff = createBackoff();
   const client = createRigClient();
 
-  let persistedClientId: string | null = null;
   let stopped = false;
   let runGeneration = 0;
 
@@ -120,8 +115,10 @@ export function createConnectionManager(
   // connection-manager hanya tahu: berhasil atau tidak, dan perlu retry atau tidak.
   // ---------------------------------------------------------------------------
   async function attempt(): Promise<LoopResult> {
+    const currentClientId = getClientId?.() ?? null;
+
     const result: ConnectResult = await connect(client, {
-      clientId: persistedClientId,
+      clientId: currentClientId,
       streams: Object.values(StreamDef),
     });
 
@@ -130,9 +127,10 @@ export function createConnectionManager(
       return { retryable: result.retryable };
     }
 
-    persistedClientId = result.clientId;
+    onClientIdRegistered?.(result.clientId);
+
     backoff.reset();
-    setStatus("CONNECTED");
+    setStatus("ONLINE");
 
     return runLoop(result.reader);
   }

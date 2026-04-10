@@ -56,6 +56,8 @@ export interface AlarmEntity {
 export interface AlarmSlice {
   alarmRegistry: Map<string, AlarmEntity>;
   registerAlarm: (alarm: AlarmEntity) => void;
+
+  ackAlarm: (uuid: string) => void;
   resolveAlarm: (uuid: string) => void;
   clearAllAlarms: () => void;
 }

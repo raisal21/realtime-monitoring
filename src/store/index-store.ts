@@ -1,4 +1,5 @@
 import { createStore } from "zustand";
+import { log } from "../utils/logger";
 import type { StateCreator } from "zustand";
 import type {
   GlobalRigState,
@@ -72,7 +73,7 @@ export const createAlarmSlice: StateCreator<
   [],
   [],
   AlarmSlice
-> = (set) => ({
+> = (set, get) => ({
   alarmRegistry: new Map<string, AlarmEntity>(),
 
   registerAlarm: (alarm) =>
@@ -81,6 +82,17 @@ export const createAlarmSlice: StateCreator<
       updatedMap.set(alarm.uuid, alarm);
       return { alarmRegistry: updatedMap };
     }),
+
+  ackAlarm: (uuid: string) => {
+    const { status, sendMsg } = get();
+    if (status !== "ONLINE" || !sendMsg) {
+      log.warn(
+        "[STORE] Cannot ackowloledge alarm — offline or sender not ready.",
+      );
+      return;
+    }
+    sendMsg({ messageType: "ALARM_ACK", payload: { alarmId: uuid } });
+  },
 
   resolveAlarm: (uuid) =>
     set((state) => {

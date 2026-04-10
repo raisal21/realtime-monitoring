@@ -143,9 +143,17 @@ export function createConnectionManager(
         const streamId = new DataView(value).getUint8(0);
 
         if (streamId === StreamDef.DRILL) {
-          readDrillBuff(value);
+          const drillData = readDrillBuff(value);
+
+          if (drillData) {
+            globalRigStore.getState().insertDrillPoint(drillData);
+          }
         } else if (streamId === StreamDef.GEO) {
-          readGeoBuff(value);
+          const geoData = readGeoBuff(value);
+
+          if (geoData) {
+            globalRigStore.getState().insertGeoPoint(geoData);
+          }
         } else {
           log.warn(`[PARSER] Unexpected streamId: ${streamId}`);
         }

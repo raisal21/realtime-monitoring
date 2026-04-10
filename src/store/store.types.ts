@@ -64,4 +64,5 @@ export interface SubscriptionSlice {
   activeTopics: Set<StreamDef>;
   subscribe: (topic: StreamDef) => void;
   unsubscribe: (topic: StreamDef) => void;
+  reconcileTopics: (serverTopics: number[]) => void;
 }

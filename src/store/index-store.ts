@@ -104,42 +104,25 @@ const createSubscriptionSlice: StateCreator<
   activeTopics: new Set<StreamDef>(),
 
   subscribe: (topic) => {
-    const state = get(); // Ambil seluruh state saat ini
-
-    if (state.status === "ONLINE" && state.sendMsg) {
-      state.sendMsg({
-        messageType: "SUBSCRIBE",
-        payload: { streams: [topic] },
-      });
-
-      set({
-        activeTopics: new Set([...state.activeTopics, topic]),
-      });
-    } else {
-      console.error(
-        "[STORE] Gagal subscribe: Koneksi offline atau sender belum siap",
-      );
+    const { status, sendMsg } = get();
+    if (status !== "ONLINE" || !sendMsg) {
+      log.warn("[STORE] Cannot subscribe — offline or sender not ready.");
+      return;
     }
+    sendMsg({ messageType: "SUBSCRIBE", payload: { streams: [topic] } });
   },
 
   unsubscribe: (topic) => {
-    const state = get();
-
-    if (state.status === "ONLINE" && state.sendMsg) {
-      state.sendMsg({
-        messageType: "UNSUBSCRIBE",
-        payload: { streams: [topic] },
-      });
-
-      const updatedTopics = new Set(state.activeTopics);
-      updatedTopics.delete(topic);
-
-      set({ activeTopics: updatedTopics });
-    } else {
-      console.error(
-        "[STORE] Gagal unsubscribe: Koneksi offline atau sender belum siap",
-      );
+    const { status, sendMsg } = get();
+    if (status !== "ONLINE" || !sendMsg) {
+      log.warn("[STORE] Cannot unsubscribe — offline or sender not ready.");
+      return;
     }
+    sendMsg({ messageType: "UNSUBSCRIBE", payload: { streams: [topic] } });
+  },
+
+  reconcileTopics: (serverTopics) => {
+    set({ activeTopics: new Set(serverTopics as StreamDef[]) });
   },
 });
 

@@ -1,7 +1,11 @@
 // services/connection-manager.ts
 
 import { createRigClient, connect, disconnect } from "./rig-client";
-import { handleClosing } from "./protocol";
+import {
+  handleClosing,
+  handleSubscribeAck,
+  handleUnsubscribeAck,
+} from "./protocol";
 import { createBackoff } from "../utils/backoff";
 import { parseServerMessage } from "../domain/message.schema";
 import { log } from "../utils/logger";
@@ -98,6 +102,30 @@ export function createConnectionManager(
           globalRigStore.getState().resolveAlarm(msg.payload.alarm.id);
         }
 
+        if (msg.messageType === "SUBSCRIBE_ACK") {
+          const ack = handleSubscribeAck(msg);
+
+          // currentSubscriptions adalah kebenaran mutlak — langsung pakai
+          globalRigStore.getState().reconcileTopics(ack.currentSubscriptions);
+
+          if (ack.rejected.length > 0) {
+            log.warn(
+              `[CONNECTION] SUBSCRIBE_ACK — rejected: [${ack.rejected}]`,
+            );
+          }
+        }
+
+        if (msg.messageType === "UNSUBSCRIBE_ACK") {
+          const ack = handleUnsubscribeAck(msg);
+
+          globalRigStore.getState().reconcileTopics(ack.currentSubscriptions);
+
+          if (ack.notFound.length > 0) {
+            log.warn(
+              `[CONNECTION] UNSUBSCRIBE_ACK — notFound: [${ack.notFound}]`,
+            );
+          }
+        }
         if (msg.messageType === "CLOSING") {
           const closing = handleClosing(msg);
           log.warn(

@@ -18,6 +18,7 @@ export interface ConnectionState {
   clientId: string | null;
   error?: ConnectionError | null;
   availableStreams: number[];
+  sendMsg: ((payload: object) => void) | null;
 }
 
 export interface ConnectionActions {
@@ -25,6 +26,7 @@ export interface ConnectionActions {
   registerClient: (clientId: string) => void;
   setError: (error: ConnectionState["error"]) => void;
   setAvailableStreams: (streams: number[]) => void;
+  setSender: (fn: (payload: object) => void) => void;
 }
 
 export interface ConnectionSlice extends ConnectionState, ConnectionActions {}
@@ -61,4 +63,5 @@ export interface AlarmSlice {
 export interface SubscriptionSlice {
   activeTopics: Set<StreamDef>;
   subscribe: (topic: StreamDef) => void;
+  unsubscribe: (topic: StreamDef) => void;
 }

@@ -1,7 +1,7 @@
 // services/rig-client.ts
 
 import { log } from "../utils/logger";
-import { handleWelcome, handleSubscribeAck, handleClosing } from "./protocol";
+import { handleWelcome, handleClosing } from "./protocol";
 import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "../domain/constants";
 import type { StreamDef } from "../domain/constants";
 import { HANDSHAKE_TIMEOUT_MS } from "../domain/constants";
@@ -53,7 +53,12 @@ export type { RigClient };
 // Discriminated union — connection-manager tahu apakah berhasil atau tidak
 // tanpa kehilangan informasi retryable dari CLOSING.
 export type ConnectResult =
-  | { ok: true; reader: ReadableStreamDefaultReader<unknown>; clientId: string }
+  | {
+      ok: true;
+      reader: ReadableStreamDefaultReader<unknown>;
+      writer: WritableStreamDefaultWriter;
+      clientId: string;
+    }
   | { ok: false; retryable: boolean; code: string };
 
 type ConnectOptions = {
@@ -98,6 +103,7 @@ export async function connect(
       HANDSHAKE_TIMEOUT_MS,
     );
 
+    globalRigStore.getState().updateConnectionStatus("CONNECTING");
     transitionState(client, ClientState.HANDSHAKING);
 
     const reader = readable.getReader();
@@ -124,8 +130,6 @@ export async function connect(
       throw new Error("Invalid WELCOME envelope");
     }
 
-    globalRigStore.getState().updateConnectionStatus("ONLINE");
-
     if (welcomeParsed.data.messageType === "CLOSING") {
       const closing = handleClosing(welcomeParsed.data);
       log.warn(`[RIG] Rejected at handshake — code=${closing.code}`);
@@ -140,49 +144,9 @@ export async function connect(
     const welcome = handleWelcome(welcomeParsed.data);
 
     globalRigStore.getState().setAvailableStreams(welcome.availableStreams);
-    const currentAvailableStreams = globalRigStore.getState().availableStreams;
-
-    const streamsToSubscribe = options.streams.filter((id) =>
-      currentAvailableStreams.includes(id),
-    );
-
-    if (streamsToSubscribe.length === 0) {
-      throw new Error("No supported streams available from server");
-    }
-
-    await writer.write(
-      JSON.stringify({
-        messageType: "SUBSCRIBE",
-        payload: { streams: streamsToSubscribe },
-      }),
-    );
-
-    const { value: subRaw } = await withTimeout(
-      reader.read(),
-      HANDSHAKE_TIMEOUT_MS,
-    );
-    const subParsed = parseServerMessage(subRaw);
-
-    if (!subParsed.success) {
-      throw new Error("Invalid SUBSCRIBE_ACK envelope");
-    }
-
-    if (subParsed.data.messageType === "CLOSING") {
-      const closing = handleClosing(subParsed.data);
-      log.warn(`[RIG] Rejected at subscribe — code=${closing.code}`);
-      return { ok: false, retryable: closing.retryable, code: closing.code };
-    }
-
-    if (subParsed.data.messageType !== "SUBSCRIBE_ACK") {
-      throw new Error(
-        `[RIG] Expected SUBSCRIBE_ACK, got: ${subParsed.data.messageType}`,
-      );
-    }
-    handleSubscribeAck(subParsed.data);
-
     transitionState(client, ClientState.ACTIVE);
 
-    return { ok: true, reader, clientId: welcome.clientId };
+    return { ok: true, reader, writer, clientId: welcome.clientId };
   } catch (err) {
     transitionState(client, ClientState.CLOSING);
     client.socket?.close();

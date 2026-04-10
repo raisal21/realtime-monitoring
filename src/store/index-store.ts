@@ -16,19 +16,21 @@ export const createConnectionSlice: StateCreator<
   [],
   ConnectionSlice
 > = (set) => ({
-  status: "IDLE",
+  status: "OFFLINE",
   clientId: null,
   error: null,
   availableStreams: [],
+  sendMsg: null,
 
   updateConnectionStatus: (newStatus) =>
     set({
       status: newStatus,
-      ...(newStatus !== "FAILED" && { error: null }),
+      ...(newStatus !== "ERROR" && { error: null }),
     }),
   registerClient: (id) => set({ clientId: id }),
-  setError: (err) => set({ error: err, status: "FAILED" }),
+  setError: (err) => set({ error: err, status: "ERROR" }),
   setAvailableStreams: (streams) => set({ availableStreams: streams }),
+  setSender: (fn) => set({ sendMsg: fn }),
 });
 
 export const createTelemetrySlice: StateCreator<
@@ -102,14 +104,41 @@ const createSubscriptionSlice: StateCreator<
   activeTopics: new Set<StreamDef>(),
 
   subscribe: (topic) => {
-    const currentConnectionStatus = get().status;
+    const state = get(); // Ambil seluruh state saat ini
 
-    if (currentConnectionStatus === "ONLINE") {
-      set((state) => ({
+    if (state.status === "ONLINE" && state.sendMsg) {
+      state.sendMsg({
+        messageType: "SUBSCRIBE",
+        payload: { streams: [topic] },
+      });
+
+      set({
         activeTopics: new Set([...state.activeTopics, topic]),
-      }));
+      });
     } else {
-      console.error("Operation has been decline");
+      console.error(
+        "[STORE] Gagal subscribe: Koneksi offline atau sender belum siap",
+      );
+    }
+  },
+
+  unsubscribe: (topic) => {
+    const state = get();
+
+    if (state.status === "ONLINE" && state.sendMsg) {
+      state.sendMsg({
+        messageType: "UNSUBSCRIBE",
+        payload: { streams: [topic] },
+      });
+
+      const updatedTopics = new Set(state.activeTopics);
+      updatedTopics.delete(topic);
+
+      set({ activeTopics: updatedTopics });
+    } else {
+      console.error(
+        "[STORE] Gagal unsubscribe: Koneksi offline atau sender belum siap",
+      );
     }
   },
 });

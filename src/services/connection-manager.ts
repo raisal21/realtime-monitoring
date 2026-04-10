@@ -9,6 +9,7 @@ import { StreamDef, FAST_RETRY_MS } from "../domain/constants";
 import type { ConnectResult } from "./rig-client";
 import type { ServerMessage, ConnectionStatus } from "../domain/message.types";
 import { readDrillBuff, readGeoBuff } from "./binary-parser";
+import { globalRigStore } from "../store/index-store";
 
 // =============================================================================
 // Types
@@ -26,6 +27,7 @@ export type ConnectionManagerOptions = {
 export type ConnectionManager = {
   start(): void;
   stop(): void;
+  send(payload: object): void;
 };
 
 // =============================================================================
@@ -51,6 +53,7 @@ export function createConnectionManager(
 
   let stopped = false;
   let runGeneration = 0;
+  let activeWriter: WritableStreamDefaultWriter<string> | null = null;
 
   function setStatus(status: ConnectionStatus): void {
     log.debug(`[CONNECTION] Status → ${status}`);
@@ -141,6 +144,7 @@ export function createConnectionManager(
       return { retryable: result.retryable };
     }
 
+    activeWriter = result.writer;
     onClientIdRegistered?.(result.clientId);
 
     backoff.reset();
@@ -226,6 +230,16 @@ export function createConnectionManager(
       stopped = true;
       disconnect(client);
       log.info("[CONNECTION] Stopped by caller");
+    },
+
+    send(payload: object): void {
+      if (!activeWriter) {
+        log.warn("[CONNECTION] Cannot send message: Not connected");
+        return;
+      }
+      activeWriter.write(JSON.stringify(payload)).catch((err) => {
+        log.error("[CONNECTION] Failed to send message", err);
+      });
     },
   };
 }

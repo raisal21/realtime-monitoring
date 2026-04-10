@@ -27,10 +27,12 @@ export default function App() {
 
   useEffect(() => {
     const manager = managerRef.current;
+    globalRigStore.getState().setSender(manager.send);
     manager.start();
 
     return () => {
       manager.stop();
+      globalRigStore.getState().setSender(() => {});
     };
   }, []);
 

@@ -14,6 +14,13 @@ import {
   GeoSchema,
 } from "./message.schema";
 
+export type ConnectionStatus =
+  | "OFFLINE"
+  | "CONNECTING"
+  | "ONLINE"
+  | "RECONNECTING"
+  | "ERROR";
+
 export type WelcomeMessage = z.infer<typeof WelcomePayload>;
 export type SubsAckMessage = z.infer<typeof SubsAckPayload>;
 export type UnsubsAckMessage = z.infer<typeof UnsubsAckPayload>;

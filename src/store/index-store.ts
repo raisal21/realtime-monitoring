@@ -22,6 +22,8 @@ export const createConnectionSlice: StateCreator<
   error: null,
   availableStreams: [],
   sendMsg: null,
+  attempt: null,
+  delayMs: null,
 
   updateConnectionStatus: (newStatus) =>
     set({
@@ -29,6 +31,8 @@ export const createConnectionSlice: StateCreator<
       ...(newStatus !== "ERROR" && { error: null }),
     }),
   registerClient: (id) => set({ clientId: id }),
+  setAttempt: (attempt) => set({ attempt: attempt }),
+  setDelay: (delay) => set({ delayMs: delay }),
   setError: (err) => set({ error: err, status: "ERROR" }),
   setAvailableStreams: (streams) => set({ availableStreams: streams }),
   setSender: (fn) => set({ sendMsg: fn }),

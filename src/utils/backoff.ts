@@ -12,7 +12,7 @@ function getRandom(min: number, max: number): number {
 }
 
 type BackoffResult =
-  | { shouldRetry: true; delayMs: number }
+  | { shouldRetry: true; delayMs: number; attempt: number }
   | { shouldRetry: false; reason: "MAX_ATTEMPTS" | "MAX_ELAPSED" };
 
 type Backoff = {
@@ -49,7 +49,7 @@ export function createBackoff(): Backoff {
       prevDelay = delayMs;
       attempt++;
 
-      return { shouldRetry: true, delayMs };
+      return { shouldRetry: true, delayMs, attempt };
     },
 
     reset() {

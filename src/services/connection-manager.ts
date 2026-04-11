@@ -204,7 +204,7 @@ export function createConnectionManager(
 
         if (!result.retryable || stopped || myGeneration !== runGeneration) {
           log.warn("[CONNECTION] Permanent failure or stopped — giving up");
-          setStatus("FAILED");
+          setStatus("ERROR");
           return;
         }
 
@@ -242,11 +242,14 @@ export function createConnectionManager(
       const next = backoff.next();
       if (!next.shouldRetry) {
         log.warn(`[CONNECTION] Backoff exhausted — reason=${next.reason}`);
-        setStatus("FAILED");
+        setStatus("ERROR");
         return;
       }
+      globalRigStore.getState().setAttempt(next.attempt);
 
       log.info(`[CONNECTION] Retrying in ${Math.round(next.delayMs / 1_000)}s`);
+
+      globalRigStore.getState().setDelay(next.delayMs);
       setStatus("RECONNECTING");
       await sleep(next.delayMs);
     }

@@ -18,13 +18,19 @@ export interface ConnectionState {
   clientId: string | null;
   error?: ConnectionError | null;
   availableStreams: number[];
+  delayMs: number | null;
+  attempt: number | null;
   sendMsg: ((payload: object) => void) | null;
 }
 
 export interface ConnectionActions {
   updateConnectionStatus: (status: ConnectionState["status"]) => void;
   registerClient: (clientId: string) => void;
+
+  setAttempt: (attempt: number) => void;
+  setDelay: (delayMs: number) => void;
   setError: (error: ConnectionState["error"]) => void;
+
   setAvailableStreams: (streams: number[]) => void;
   setSender: (fn: (payload: object) => void) => void;
 }

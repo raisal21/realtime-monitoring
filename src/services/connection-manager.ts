@@ -32,6 +32,7 @@ export type ConnectionManager = {
   start(): void;
   stop(): void;
   send(payload: object): void;
+  retry(): void;
 };
 
 // =============================================================================
@@ -58,6 +59,7 @@ export function createConnectionManager(
   let stopped = false;
   let runGeneration = 0;
   let activeWriter: WritableStreamDefaultWriter<string> | null = null;
+  let running = false;
 
   function setStatus(status: ConnectionStatus): void {
     log.debug(`[CONNECTION] Status → ${status}`);
@@ -91,7 +93,7 @@ export function createConnectionManager(
         if (msg.messageType === "ALARM_RAISED") {
           const { alarm } = msg.payload;
           globalRigStore.getState().registerAlarm({
-            uuid: alarm.id,
+            id: alarm.id,
             severity: alarm.severity,
             message: alarm.message,
             timestamp: alarm.raisedAt,
@@ -186,6 +188,8 @@ export function createConnectionManager(
     backoff.reset();
     setStatus("ONLINE");
 
+    globalRigStore.getState().restoreSubscriptions();
+
     return runLoop(result.reader);
   }
 
@@ -193,65 +197,71 @@ export function createConnectionManager(
   // Orchestrator — retry loop dengan backoff.
   // ---------------------------------------------------------------------------
   async function run(): Promise<void> {
+    running = true;
     const myGeneration = ++runGeneration;
     setStatus("CONNECTING");
+    try {
+      while (!stopped && myGeneration === runGeneration) {
+        let fastRetry = false;
 
-    while (!stopped && myGeneration === runGeneration) {
-      let fastRetry = false;
+        try {
+          const result = await attempt();
 
-      try {
-        const result = await attempt();
+          if (!result.retryable || stopped || myGeneration !== runGeneration) {
+            log.warn("[CONNECTION] Permanent failure or stopped — giving up");
+            setStatus("ERROR");
+            return;
+          }
 
-        if (!result.retryable || stopped || myGeneration !== runGeneration) {
-          log.warn("[CONNECTION] Permanent failure or stopped — giving up");
+          log.warn("[CONNECTION] Disconnected — will retry");
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            log.debug("[CONNECTION] Aborted intentionally — exiting loop");
+            return;
+          }
+
+          if (err instanceof Error && err.name === "WebSocketError") {
+            log.warn(`[CONNECTION] Transient network blip — ${err.message}`);
+            fastRetry = true;
+          } else if (
+            err instanceof Error &&
+            err.name === "HandshakeTimeoutError"
+          ) {
+            log.warn(`[CONNECTION] ${err.message}`);
+          } else {
+            log.error("[CONNECTION] Attempt threw unexpectedly", String(err));
+          }
+        }
+
+        if (stopped || myGeneration !== runGeneration) return;
+
+        disconnect(client);
+
+        if (fastRetry) {
+          log.info(`[CONNECTION] Fast retry in ${FAST_RETRY_MS}ms`);
+          setStatus("RECONNECTING");
+          await sleep(FAST_RETRY_MS);
+          continue;
+        }
+
+        const next = backoff.next();
+        if (!next.shouldRetry) {
+          log.warn(`[CONNECTION] Backoff exhausted — reason=${next.reason}`);
           setStatus("ERROR");
           return;
         }
+        globalRigStore.getState().setAttempt(next.attempt);
 
-        log.warn("[CONNECTION] Disconnected — will retry");
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          log.debug("[CONNECTION] Aborted intentionally — exiting loop");
-          return;
-        }
+        log.info(
+          `[CONNECTION] Retrying in ${Math.round(next.delayMs / 1_000)}s`,
+        );
 
-        if (err instanceof Error && err.name === "WebSocketError") {
-          log.warn(`[CONNECTION] Transient network blip — ${err.message}`);
-          fastRetry = true;
-        } else if (
-          err instanceof Error &&
-          err.name === "HandshakeTimeoutError"
-        ) {
-          log.warn(`[CONNECTION] ${err.message}`);
-        } else {
-          log.error("[CONNECTION] Attempt threw unexpectedly", String(err));
-        }
-      }
-
-      if (stopped || myGeneration !== runGeneration) return;
-
-      disconnect(client);
-
-      if (fastRetry) {
-        log.info(`[CONNECTION] Fast retry in ${FAST_RETRY_MS}ms`);
+        globalRigStore.getState().setDelay(next.delayMs);
         setStatus("RECONNECTING");
-        await sleep(FAST_RETRY_MS);
-        continue;
+        await sleep(next.delayMs);
       }
-
-      const next = backoff.next();
-      if (!next.shouldRetry) {
-        log.warn(`[CONNECTION] Backoff exhausted — reason=${next.reason}`);
-        setStatus("ERROR");
-        return;
-      }
-      globalRigStore.getState().setAttempt(next.attempt);
-
-      log.info(`[CONNECTION] Retrying in ${Math.round(next.delayMs / 1_000)}s`);
-
-      globalRigStore.getState().setDelay(next.delayMs);
-      setStatus("RECONNECTING");
-      await sleep(next.delayMs);
+    } finally {
+      running = false;
     }
   }
 
@@ -279,6 +289,19 @@ export function createConnectionManager(
       activeWriter.write(JSON.stringify(payload)).catch((err) => {
         log.error("[CONNECTION] Failed to send message", err);
       });
+    },
+
+    retry(): void {
+      if (running) {
+        log.warn(
+          "[CONNECTION] retry() called while already running — ignoring",
+        );
+        return;
+      }
+      log.info("[CONNECTION] Manual retry triggered");
+      stopped = false;
+      backoff.reset();
+      run();
     },
   };
 }

@@ -13,6 +13,7 @@ export default function App() {
   const alarms = useStore(globalRigStore, (s) => s.alarmRegistry);
   const drillTelemetry = useStore(globalRigStore, (s) => s.drillStream);
   const geoTelemetry = useStore(globalRigStore, (s) => s.geoStream);
+  const triggerRetry = useStore(globalRigStore, (s) => s.triggerRetry);
 
   const managerRef = useRef(
     createConnectionManager({
@@ -28,11 +29,13 @@ export default function App() {
   useEffect(() => {
     const manager = managerRef.current;
     globalRigStore.getState().setSender(manager.send);
+    globalRigStore.getState().setRetrier(manager.retry);
     manager.start();
 
     return () => {
       manager.stop();
       globalRigStore.getState().setSender(() => {});
+      globalRigStore.getState().setRetrier(() => {});
     };
   }, []);
 
@@ -42,6 +45,8 @@ export default function App() {
       <p>Alarms: {alarms.size}</p>
       <p>Drill telemetry points: {drillTelemetry.length}</p>
       <p>Geo telemetry points: {geoTelemetry.length}</p>
+
+      {status === "ERROR" && <button onClick={triggerRetry}>Reconnect</button>}
     </>
   );
 }

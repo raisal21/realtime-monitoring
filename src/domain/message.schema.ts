@@ -23,7 +23,7 @@ export const UnsubsAckPayload = z.strictObject({
 
 export const AlarmSeverity = z.enum(["INFO", "WARNING", "CRITICAL"]);
 
-const AlarmAcknowledgement = z.strictObject({
+export const AlarmAcknowledgement = z.strictObject({
   operatorName: z.string(),
   role: z.string(),
   timestamp: z.number(),
@@ -43,6 +43,7 @@ export const ClosingPayload = z.strictObject({
   code: z.string(),
   reason: z.string(),
   retryable: z.boolean(),
+  retryAfterMs: z.number().optional(),
   closeCode: z.number(),
 });
 

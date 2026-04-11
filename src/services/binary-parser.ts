@@ -25,8 +25,8 @@ export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
     rpm: view.getFloat32(20),
     wob: view.getFloat32(24),
     torque: view.getFloat32(28),
-    spp: view.getFloat32(32),
-    hkld: view.getFloat32(36),
+    hkld: view.getFloat32(32),
+    spp: view.getFloat32(36),
   };
 
   // Validasi menggunakan .partial() karena data yang masuk hanya sebagian dari RigState

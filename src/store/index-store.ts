@@ -16,7 +16,7 @@ export const createConnectionSlice: StateCreator<
   [],
   [],
   ConnectionSlice
-> = (set) => ({
+> = (set, get) => ({
   status: "OFFLINE",
   clientId: null,
   error: null,
@@ -24,6 +24,7 @@ export const createConnectionSlice: StateCreator<
   sendMsg: null,
   attempt: null,
   delayMs: null,
+  retryFn: null,
 
   updateConnectionStatus: (newStatus) =>
     set({
@@ -36,6 +37,21 @@ export const createConnectionSlice: StateCreator<
   setError: (err) => set({ error: err, status: "ERROR" }),
   setAvailableStreams: (streams) => set({ availableStreams: streams }),
   setSender: (fn) => set({ sendMsg: fn }),
+  setRetrier: (fn) => set({ retryFn: fn }),
+  triggerRetry: () => {
+    const { status, retryFn } = get();
+    if (status !== "ERROR") {
+      log.warn(
+        "[STORE] triggerRetry called but status is not ERROR — ignoring",
+      );
+      return;
+    }
+    if (!retryFn) {
+      log.warn("[STORE] triggerRetry called but retryFn is not set");
+      return;
+    }
+    retryFn();
+  },
 });
 
 export const createTelemetrySlice: StateCreator<
@@ -83,11 +99,11 @@ export const createAlarmSlice: StateCreator<
   registerAlarm: (alarm) =>
     set((state) => {
       const updatedMap = new Map(state.alarmRegistry);
-      updatedMap.set(alarm.uuid, alarm);
+      updatedMap.set(alarm.id, alarm);
       return { alarmRegistry: updatedMap };
     }),
 
-  ackAlarm: (uuid: string) => {
+  ackAlarm: (id: string, operatorName: string, role: string) => {
     const { status, sendMsg } = get();
     if (status !== "ONLINE" || !sendMsg) {
       log.warn(
@@ -95,13 +111,21 @@ export const createAlarmSlice: StateCreator<
       );
       return;
     }
-    sendMsg({ messageType: "ALARM_ACK", payload: { alarmId: uuid } });
+    sendMsg({
+      messageType: "ALARM_ACK",
+      payload: {
+        alarmId: id,
+        operatorName,
+        role,
+        timestamp: Date.now(),
+      },
+    });
   },
 
-  resolveAlarm: (uuid) =>
+  resolveAlarm: (id) =>
     set((state) => {
       const updatedMap = new Map(state.alarmRegistry);
-      updatedMap.delete(uuid);
+      updatedMap.delete(id);
       return { alarmRegistry: updatedMap };
     }),
 
@@ -139,6 +163,19 @@ const createSubscriptionSlice: StateCreator<
 
   reconcileTopics: (serverTopics) => {
     set({ activeTopics: new Set(serverTopics as StreamDef[]) });
+  },
+
+  restoreSubscriptions: () => {
+    const { status, sendMsg, activeTopics } = get();
+    if (status !== "ONLINE" || !sendMsg || activeTopics.size === 0) return;
+
+    log.info(
+      `[STORE] Restoring ${activeTopics.size} subscription(s) after reconnect`,
+    );
+    sendMsg({
+      messageType: "SUBSCRIBE",
+      payload: { streams: [...activeTopics] },
+    });
   },
 });
 

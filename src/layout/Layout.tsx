@@ -1,4 +1,5 @@
 import React from "react";
+import { Avatar } from "@base-ui/react";
 import type { ReactNode } from "react";
 
 interface Props {
@@ -8,7 +9,9 @@ interface Props {
 export const Layout: React.FC<Props> = ({ children }) => {
   return (
     <>
-      <nav>navbar</nav>
+      <header className="flex">
+        <Avatar>R</Avatar>
+      </header>
       <main>{children}</main>;
     </>
   );

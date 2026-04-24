@@ -1,1 +1,760 @@
+/* ============================================================
+   RTDC — Global Stylesheet
+   Tailwind v4 · Three Themes · Industrial Telemetry UI
+   ============================================================
+   Layer order:
+   1. @import + fonts
+   2. @theme              → Tailwind token registration (build-time)
+   3. Theme raw values    → CSS vars per [data-theme] (runtime)
+   4. @layer base         → HTML resets & root defaults
+   5. @layer components   → Reusable non-variant classes
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. IMPORT
+   ------------------------------------------------------------ */
 @import "tailwindcss";
+
+@import url("https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700;900&family=Barlow:wght@300;400;500&display=swap");
+
+/* ------------------------------------------------------------
+   2. @theme — Token registration (build-time)
+
+   All --color-* here point to raw CSS vars so Tailwind
+   generates utility classes (bg-surface, text-fg-muted, etc.)
+   at build time, but their VALUES resolve at runtime from
+   whichever [data-theme] block is active below.
+   ------------------------------------------------------------ */
+@theme {
+  /* --- Surface hierarchy ----------------------------------- */
+  --color-base: var(--theme-base);
+  --color-surface: var(--theme-surface);
+  --color-elevated: var(--theme-elevated);
+  --color-overlay: var(--theme-overlay);
+
+  /* --- Text hierarchy -------------------------------------- */
+  --color-fg: var(--theme-fg);
+  --color-fg-muted: var(--theme-fg-muted);
+  --color-fg-dim: var(--theme-fg-dim);
+  --color-fg-emphasis: var(--theme-fg-emphasis);
+
+  /* --- Borders --------------------------------------------- */
+  --color-border: var(--theme-border);
+  --color-border-subtle: var(--theme-border-subtle);
+
+  /* --- Semantic status ------------------------------------- */
+  --color-ok: var(--theme-ok);
+  --color-warning: var(--theme-warning);
+  --color-critical: var(--theme-critical);
+  --color-info: var(--theme-info);
+
+  /* --- Brand accent ---------------------------------------- */
+  --color-accent: var(--theme-accent);
+  --color-accent-dim: var(--theme-accent-dim);
+
+  /* --- Utility --------------------------------------------- */
+  --color-orange: var(--theme-orange);
+
+  /* --- Typography (theme-invariant) ------------------------ */
+  --font-mono: "Share Tech Mono", monospace;
+  --font-ui: "Barlow Condensed", sans-serif;
+  --font-body: "Barlow", sans-serif;
+
+  /* --- Spacing extras -------------------------------------- */
+  --spacing-panel: 1.25rem;
+  --spacing-panel-sm: 0.875rem;
+
+  /* --- Radius --------------------------------------------- */
+  --radius-panel: 0.375rem;
+  --radius-badge: 0.1875rem;
+  --radius-btn: 0.1875rem;
+}
+
+/* ------------------------------------------------------------
+   3. THEME RAW VALUES
+      Switching theme = set data-theme on <html> via JS.
+      Default (no attribute) = Gruvbox Dark.
+   ------------------------------------------------------------ */
+
+/*
+   ┌─────────────────────────────────────────────────────┐
+   │  THEME 1 · GRUVBOX DARK  (default)                  │
+   │  Character: Warm Industrial. Amber on dark umber.   │
+   │  Evokes: control room, amber CRT, oil lamp glow.    │
+   └─────────────────────────────────────────────────────┘
+*/
+:root,
+[data-theme="gruvbox"] {
+  --theme-base: #1d2021;
+  --theme-surface: #282828;
+  --theme-elevated: #32302f;
+  --theme-overlay: #3c3836;
+
+  --theme-fg: #ebdbb2;
+  --theme-fg-muted: #a89984;
+  --theme-fg-dim: #5a524a;
+  --theme-fg-emphasis: #fbf1c7;
+
+  --theme-border: #3c3836;
+  --theme-border-subtle: #282828;
+
+  --theme-ok: #b8bb26;
+  --theme-warning: #fabd2f;
+  --theme-critical: #fb4934;
+  --theme-info: #83a598;
+
+  --theme-accent: #83a598;
+  --theme-accent-dim: rgba(131, 165, 152, 0.15);
+
+  --theme-orange: #fe8019;
+}
+
+/*
+   ┌─────────────────────────────────────────────────────┐
+   │  THEME 2 · TOMORROW NIGHT EIGHTIES                  │
+   │  Character: Cool Retro-Tech. Neutral ash + cyan.    │
+   │  Evokes: terminal, synth, late-night engineering.   │
+   └─────────────────────────────────────────────────────┘
+*/
+[data-theme="tomorrow"] {
+  --theme-base: #2d2d2d;
+  --theme-surface: #393939;
+  --theme-elevated: #515151;
+  --theme-overlay: #636363;
+
+  --theme-fg: #cccccc;
+  --theme-fg-muted: #999999;
+  --theme-fg-dim: #555555;
+  --theme-fg-emphasis: #ffffff;
+
+  --theme-border: #515151;
+  --theme-border-subtle: #404040;
+
+  --theme-ok: #99cc99;
+  --theme-warning: #ffcc66;
+  --theme-critical: #f2777a;
+  --theme-info: #6699cc;
+
+  --theme-accent: #66cccc;
+  --theme-accent-dim: rgba(102, 204, 204, 0.15);
+
+  --theme-orange: #f99157;
+}
+
+/*
+   ┌─────────────────────────────────────────────────────┐
+   │  THEME 3 · SOLARIZED DARK                           │
+   │  Character: Deep Sea / Submarine. Teal abyss.       │
+   │  Evokes: sonar, deep water rig, subsea control.     │
+   └─────────────────────────────────────────────────────┘
+*/
+[data-theme="solarized"] {
+  --theme-base: #002b36;
+  --theme-surface: #073642;
+  --theme-elevated: #0a4555;
+  --theme-overlay: #0d5068;
+
+  --theme-fg: #839496;
+  --theme-fg-muted: #586e75;
+  --theme-fg-dim: #2e4a52;
+  --theme-fg-emphasis: #93a1a1;
+
+  --theme-border: #0d4a58;
+  --theme-border-subtle: #083e4e;
+
+  --theme-ok: #859900;
+  --theme-warning: #b58900;
+  --theme-critical: #dc322f;
+  --theme-info: #2aa198;
+
+  --theme-accent: #2aa198;
+  --theme-accent-dim: rgba(42, 161, 152, 0.15);
+
+  --theme-orange: #cb4b16;
+}
+
+/* ------------------------------------------------------------
+   4. @layer base — Reset & root defaults
+   ------------------------------------------------------------ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-family: var(--font-ui);
+    background-color: var(--theme-base);
+    color: var(--theme-fg);
+    /* Prevent layout shift on scrollbar appear */
+    scrollbar-gutter: stable;
+    /* Subpixel smoothing for dark UIs */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100dvh;
+    line-height: 1.5;
+  }
+
+  /* Input / button resets */
+  input,
+  button,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Focus ring — accessible, on-brand */
+  :focus-visible {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-badge);
+  }
+
+  /* Selection */
+  ::selection {
+    background-color: var(--theme-accent-dim);
+    color: var(--theme-fg-emphasis);
+  }
+}
+
+/* ------------------------------------------------------------
+   5. @layer components — Global reusable non-variant classes
+      Rule: goes here only if (1) appears in 5+ places,
+      (2) has no prop-driven variant logic (that belongs in CVA)
+   ------------------------------------------------------------ */
+@layer components {
+  /* ----------------------------------------------------------
+     SURFACES — Layered panel system
+     ---------------------------------------------------------- */
+
+  /* Base container — sits directly on page bg */
+  .panel {
+    background-color: var(--theme-surface);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-panel);
+    padding: var(--spacing-panel);
+  }
+
+  /* Raised panel — for cards within panels */
+  .panel-elevated {
+    background-color: var(--theme-elevated);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-panel);
+    padding: var(--spacing-panel);
+  }
+
+  /* Inset panel — recessed area within a panel */
+  .panel-inset {
+    background-color: var(--theme-base);
+    border: 1px solid var(--theme-border-subtle);
+    border-radius: var(--radius-badge);
+    padding: var(--spacing-panel-sm);
+  }
+
+  /* Glassmorphism panel — auth card, modal, dialog */
+  .glass {
+    background-color: color-mix(in srgb, var(--theme-surface) 88%, transparent);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    border: 1px solid var(--theme-accent-dim);
+    border-radius: var(--radius-panel);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.45),
+      0 32px 80px rgba(0, 0, 0, 0.6),
+      0 0 120px var(--theme-accent-dim);
+  }
+
+  /* ----------------------------------------------------------
+     TYPOGRAPHY — Telemetry-specific text patterns
+     ---------------------------------------------------------- */
+
+  /* Channel label — "HOOK LOAD", "WOB" — uppercase mono micro */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 0.625rem; /* 10px */
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--theme-fg-dim);
+    line-height: 1;
+  }
+
+  /* Telemetry value — large numeric display */
+  .value-display {
+    font-family: var(--font-mono);
+    font-size: 1.75rem; /* 28px */
+    color: var(--theme-fg);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Unit label — "klbf", "rpm", "°C" — after value */
+  .unit-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem; /* 11px */
+    color: var(--theme-fg-dim);
+    letter-spacing: 0.06em;
+    text-transform: lowercase;
+  }
+
+  /* Section heading — "ACTIVE ALARMS", "CHANNEL CONFIG" */
+  .section-heading {
+    font-family: var(--font-ui);
+    font-size: 0.6875rem; /* 11px */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--theme-fg-dim);
+  }
+
+  /* Brand / app title */
+  .brand-title {
+    font-family: var(--font-ui);
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--theme-fg);
+  }
+
+  /* ----------------------------------------------------------
+     STATUS INDICATORS
+     ---------------------------------------------------------- */
+
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background-color: var(--theme-fg-dim);
+    flex-shrink: 0;
+  }
+
+  .status-dot[data-status="ok"] {
+    background-color: var(--theme-ok);
+  }
+  .status-dot[data-status="warning"] {
+    background-color: var(--theme-warning);
+  }
+  .status-dot[data-status="critical"] {
+    background-color: var(--theme-critical);
+    animation: pulse-critical 1.4s ease-in-out infinite;
+  }
+  .status-dot[data-status="inactive"] {
+    background-color: var(--theme-fg-dim);
+  }
+
+  /* ----------------------------------------------------------
+     DIVIDERS
+     ---------------------------------------------------------- */
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--theme-border) 20%,
+      var(--theme-border) 80%,
+      transparent
+    );
+  }
+
+  .divider-subtle {
+    height: 1px;
+    background-color: var(--theme-border-subtle);
+  }
+
+  .divider-v {
+    width: 1px;
+    align-self: stretch;
+    background: linear-gradient(
+      180deg,
+      transparent,
+      var(--theme-border) 20%,
+      var(--theme-border) 80%,
+      transparent
+    );
+  }
+
+  /* ----------------------------------------------------------
+     SCROLLBARS — dark, thin, on-brand
+     ---------------------------------------------------------- */
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--theme-border) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--theme-border);
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: var(--theme-fg-dim);
+  }
+
+  /* ----------------------------------------------------------
+     FORM BASE STYLES
+     (Variant states — focus, error, disabled — live in CVA)
+     ---------------------------------------------------------- */
+
+  .field-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.5625rem; /* 9px */
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--theme-fg-dim);
+    margin-bottom: 0.3125rem;
+  }
+
+  .field-input {
+    width: 100%;
+    background-color: var(--theme-elevated);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-badge);
+    padding: 0.625rem 0.75rem;
+    color: var(--theme-fg);
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    outline: none;
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+    letter-spacing: 0.02em;
+  }
+
+  .field-input::placeholder {
+    color: var(--theme-fg-dim);
+    font-weight: 300;
+  }
+
+  .field-input:focus {
+    border-color: var(--theme-accent);
+    box-shadow: 0 0 0 3px var(--theme-accent-dim);
+  }
+
+  /* ----------------------------------------------------------
+     TELEMETRY LAYOUT HELPERS
+     ---------------------------------------------------------- */
+
+  /* Inline mini chart wrapper */
+  .sparkline-wrap {
+    position: relative;
+    height: 36px;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* Scrolling alarm ticker strip */
+  .ticker-strip {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    overflow: hidden;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    color: var(--theme-fg-muted);
+    height: 1.75rem;
+    border-top: 1px solid var(--theme-border);
+    background-color: var(--theme-base);
+    padding: 0 1rem;
+    will-change: transform;
+  }
+
+  /* ----------------------------------------------------------
+     WELL EXPLORER SIDEBAR ITEM
+     ---------------------------------------------------------- */
+
+  .well-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-badge);
+    font-family: var(--font-ui);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--theme-fg-muted);
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .well-item:hover {
+    background-color: var(--theme-elevated);
+    color: var(--theme-fg);
+  }
+
+  .well-item[aria-selected="true"],
+  .well-item.active {
+    background-color: var(--theme-accent-dim);
+    color: var(--theme-accent);
+  }
+
+  /* ----------------------------------------------------------
+     THEME SWITCHER RADIO BUTTONS
+     ---------------------------------------------------------- */
+
+  .theme-radio-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  /* Wrap each <input type="radio"> + custom swatch in this */
+  .theme-radio-label {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .theme-radio-label input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .theme-radio-swatch {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-badge);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--theme-fg-dim);
+    background-color: var(--theme-elevated);
+    transition:
+      border-color 150ms ease,
+      color 150ms ease,
+      background-color 150ms ease;
+    user-select: none;
+  }
+
+  /* Color dot inside each swatch */
+  .theme-radio-swatch::before {
+    content: "";
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background-color: var(--swatch-color, var(--theme-fg-dim));
+    flex-shrink: 0;
+  }
+
+  .theme-radio-label input:checked + .theme-radio-swatch {
+    border-color: var(--theme-accent);
+    color: var(--theme-fg);
+    background-color: var(--theme-accent-dim);
+  }
+
+  /* Set --swatch-color on the label element itself */
+  .theme-radio-label[data-swatch="gruvbox"] {
+    --swatch-color: #83a598;
+  }
+  .theme-radio-label[data-swatch="tomorrow"] {
+    --swatch-color: #66cccc;
+  }
+  .theme-radio-label[data-swatch="solarized"] {
+    --swatch-color: #2aa198;
+  }
+
+  /* ----------------------------------------------------------
+     SCREEN GUARD — blocks sub-1024px viewports
+     ---------------------------------------------------------- */
+
+  .screen-guard {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background-color: var(--theme-base);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.875rem;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  @media (max-width: 1023px) {
+    .screen-guard {
+      display: flex;
+    }
+  }
+}
+
+/* ------------------------------------------------------------
+   KEYFRAMES
+   Declared outside @layer — always available, not purged
+   ------------------------------------------------------------ */
+
+/* Critical alarm dot pulse */
+@keyframes pulse-critical {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--theme-critical) 50%, transparent);
+  }
+  50% {
+    opacity: 0.75;
+    box-shadow: 0 0 0 4px
+      color-mix(in srgb, var(--theme-critical) 0%, transparent);
+  }
+}
+
+/* Aviation beacon / nav light blink */
+@keyframes blink {
+  0%,
+  88%,
+  100% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.08;
+  }
+}
+
+/* Flare flame shimmer */
+@keyframes flame {
+  0%,
+  100% {
+    transform: scaleY(1) scaleX(1);
+  }
+  50% {
+    transform: scaleY(1.18) scaleX(0.86);
+  }
+}
+
+/* Star twinkle */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* Alarm ticker scroll */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Card / panel entrance */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Ambient glow pulse (rig header, etc.) */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Horizontal scan line sweep */
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.04;
+  }
+  90% {
+    opacity: 0.04;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* ----------------------------------------------------------
+   Compose-ready animation utility classes
+   Use these directly in className / class attr
+   ---------------------------------------------------------- */
+.animate-fade-up {
+  animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-blink {
+  animation: blink 2.4s ease-in-out infinite;
+}
+.animate-flame {
+  animation: flame 1.4s ease-in-out infinite;
+}
+.animate-twinkle {
+  animation: twinkle 2.5s ease-in-out infinite;
+}
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+.animate-ticker {
+  animation: ticker-scroll 32s linear infinite;
+}
+.animate-scan {
+  animation: scan 6s linear infinite;
+}
+
+/* ------------------------------------------------------------
+   THEME TRANSITION SMOOTHING
+   Applied on [data-theme] so initial paint is never delayed
+   (avoids flash-of-wrong-theme on hydration)
+   ------------------------------------------------------------ */
+[data-theme] {
+  transition:
+    background-color 280ms ease,
+    color 280ms ease,
+    border-color 280ms ease,
+    box-shadow 280ms ease;
+}

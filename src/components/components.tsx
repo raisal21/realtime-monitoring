@@ -222,7 +222,7 @@ const surfaceVariants = cva("overflow-hidden", {
     {
       elevation: "glass",
       outline: "all",
-      class: "border-[var(--theme-accent-dim)]",
+      class: "border-(--theme-accent-dim)",
     },
   ],
   defaultVariants: { elevation: "surface", outline: "all" },
@@ -403,7 +403,7 @@ export const ToggleItem = ({
   />
 );
 // ─── 1.7 TRACE COLOR ──────────────────────────────────────────────────────────
-const traceColorVariants = cva("shrink-0 rounded-xs", {
+const traceColorVariants = cva("shrink-0 rounded-(--radius-badge)", {
   variants: {
     trace: {
       depth: "bg-[#d3869b]",
@@ -689,7 +689,7 @@ const traceToggleVariants = cva(
     variants: {
       on: {
         true: [
-          "bg-[var(--theme-accent-dim)] border-(--theme-accent)",
+          "bg-(--theme-accent-dim) border-(--theme-accent)",
           "text-(--theme-accent)",
         ].join(" "),
         false: [
@@ -1431,7 +1431,7 @@ export const StreamItem = ({
         "data-[state=checked]:border-(--theme-accent)",
       )}
     >
-      <span className="text-[8px] text-(--theme-accent) font-bold leading-none">
+      <span className="text-[8px] text-(--theme-accent) font-bold leading-none hidden data-[state=checked]:flex">
         ✓
       </span>
     </BaseCheckbox.Indicator>

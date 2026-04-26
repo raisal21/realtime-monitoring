@@ -7,8 +7,8 @@
 // import { log } from "./utils/logger";
 // import type { ServerMessage } from "./domain/message.types";
 // import { globalRigStore } from "./store/index-store";
-import { Dashboard } from "./pages/Dashboard";
-import { Layout } from "./layout/Layout";
+// import Dashboard from "./pages/Dashboard";
+import Auth from "./pages/Auth";
 
 export default function App() {
   // const status = useStore(globalRigStore, (s) => s.status);
@@ -51,9 +51,7 @@ export default function App() {
 
     {status === "ERROR" && <button onClick={triggerRetry}>Reconnect</button>} 
     */}
-      <Layout>
-        <Dashboard />
-      </Layout>
+      <Auth />
     </>
   );
 }

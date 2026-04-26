@@ -8,7 +8,8 @@
 // import type { ServerMessage } from "./domain/message.types";
 // import { globalRigStore } from "./store/index-store";
 // import Dashboard from "./pages/Dashboard";
-import Auth from "./pages/Auth";
+// import Auth from "./pages/Auth";
+import WellExplorer from "./pages/WellExplorer";
 
 export default function App() {
   // const status = useStore(globalRigStore, (s) => s.status);
@@ -51,7 +52,7 @@ export default function App() {
 
     {status === "ERROR" && <button onClick={triggerRetry}>Reconnect</button>} 
     */}
-      <Auth />
+      <WellExplorer />
     </>
   );
 }

@@ -43,7 +43,7 @@ export const PopoverContent = ({
     <BasePopover.Positioner sideOffset={sideOffset} align={align} side={side}>
       <BasePopover.Popup
         className={cn(
-          "z-50 outline-none",
+          "z-[200] outline-none",
           "bg-(--theme-elevated) border border-(--theme-border)",
           "rounded-(--radius-panel)",
           "shadow-[0_12px_40px_rgba(0,0,0,0.6),0_0_0_1px_rgba(0,0,0,0.4)]",

@@ -20,7 +20,7 @@ export function DashboardSubheader() {
       <div ref={ref} className="flex-1 min-w-0">
         <span
           className={cn(
-            "font-['Barlow_Condensed',sans-serif] text-[13px] font-semibold tracking-[0.04em]",
+            "font-['Barlow_Condensed',sans-serif] text-[15px] font-semibold tracking-[0.04em]",
             "text-(--theme-fg) block truncate",
           )}
         >
@@ -45,7 +45,7 @@ export function DashboardSubheader() {
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <Clock size={11} strokeWidth={2} className="text-(--theme-fg-dim)" />
+        <Clock size={13} strokeWidth={2} className="text-(--theme-fg-dim)" />
         <ValueReadout value={time} size="sm" />
         <span className="label-mono">UTC</span>
       </div>

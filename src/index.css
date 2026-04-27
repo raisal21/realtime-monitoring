@@ -93,7 +93,7 @@
 
   --theme-fg: #ebdbb2;
   --theme-fg-muted: #a89984;
-  --theme-fg-dim: #5a524a;
+  --theme-fg-dim: #7c7168;
   --theme-fg-emphasis: #fbf1c7;
 
   --theme-border: #3c3836;
@@ -108,6 +108,17 @@
   --theme-accent-dim: rgba(131, 165, 152, 0.15);
 
   --theme-orange: #fe8019;
+
+  --trace-rpm:    #d4956a;
+  --trace-wob:    #c9a042;
+  --trace-torque: #96a84a;
+  --trace-spp:    #7aa598;
+  --trace-hkld:   #b07890;
+  --trace-gamma:  #7a9e72;
+  --trace-rop:    #c26050;
+  --trace-gas:    #a04848;
+  --trace-inc:    #528898;
+  --trace-azi:    #6a9070;
 }
 
 /*
@@ -125,7 +136,7 @@
 
   --theme-fg: #cccccc;
   --theme-fg-muted: #999999;
-  --theme-fg-dim: #555555;
+  --theme-fg-dim: #787878;
   --theme-fg-emphasis: #ffffff;
 
   --theme-border: #515151;
@@ -140,6 +151,17 @@
   --theme-accent-dim: rgba(102, 204, 204, 0.15);
 
   --theme-orange: #f99157;
+
+  --trace-rpm:    #c47855;
+  --trace-wob:    #b8924a;
+  --trace-torque: #7a9e7a;
+  --trace-spp:    #5580a0;
+  --trace-hkld:   #987aa0;
+  --trace-gamma:  #4898a0;
+  --trace-rop:    #a85858;
+  --trace-gas:    #984848;
+  --trace-inc:    #6898b0;
+  --trace-azi:    #8090a0;
 }
 
 /*
@@ -155,10 +177,10 @@
   --theme-elevated: #0a4555;
   --theme-overlay: #0d5068;
 
-  --theme-fg: #839496;
-  --theme-fg-muted: #586e75;
-  --theme-fg-dim: #2e4a52;
-  --theme-fg-emphasis: #93a1a1;
+  --theme-fg: #93a8aa;
+  --theme-fg-muted: #708c94;
+  --theme-fg-dim: #4a7080;
+  --theme-fg-emphasis: #b0c4c6;
 
   --theme-border: #0d4a58;
   --theme-border-subtle: #083e4e;
@@ -172,6 +194,17 @@
   --theme-accent-dim: rgba(42, 161, 152, 0.15);
 
   --theme-orange: #cb4b16;
+
+  --trace-rpm:    #a03a10;
+  --trace-wob:    #8a6800;
+  --trace-torque: #647800;
+  --trace-spp:    #208078;
+  --trace-hkld:   #902060;
+  --trace-gamma:  #1a6898;
+  --trace-rop:    #982020;
+  --trace-gas:    #982020;
+  --trace-inc:    #4a5090;
+  --trace-azi:    #506868;
 }
 
 /* ------------------------------------------------------------
@@ -289,7 +322,7 @@
   /* Channel label — "HOOK LOAD", "WOB" — uppercase mono micro */
   .label-mono {
     font-family: var(--font-mono);
-    font-size: 0.625rem; /* 10px */
+    font-size: 0.6875rem; /* 11px */
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--theme-fg-dim);
@@ -309,7 +342,7 @@
   /* Unit label — "klbf", "rpm", "°C" — after value */
   .unit-label {
     font-family: var(--font-mono);
-    font-size: 0.6875rem; /* 11px */
+    font-size: 0.75rem; /* 12px */
     color: var(--theme-fg-dim);
     letter-spacing: 0.06em;
     text-transform: lowercase;
@@ -318,11 +351,11 @@
   /* Section heading — "ACTIVE ALARMS", "CHANNEL CONFIG" */
   .section-heading {
     font-family: var(--font-ui);
-    font-size: 0.6875rem; /* 11px */
+    font-size: 0.75rem; /* 12px */
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: var(--theme-fg-dim);
+    color: var(--theme-fg-muted);
   }
 
   /* Brand / app title */

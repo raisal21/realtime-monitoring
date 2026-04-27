@@ -50,11 +50,11 @@ export function UniversalTopbar() {
       <div className="flex items-center gap-1.5">
         <BreadcrumbItem type="link">Wells</BreadcrumbItem>
         <BreadcrumbItem type="separator">
-          <ChevronRight size={11} strokeWidth={2} />
+          <ChevronRight size={13} strokeWidth={2} />
         </BreadcrumbItem>
         <BreadcrumbItem type="link">{CURRENT_WELL.name}</BreadcrumbItem>
         <BreadcrumbItem type="separator">
-          <ChevronRight size={11} strokeWidth={2} />
+          <ChevronRight size={13} strokeWidth={2} />
         </BreadcrumbItem>
         <BreadcrumbItem type="current">Dashboard</BreadcrumbItem>
       </div>
@@ -77,7 +77,7 @@ export function UniversalTopbar() {
                 aria-label="Open settings"
                 data-settings-trigger
               >
-                <SettingsIcon size={14} strokeWidth={2} />
+                <SettingsIcon size={16} strokeWidth={2} />
               </TopbarButton>
             }
           />
@@ -91,11 +91,11 @@ export function UniversalTopbar() {
           aria-label="Alarms"
           onClick={() => dispatch({ type: "TOGGLE_ALARM_SIDEBAR" })}
         >
-          <Bell size={14} strokeWidth={2} />
+          <Bell size={16} strokeWidth={2} />
         </TopbarButton>
 
         <TopbarButton title="User profile" aria-label="User profile">
-          <CircleUser size={14} strokeWidth={2} />
+          <CircleUser size={16} strokeWidth={2} />
         </TopbarButton>
       </div>
     </header>

@@ -15,7 +15,6 @@ import { GaugeCollapsedStrip } from "@/components/dashboard/sidebars/GaugeCollap
 import { FloatingGaugeSidebar } from "@/components/dashboard/sidebars/FloatingGaugeSidebar";
 import { AlarmCollapsedStrip } from "@/components/dashboard/sidebars/AlarmCollapsedStrip";
 import { FloatingAlarmSidebar } from "@/components/dashboard/sidebars/FloatingAlarmSidebar";
-import { SettingsPopoverWrapper } from "@/components/dashboard/popovers/SettingsPopoverWrapper";
 import { AckModal } from "@/components/dashboard/modals/AckModal";
 
 const ALARM_SIDEBAR_WIDTH = 300;
@@ -40,22 +39,6 @@ export function DashboardLayout() {
 
   return (
     <>
-      <style>{`
-        :root {
-          --trace-rpm:    #8ec07c;
-          --trace-wob:    #fabd2f;
-          --trace-torque: #fe8019;
-          --trace-spp:    #83a598;
-          --trace-hkld:   #d65d0e;
-          --trace-gamma:  #b8bb26;
-          --trace-rop:    #458588;
-          --trace-gas:    #fb4934;
-          --trace-inc:    #d3869b;
-          --trace-azi:    #8ec07c;
-          --trace-depth:  #d3869b;
-        }
-      `}</style>
-
       <div className="screen-guard">
         <Monitor
           size={34}
@@ -130,7 +113,6 @@ export function DashboardLayout() {
       </div>
 
       <AckModal />
-      <SettingsPopoverWrapper />
     </>
   );
 }

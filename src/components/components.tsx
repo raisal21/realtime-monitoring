@@ -1,6 +1,6 @@
 /* ============================================================================
-   RTDC — Component Library
-   Base UI primitives · CVA variants · Tailwind v4
+   RTDC — Component Library (v2 + polishing)
+   Base UI primitives · CVA variants · Tailwind v4 · lucide-react icons
    ============================================================================
    Sections:
    0. Imports & Utility
@@ -10,21 +10,30 @@
    3. Alarm System       FilterChip, FeedItem, CriticalBanner
    4. Navigation Shell   TopbarButton, BreadcrumbItem
    5. Well Explorer      WellListItem, WellMetric, SidebarStat
-   6. Left Control Panel StreamItem
-   7. Footer             ConnectionStatus, FooterStat
-   8. Preset Select      PresetSelect (Base UI Select)
+   6. Footer             ConnectionStatus, FooterStat
+   7. Preset Select      PresetSelect (Base UI Select)
+   8. v2 Primitives      Popover, Switch, IconButton, RadioCard,
+                         LiveBadge, RangePresetButton, TrackFooterRow,
+                         GaugeCardCompact
+   9. Polishing v2       RailSection, Slider, PopoverHeader,
+                         PopoverTitle, PopoverDescription
    ============================================================================ */
 
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { Check, Minus, Diamond, ChevronDown } from "lucide-react";
 
+// Base UI — sub-path imports for consistent tree-shaking
 import { Button as BaseButton } from "@base-ui/react/button";
-import { Toggle as BaseToggle } from "@base-ui/react";
 import { ToggleGroup as BaseToggleGroup } from "@base-ui/react/toggle-group";
-import { Checkbox as BaseCheckbox } from "@base-ui/react/checkbox";
 import { Select as BaseSelect } from "@base-ui/react/select";
+import { Popover as BasePopover } from "@base-ui/react/popover";
+import { Switch as BaseSwitch } from "@base-ui/react/switch";
+import { Radio as BaseRadio } from "@base-ui/react/radio";
+import { RadioGroup as BaseRadioGroup } from "@base-ui/react/radio-group";
+import { Slider as BaseSlider } from "@base-ui/react/slider";
 
 /* ============================================================================
    0. UTILITY
@@ -718,7 +727,11 @@ export const TraceToggle = ({
     aria-pressed={on}
     {...props}
   >
-    {on ? "✓" : "—"}
+    {on ? (
+      <Check size={9} strokeWidth={2.5} />
+    ) : (
+      <Minus size={9} strokeWidth={2.5} />
+    )}
   </button>
 );
 
@@ -1348,97 +1361,6 @@ export const SidebarStat = ({
 );
 
 /* ============================================================================
-   6. LEFT CONTROL PANEL
-   ============================================================================ */
-
-// ─── 6.1 STREAM ITEM ──────────────────────────────────────────────────────────
-const streamItemVariants = cva(
-  [
-    "flex items-center gap-[8px] px-[12px] py-[7px]",
-    "cursor-pointer transition-all duration-120",
-    "border-b border-(--theme-border-subtle)",
-    "outline-none focus-visible:bg-(--theme-elevated)",
-  ].join(" "),
-  {
-    variants: {
-      status: {
-        active: "opacity-100",
-        idle: "opacity-65",
-        disconnected: "opacity-35",
-      },
-      selected: {
-        true: "bg-(--theme-elevated)",
-        false:
-          "hover:bg-[color-mix(in_srgb,var(--theme-elevated)_55%,transparent)]",
-      },
-    },
-    defaultVariants: { status: "active", selected: false },
-  },
-);
-
-const STREAM_DOT: Record<
-  NonNullable<VariantProps<typeof streamItemVariants>["status"]>,
-  VariantProps<typeof statusDotVariants>["status"]
-> = {
-  active: "ok",
-  idle: "warning",
-  disconnected: "inactive",
-};
-
-export interface StreamItemProps extends Omit<
-  React.ComponentPropsWithoutRef<typeof BaseCheckbox.Root>,
-  "className"
-> {
-  label: string;
-  hz?: string;
-  status?: NonNullable<VariantProps<typeof streamItemVariants>["status"]>;
-  selected?: boolean;
-  className?: string;
-}
-
-export const StreamItem = ({
-  label,
-  hz,
-  status = "active",
-  selected = false,
-  className,
-  ...props
-}: StreamItemProps) => (
-  <BaseCheckbox.Root
-    className={cn(streamItemVariants({ status, selected }), className)}
-    {...props}
-  >
-    <StatusDot
-      status={STREAM_DOT[status ?? "active"]}
-      size="sm"
-      glow={status === "active"}
-    />
-    <span className="flex-1 font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.08em] text-(--theme-fg-muted)">
-      {label}
-    </span>
-    {hz && (
-      <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim)">
-        {hz}
-      </span>
-    )}
-    <BaseCheckbox.Indicator
-      className={cn(
-        "flex items-center justify-center shrink-0",
-        "w-[14px] h-[14px] rounded-xs border",
-        "bg-transparent transition-all duration-120",
-        "border-(--theme-border)",
-        "data-[state=checked]:bg-(--theme-accent-dim)",
-        "data-[state=checked]:border-(--theme-accent)",
-      )}
-    >
-      <span className="text-[8px] text-(--theme-accent) font-bold leading-none hidden data-[state=checked]:flex">
-        ✓
-      </span>
-    </BaseCheckbox.Indicator>
-  </BaseCheckbox.Root>
-);
-
-/* ============================================================================
    7. FOOTER
    ============================================================================ */
 
@@ -1579,13 +1501,16 @@ export const PresetSelect = ({
       )}
     >
       <span className="flex items-center gap-1.5">
-        <span className="text-(--theme-accent) text-[10px]" aria-hidden="true">
-          ◆
-        </span>
+        <Diamond
+          size={9}
+          strokeWidth={2.5}
+          className="text-(--theme-accent) shrink-0"
+          aria-hidden="true"
+        />
         <BaseSelect.Value placeholder={placeholder} />
       </span>
-      <BaseSelect.Icon className="text-(--theme-fg-dim) text-[10px] transition-transform duration-150 data-[state=open]:rotate-180">
-        ▾
+      <BaseSelect.Icon className="text-(--theme-fg-dim) transition-transform duration-150 data-[state=open]:rotate-180 shrink-0 flex items-center">
+        <ChevronDown size={11} strokeWidth={2} />
       </BaseSelect.Icon>
     </BaseSelect.Trigger>
 
@@ -1616,8 +1541,8 @@ export const PresetSelect = ({
                 "transition-colors duration-100",
               )}
             >
-              <BaseSelect.ItemIndicator className="text-[9px] w-2.5 text-(--theme-accent) shrink-0">
-                ✓
+              <BaseSelect.ItemIndicator className="w-2.5 text-(--theme-accent) shrink-0 flex items-center">
+                <Check size={10} strokeWidth={2.5} />
               </BaseSelect.ItemIndicator>
               <BaseSelect.ItemText>{opt.label}</BaseSelect.ItemText>
             </BaseSelect.Item>
@@ -1626,4 +1551,691 @@ export const PresetSelect = ({
       </BaseSelect.Positioner>
     </BaseSelect.Portal>
   </BaseSelect.Root>
+);
+
+/* ============================================================================
+   8. NEW v2 PRIMITIVES
+   ============================================================================ */
+
+// ─── 8.1 POPOVER ──────────────────────────────────────────────────────────────
+// Reusable themed wrapper around Base UI Popover.
+// Composes Root → Trigger → Portal → Positioner → Popup with our styling.
+//
+// Usage:
+//   <Popover>
+//     <PopoverTrigger render={<Button intent="ghost" size="icon">...</Button>} />
+//     <PopoverContent>...content...</PopoverContent>
+//   </Popover>
+
+export const Popover = BasePopover.Root;
+export const PopoverTrigger = BasePopover.Trigger;
+
+export interface PopoverContentProps extends React.ComponentPropsWithoutRef<
+  typeof BasePopover.Popup
+> {
+  sideOffset?: number;
+  align?: "start" | "center" | "end";
+  side?: "top" | "right" | "bottom" | "left";
+  popupClassName?: string;
+}
+
+export const PopoverContent = ({
+  sideOffset = 6,
+  align = "center",
+  side = "bottom",
+  className,
+  popupClassName,
+  children,
+  ...props
+}: PopoverContentProps) => (
+  <BasePopover.Portal>
+    <BasePopover.Positioner sideOffset={sideOffset} align={align} side={side}>
+      <BasePopover.Popup
+        className={cn(
+          "z-50 outline-none",
+          "bg-(--theme-elevated) border border-(--theme-border)",
+          "rounded-(--radius-panel)",
+          "shadow-[0_12px_40px_rgba(0,0,0,0.6),0_0_0_1px_rgba(0,0,0,0.4)]",
+          // Entry animation via Base UI data-starting-style
+          "data-[starting-style]:opacity-0 data-[starting-style]:scale-[0.96]",
+          "data-[ending-style]:opacity-0 data-[ending-style]:scale-[0.96]",
+          "transition-[opacity,scale] duration-150 origin-top",
+          popupClassName,
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </BasePopover.Popup>
+    </BasePopover.Positioner>
+  </BasePopover.Portal>
+);
+
+// ─── 8.2 SWITCH ───────────────────────────────────────────────────────────────
+// Base UI Switch with theme styling.
+// Uses data-[checked] state attribute (Base UI v1+ convention).
+
+const switchVariants = cva(
+  [
+    "relative inline-flex shrink-0 cursor-pointer items-center",
+    "rounded-full border transition-colors duration-180",
+    "outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
+    "focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-base)",
+    "disabled:opacity-40 disabled:cursor-not-allowed",
+    // Off (default) state
+    "bg-(--theme-elevated) border-(--theme-border)",
+    // On state
+    "data-[checked]:bg-(--theme-accent) data-[checked]:border-(--theme-accent)",
+  ].join(" "),
+  {
+    variants: {
+      size: {
+        sm: "h-[16px] w-[28px]",
+        md: "h-[20px] w-[36px]",
+      },
+    },
+    defaultVariants: { size: "md" },
+  },
+);
+
+const switchThumbVariants = cva(
+  [
+    "block rounded-full bg-(--theme-fg-muted) shadow-sm",
+    "transition-transform duration-180 ease-out",
+    // When parent is checked, thumb shifts right + becomes dark base color
+    "data-[checked]:bg-(--theme-base)",
+  ].join(" "),
+  {
+    variants: {
+      size: {
+        sm: "size-3 translate-x-[1px] data-[checked]:translate-x-[13px]",
+        md: "size-4 translate-x-[1px] data-[checked]:translate-x-[17px]",
+      },
+    },
+    defaultVariants: { size: "md" },
+  },
+);
+
+export interface SwitchProps
+  extends
+    React.ComponentPropsWithoutRef<typeof BaseSwitch.Root>,
+    VariantProps<typeof switchVariants> {}
+
+export const Switch = ({ size, className, ...props }: SwitchProps) => (
+  <BaseSwitch.Root
+    className={cn(switchVariants({ size }), className)}
+    {...props}
+  >
+    <BaseSwitch.Thumb className={switchThumbVariants({ size })} />
+  </BaseSwitch.Root>
+);
+
+// ─── 8.3 ICON BUTTON ──────────────────────────────────────────────────────────
+// Thin wrapper around Base UI Button for icon-only actions.
+// Difference from regular Button: no text typography, square aspect ratio,
+// no uppercase letter-spacing, slimmer hover state.
+
+const iconButtonVariants = cva(
+  [
+    "inline-flex items-center justify-center",
+    "rounded-(--radius-badge) cursor-pointer select-none",
+    "transition-all duration-150",
+    "outline-none disabled:opacity-40 disabled:cursor-not-allowed",
+    "focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
+    "focus-visible:ring-offset-1 focus-visible:ring-offset-(--theme-base)",
+  ].join(" "),
+  {
+    variants: {
+      intent: {
+        default: [
+          "bg-transparent text-(--theme-fg-muted)",
+          "hover:bg-(--theme-elevated) hover:text-(--theme-fg)",
+          "active:scale-[0.96]",
+        ].join(" "),
+        active: [
+          "bg-(--theme-accent-dim) text-(--theme-accent)",
+          "border border-(--theme-accent)",
+          "hover:bg-(--theme-accent-dim) hover:brightness-110",
+        ].join(" "),
+        ghost: [
+          "bg-transparent text-(--theme-fg-dim)",
+          "hover:text-(--theme-fg)",
+        ].join(" "),
+      },
+      size: {
+        sm: "size-6",
+        md: "size-7",
+        lg: "size-8",
+      },
+    },
+    defaultVariants: { intent: "default", size: "md" },
+  },
+);
+
+export interface IconButtonProps
+  extends
+    React.ComponentPropsWithoutRef<typeof BaseButton>,
+    VariantProps<typeof iconButtonVariants> {}
+
+export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ intent, size, className, ...props }, ref) => (
+    <BaseButton
+      ref={ref}
+      className={cn(iconButtonVariants({ intent, size }), className)}
+      {...props}
+    />
+  ),
+);
+IconButton.displayName = "IconButton";
+
+// ─── 8.4 RADIO CARD ───────────────────────────────────────────────────────────
+// Card-style radio button (shadcn pattern).
+// Composes Base UI Radio.Root + Radio.Indicator with custom layout.
+//
+// Usage:
+//   <RadioCardGroup value={mode} onValueChange={setMode}>
+//     <RadioCard value="time" icon={<Clock size={14} />} title="Time" subtitle="UTC ref" />
+//     <RadioCard value="depth" icon={<Ruler size={14} />} title="Depth" subtitle="ft MD ref" />
+//   </RadioCardGroup>
+
+export const RadioCardGroup = BaseRadioGroup;
+
+const radioCardVariants = cva(
+  [
+    "relative flex items-center cursor-pointer select-none",
+    "border rounded-(--radius-badge) transition-all duration-150",
+    "outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
+    // Off state
+    "bg-(--theme-elevated) border-(--theme-border)",
+    "hover:border-(--theme-fg-dim) hover:bg-(--theme-overlay)",
+    // On state — Base UI sets data-[checked] on Radio.Root
+    "data-[checked]:bg-(--theme-accent-dim) data-[checked]:border-(--theme-accent)",
+  ].join(" "),
+  {
+    variants: {
+      size: {
+        sm: "min-h-[36px]",
+        md: "min-h-[44px]",
+      },
+      compact: {
+        true: "justify-center px-2 py-2 gap-0",
+        false: "px-2.5 py-2 gap-2.5",
+      },
+    },
+    defaultVariants: { size: "md", compact: false },
+  },
+);
+
+export interface RadioCardProps
+  extends
+    Omit<React.ComponentPropsWithoutRef<typeof BaseRadio.Root>, "title">,
+    VariantProps<typeof radioCardVariants> {
+  icon?: React.ReactNode;
+  title: string;
+  subtitle?: string;
+}
+
+export const RadioCard = ({
+  icon,
+  title,
+  subtitle,
+  size,
+  compact,
+  className,
+  ...props
+}: RadioCardProps) => (
+  <BaseRadio.Root
+    className={cn(radioCardVariants({ size, compact }), className)}
+    aria-label={compact ? title : undefined}
+    title={compact ? title : undefined}
+    {...props}
+  >
+    {/* Icon — always rendered if provided */}
+    {icon && (
+      <span className="shrink-0 text-(--theme-fg-muted) data-[checked]:text-(--theme-accent) flex items-center">
+        {icon}
+      </span>
+    )}
+
+    {/* Text content — hidden in compact mode */}
+    {!compact && (
+      <div className="flex-1 min-w-0">
+        <div className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold uppercase tracking-[0.06em] text-(--theme-fg) leading-tight">
+          {title}
+        </div>
+        {subtitle && (
+          <div className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim) leading-tight mt-px">
+            {subtitle}
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Indicator dot — only visible when checked, hidden in compact */}
+    {!compact && (
+      <BaseRadio.Indicator className="shrink-0 flex items-center justify-center">
+        <span className="size-2 rounded-full bg-(--theme-accent)" />
+      </BaseRadio.Indicator>
+    )}
+  </BaseRadio.Root>
+);
+
+// ─── 8.5 LIVE BADGE ───────────────────────────────────────────────────────────
+// Live / Frozen state indicator. Pulses when LIVE.
+
+const liveBadgeVariants = cva(
+  [
+    "inline-flex items-center gap-1.5 px-2 py-0.5",
+    "rounded-(--radius-badge) border",
+    "font-['Share_Tech_Mono',monospace] text-[10px] font-bold uppercase tracking-[0.1em]",
+    "transition-colors duration-200 select-none",
+  ].join(" "),
+  {
+    variants: {
+      state: {
+        live: [
+          "text-(--theme-ok)",
+          "bg-[color-mix(in_srgb,var(--theme-ok)_12%,transparent)]",
+          "border-[color-mix(in_srgb,var(--theme-ok)_35%,transparent)]",
+        ].join(" "),
+        frozen: [
+          "text-(--theme-fg-dim)",
+          "bg-(--theme-elevated)",
+          "border-(--theme-border)",
+        ].join(" "),
+      },
+    },
+    defaultVariants: { state: "frozen" },
+  },
+);
+
+export interface LiveBadgeProps
+  extends
+    React.HTMLAttributes<HTMLSpanElement>,
+    VariantProps<typeof liveBadgeVariants> {}
+
+export const LiveBadge = ({
+  state = "frozen",
+  className,
+  ...props
+}: LiveBadgeProps) => (
+  <span className={cn(liveBadgeVariants({ state }), className)} {...props}>
+    {/* Status dot (pulsing when live) */}
+    <span
+      className={cn(
+        "size-1.5 rounded-full shrink-0",
+        state === "live"
+          ? "bg-(--theme-ok) shadow-[0_0_6px_var(--theme-ok)] animate-glow-pulse"
+          : "bg-(--theme-fg-dim)",
+      )}
+    />
+    {state === "live" ? "LIVE" : "FROZEN"}
+  </span>
+);
+
+// ─── 8.6 RANGE PRESET BUTTON ──────────────────────────────────────────────────
+// Toggle-style button for range presets in Zoom popover (1h, 6h, This Shift, etc.)
+
+const rangePresetButtonVariants = cva(
+  [
+    "inline-flex items-center justify-center px-2.5 py-1.5",
+    "rounded-(--radius-badge) border cursor-pointer select-none",
+    "font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em]",
+    "transition-all duration-150 outline-none",
+    "focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
+  ].join(" "),
+  {
+    variants: {
+      active: {
+        true: [
+          "bg-(--theme-accent-dim) border-(--theme-accent) text-(--theme-accent)",
+        ].join(" "),
+        false: [
+          "bg-(--theme-elevated) border-(--theme-border) text-(--theme-fg-muted)",
+          "hover:border-(--theme-fg-dim) hover:text-(--theme-fg)",
+        ].join(" "),
+      },
+      fullWidth: {
+        true: "w-full",
+        false: "",
+      },
+    },
+    defaultVariants: { active: false, fullWidth: false },
+  },
+);
+
+export interface RangePresetButtonProps
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof rangePresetButtonVariants> {}
+
+export const RangePresetButton = ({
+  active,
+  fullWidth,
+  className,
+  ...props
+}: RangePresetButtonProps) => (
+  <button
+    type="button"
+    className={cn(rangePresetButtonVariants({ active, fullWidth }), className)}
+    aria-pressed={active}
+    {...props}
+  />
+);
+
+// ─── 8.7 TRACK FOOTER ROW ─────────────────────────────────────────────────────
+// Single legend row in a track footer.
+// Shows: color swatch, trace name, range (min ── max), unit.
+// Click toggles visibility.
+//
+// Usage:
+//   <TrackFooterRow
+//     trace="rpm" name="RPM" min="0" max="200" unit="rpm"
+//     visible={true}
+//     onToggle={() => ...}
+//   />
+
+const trackFooterRowVariants = cva(
+  [
+    "flex items-center gap-2 px-2 py-1 cursor-pointer",
+    "transition-opacity duration-150 select-none",
+    "border-b border-(--theme-border-subtle) last:border-b-0",
+    "hover:bg-[color-mix(in_srgb,var(--theme-elevated)_60%,transparent)]",
+  ].join(" "),
+  {
+    variants: {
+      visible: {
+        true: "opacity-100",
+        false: "opacity-45",
+      },
+    },
+    defaultVariants: { visible: true },
+  },
+);
+
+export interface TrackFooterRowProps
+  extends
+    Omit<React.HTMLAttributes<HTMLDivElement>, "onToggle">,
+    VariantProps<typeof trackFooterRowVariants> {
+  trace: React.ComponentProps<typeof TraceColor>["trace"];
+  name: string;
+  min: string | number;
+  max: string | number;
+  unit: string;
+  onToggle?: () => void;
+}
+
+export const TrackFooterRow = ({
+  trace,
+  name,
+  min,
+  max,
+  unit,
+  visible = true,
+  onToggle,
+  className,
+  ...props
+}: TrackFooterRowProps) => (
+  <div
+    role="checkbox"
+    aria-checked={visible}
+    onClick={onToggle}
+    className={cn(trackFooterRowVariants({ visible }), className)}
+    {...props}
+  >
+    {/* Color swatch — solid when visible, dotted when hidden */}
+    <span className="shrink-0 flex items-center w-3">
+      {visible ? (
+        <TraceColor trace={trace} type="line" />
+      ) : (
+        <span
+          className="block w-3 h-px border-t border-dashed"
+          style={{
+            borderColor: `var(--trace-${trace}, var(--theme-fg-dim))`,
+          }}
+        />
+      )}
+    </span>
+
+    {/* Trace name */}
+    <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-bold uppercase tracking-[0.08em] text-(--theme-fg) min-w-[44px] shrink-0">
+      {name}
+    </span>
+
+    {/* Range: min ─── max with subtle ticks */}
+    <span className="flex-1 flex items-center gap-1.5 min-w-0">
+      <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-muted) tabular-nums shrink-0">
+        {min}
+      </span>
+      <span className="flex-1 h-px bg-(--theme-border) min-w-3" />
+      <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-muted) tabular-nums shrink-0">
+        {max}
+      </span>
+    </span>
+
+    {/* Unit */}
+    <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim) lowercase shrink-0 min-w-[42px] text-right">
+      {unit}
+    </span>
+  </div>
+);
+
+// ─── 8.8 GAUGE CARD COMPACT ───────────────────────────────────────────────────
+// Slim sidebar variant of GaugeCard.
+// 2-column grid friendly (~110px wide cards).
+// Status drives left-border accent + subtle bg tint.
+
+const gaugeCardCompactVariants = cva(
+  [
+    "relative flex flex-col gap-px px-2 py-1.5",
+    "border-l-2 transition-all duration-200",
+    "border-y border-r border-y-(--theme-border) border-r-(--theme-border)",
+  ].join(" "),
+  {
+    variants: {
+      status: {
+        ok: "bg-(--theme-surface) border-l-(--theme-ok)",
+        warning: [
+          "bg-[color-mix(in_srgb,var(--theme-warning)_4%,var(--theme-surface))]",
+          "border-l-(--theme-warning)",
+        ].join(" "),
+        critical: [
+          "bg-[color-mix(in_srgb,var(--theme-critical)_6%,var(--theme-surface))]",
+          "border-l-(--theme-critical)",
+          "animate-[gauge-critical-pulse_2.2s_ease-in-out_infinite]",
+        ].join(" "),
+        idle: [
+          "bg-(--theme-surface) opacity-50",
+          "border-l-(--theme-border)",
+        ].join(" "),
+      },
+    },
+    defaultVariants: { status: "ok" },
+  },
+);
+
+export interface GaugeCardCompactProps
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof gaugeCardCompactVariants> {
+  label: string;
+  value: string | number;
+  unit?: string;
+}
+
+export const GaugeCardCompact = ({
+  label,
+  value,
+  unit,
+  status,
+  className,
+  ...props
+}: GaugeCardCompactProps) => {
+  // Map status to ValueReadout color
+  const valueStatus =
+    status === "warning"
+      ? "warning"
+      : status === "critical"
+        ? "critical"
+        : status === "idle"
+          ? "inactive"
+          : "default";
+
+  return (
+    <div
+      className={cn(gaugeCardCompactVariants({ status }), className)}
+      {...props}
+    >
+      <span className="label-mono">{label}</span>
+      <ValueReadout value={value} unit={unit} size="md" status={valueStatus} />
+    </div>
+  );
+};
+
+/* ============================================================================
+   9. POLISHING v2 — RailSection, Slider, PopoverHeader/Title/Description
+   ============================================================================ */
+
+// ─── 9.1 RAIL SECTION ─────────────────────────────────────────────────────────
+// Section divider for left tool rail.
+// Renders "label + horizontal line" header above its children.
+// When `collapsed` is true, label hides — only the line separator remains.
+//
+// Usage:
+//   <RailSection label="Mode">
+//     <RadioCardGroup>...</RadioCardGroup>
+//   </RailSection>
+
+export interface RailSectionProps extends React.HTMLAttributes<HTMLDivElement> {
+  label: string;
+  collapsed?: boolean;
+}
+
+export const RailSection = ({
+  label,
+  collapsed = false,
+  className,
+  children,
+  ...props
+}: RailSectionProps) => (
+  <div className={cn("flex flex-col gap-1.5", className)} {...props}>
+    {collapsed ? (
+      // Collapsed: line only, no label
+      <div className="h-px bg-(--theme-border) -mx-2" aria-hidden="true" />
+    ) : (
+      // Expanded: label + flex line
+      <header className="flex items-center gap-2">
+        <span className="section-heading shrink-0">{label}</span>
+        <div className="flex-1 h-px bg-(--theme-border)" aria-hidden="true" />
+      </header>
+    )}
+    <div className="flex flex-col gap-1.5">{children}</div>
+  </div>
+);
+
+// ─── 9.2 SLIDER ───────────────────────────────────────────────────────────────
+// Base UI Slider with theme styling. Single canonical size.
+// Used for: Display Settings track widths (visual only in v2 polish).
+//
+// Usage:
+//   <Slider value={width} onValueChange={setWidth} min={0} max={100} step={1} />
+
+const sliderRootClass = cn(
+  "relative flex items-center select-none touch-none w-full h-5",
+);
+
+const sliderTrackClass = cn(
+  "relative h-1 grow rounded-full bg-(--theme-border)",
+);
+
+const sliderIndicatorClass = cn(
+  "absolute h-full rounded-full bg-(--theme-accent)",
+);
+
+const sliderThumbClass = cn(
+  "block size-3 rounded-full bg-(--theme-fg) border-2 border-(--theme-accent)",
+  "shadow-sm cursor-grab active:cursor-grabbing",
+  "transition-transform duration-100",
+  "hover:scale-110",
+  "outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-base)",
+  "data-[dragging]:scale-110",
+);
+
+export interface SliderProps extends React.ComponentPropsWithoutRef<
+  typeof BaseSlider.Root
+> {
+  trackClassName?: string;
+  thumbClassName?: string;
+}
+
+export const Slider = ({
+  className,
+  trackClassName,
+  thumbClassName,
+  ...props
+}: SliderProps) => (
+  <BaseSlider.Root className={cn(sliderRootClass, className)} {...props}>
+    <BaseSlider.Control className="relative flex items-center w-full h-full">
+      <BaseSlider.Track className={cn(sliderTrackClass, trackClassName)}>
+        <BaseSlider.Indicator className={sliderIndicatorClass} />
+      </BaseSlider.Track>
+      <BaseSlider.Thumb className={cn(sliderThumbClass, thumbClassName)} />
+    </BaseSlider.Control>
+  </BaseSlider.Root>
+);
+
+// ─── 9.3 POPOVER SUB-COMPONENTS ───────────────────────────────────────────────
+// Adopted from shadcn snippet pattern. Provides consistent popover structure:
+//   <PopoverContent>
+//     <PopoverHeader>
+//       <PopoverTitle>...</PopoverTitle>
+//       <PopoverDescription>...</PopoverDescription>
+//     </PopoverHeader>
+//     ...content...
+//   </PopoverContent>
+
+export interface PopoverHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+export const PopoverHeader = ({ className, ...props }: PopoverHeaderProps) => (
+  <div
+    className={cn(
+      "flex flex-col gap-0.5 px-4 py-3",
+      "border-b border-(--theme-border)",
+      className,
+    )}
+    {...props}
+  />
+);
+
+export interface PopoverTitleProps extends React.ComponentPropsWithoutRef<
+  typeof BasePopover.Title
+> {}
+
+export const PopoverTitle = ({ className, ...props }: PopoverTitleProps) => (
+  <BasePopover.Title
+    className={cn(
+      "font-['Barlow_Condensed',sans-serif] text-[13px] font-bold",
+      "uppercase tracking-[0.08em] text-(--theme-fg) leading-tight",
+      className,
+    )}
+    {...props}
+  />
+);
+
+export interface PopoverDescriptionProps extends React.ComponentPropsWithoutRef<
+  typeof BasePopover.Description
+> {}
+
+export const PopoverDescription = ({
+  className,
+  ...props
+}: PopoverDescriptionProps) => (
+  <BasePopover.Description
+    className={cn(
+      "font-['Barlow',sans-serif] text-[11px]",
+      "text-(--theme-fg-muted) leading-snug",
+      className,
+    )}
+    {...props}
+  />
 );

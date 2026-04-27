@@ -1,29 +1,25 @@
 "use client";
 
 /* ============================================================================
-   RTDC — Dashboard (v2 + polishing)
-   Full refactor per PLAN.md + PLAN_polishing.md
+   RTDC — Dashboard v2
+   Full refactor per PLAN.md
    ============================================================================
    Sections:
    0. Imports
-   1. Static Data (with THEMES, TRACKS_META, TICKER_NOMINAL_ENTRIES)
-   2. State Management (UiState + leftRail/displayLayoutPopover,
-                        ChartState + trackOrder/trackWidths/trackVisibility)
+   1. Static Data
+   2. State Management (3 reducers + contexts)
    3. Hooks (useClock, useResizeObserver)
-   4. Shell — UniversalTopbar (Settings as Popover), DashboardSubheader,
-              AlarmTicker, Footer
-   5. Left Tool Rail — Collapsible, RailSection dividers, Layout button
+   4. Shell — UniversalTopbar, DashboardSubheader, Footer
+   5. Left Tool Rail
    6. Chart Area — WellProfileTrack, TimeRuler, DepthRuler, FlowRuler
    7. LogTrack + TrackFooter
    8. Floating Gauge Sidebar + Collapsed Strip
    9. Floating Alarm Sidebar + Collapsed Strip
-   10. Settings Popover (PopoverHeader + Theme RadioCardGroup)
-   11. Zoom Popover (PopoverHeader)
-   12. Display Layout Popover (NEW — track order/widths/visibility, visual)
-   13. Ack Modal
-   14. Keyboard Shortcuts (+ Cmd+B for rail)
-   15. Auto-Collapse Rail Hook
-   16. Main Dashboard Component
+   10. Settings Popover
+   11. Zoom Popover
+   12. Ack Modal
+   13. Keyboard Shortcuts Hook
+   14. Main Dashboard Component
    ============================================================================ */
 
 /* ============================================================================
@@ -51,10 +47,6 @@ import {
   // Left tool rail
   Search,
   Ruler,
-  ChevronsLeft,
-  ChevronsRight,
-  LayoutGrid,
-  GripVertical,
   // Chart
   Activity,
   // Sidebars
@@ -91,7 +83,7 @@ import {
   BreadcrumbItem,
   ConnectionStatus,
   FooterStat,
-  // v2 primitives
+  // NEW v2 primitives
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -103,12 +95,6 @@ import {
   RangePresetButton,
   TrackFooterRow,
   GaugeCardCompact,
-  // Polishing primitives
-  RailSection,
-  Slider,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverDescription,
   cn,
 } from "../components/components";
 
@@ -122,42 +108,6 @@ const CURRENT_WELL = {
   block: "Block 7G",
   region: "Makassar Strait",
 } as const;
-
-// Theme metadata for theme picker (P3)
-const THEMES = [
-  {
-    id: "gruvbox" as const,
-    name: "Gruvbox",
-    subtitle: "Warm industrial · default",
-    swatch: "#83a598",
-  },
-  {
-    id: "tomorrow" as const,
-    name: "Tomorrow Eighties",
-    subtitle: "Cool retro-tech",
-    swatch: "#66cccc",
-  },
-  {
-    id: "solarized" as const,
-    name: "Solarized Dark",
-    subtitle: "Deep sea / submarine",
-    swatch: "#2aa198",
-  },
-];
-
-// Track metadata — used by Display Layout Popover (P5)
-const TRACKS_META = [
-  {
-    id: "well-profile",
-    name: "Well Profile",
-    isFixed: true,
-    defaultWidth: 130,
-  },
-  { id: "drill", name: "Drill", isFixed: false, defaultWidth: 25 },
-  { id: "hydraulics", name: "Hydraulics", isFixed: false, defaultWidth: 25 },
-  { id: "geo", name: "Geo", isFixed: false, defaultWidth: 25 },
-  { id: "directional", name: "Directional", isFixed: false, defaultWidth: 25 },
-] as const;
 
 // Gauge cards — drill metrics first, then geo (by-type implicit)
 const GAUGES = [
@@ -359,15 +309,6 @@ const RANGE_PRESETS_DOMAIN = [
   { id: "custom", label: "Custom Range…" },
 ] as const;
 
-// Ticker nominal context — shown when no unacked alarms (P6)
-const TICKER_NOMINAL_ENTRIES = [
-  { label: "Depth", value: "12,563 ft MD" },
-  { label: "ROP", value: "24.8 ft/hr" },
-  { label: "RPM", value: "120" },
-  { label: "Well", value: "Alpha-1 · Block 7G" },
-  { label: "Status", value: "All systems nominal" },
-] as const;
-
 /* ============================================================================
    2. STATE MANAGEMENT — 3 reducers + 3 contexts
    ============================================================================ */
@@ -376,10 +317,8 @@ const TICKER_NOMINAL_ENTRIES = [
 type UiState = {
   gaugeSidebar: "open" | "closed";
   alarmSidebar: "open" | "closed";
-  leftRail: "expanded" | "collapsed"; // NEW (P1)
   settingsPopover: boolean;
   zoomPopover: boolean;
-  displayLayoutPopover: boolean; // NEW (P5)
   ackModal: { open: boolean; alarmId: string | null };
   alarmFilters: { critical: boolean; warning: boolean; info: boolean };
 };
@@ -388,11 +327,8 @@ type UiAction =
   | { type: "TOGGLE_GAUGE_SIDEBAR" }
   | { type: "TOGGLE_ALARM_SIDEBAR" }
   | { type: "TOGGLE_BOTH_SIDEBARS" }
-  | { type: "TOGGLE_LEFT_RAIL" } // NEW
-  | { type: "SET_LEFT_RAIL"; value: UiState["leftRail"] } // NEW
   | { type: "SET_SETTINGS_POPOVER"; open: boolean }
   | { type: "SET_ZOOM_POPOVER"; open: boolean }
-  | { type: "SET_DISPLAY_LAYOUT_POPOVER"; open: boolean } // NEW
   | { type: "OPEN_ACK_MODAL"; alarmId: string }
   | { type: "CLOSE_ACK_MODAL" }
   | { type: "TOGGLE_ALARM_FILTER"; filter: keyof UiState["alarmFilters"] };
@@ -400,10 +336,8 @@ type UiAction =
 const uiInitial: UiState = {
   gaugeSidebar: "closed", // per PLAN 3.6 default
   alarmSidebar: "open", // per PLAN 3.6 default (safety-critical)
-  leftRail: "expanded",
   settingsPopover: false,
   zoomPopover: false,
-  displayLayoutPopover: false,
   ackModal: { open: false, alarmId: null },
   alarmFilters: { critical: true, warning: true, info: true },
 };
@@ -428,19 +362,10 @@ function uiReducer(s: UiState, a: UiAction): UiState {
           : "open";
       return { ...s, gaugeSidebar: target, alarmSidebar: target };
     }
-    case "TOGGLE_LEFT_RAIL":
-      return {
-        ...s,
-        leftRail: s.leftRail === "expanded" ? "collapsed" : "expanded",
-      };
-    case "SET_LEFT_RAIL":
-      return { ...s, leftRail: a.value };
     case "SET_SETTINGS_POPOVER":
       return { ...s, settingsPopover: a.open };
     case "SET_ZOOM_POPOVER":
       return { ...s, zoomPopover: a.open };
-    case "SET_DISPLAY_LAYOUT_POPOVER":
-      return { ...s, displayLayoutPopover: a.open };
     case "OPEN_ACK_MODAL":
       return { ...s, ackModal: { open: true, alarmId: a.alarmId } };
     case "CLOSE_ACK_MODAL":
@@ -489,10 +414,6 @@ type ChartState = {
   liveMode: boolean;
   rangePreset: RangePreset | null;
   traceVisibility: Record<string, boolean>;
-  // Display Layout (visual-only in v2 polishing — not yet wired to chart) — P7
-  trackOrder: string[];
-  trackWidths: Record<string, number>;
-  trackVisibility: Record<string, boolean>;
 };
 
 type ChartAction =
@@ -503,12 +424,7 @@ type ChartAction =
   | { type: "ZOOM_IN" }
   | { type: "ZOOM_OUT" }
   | { type: "RESET_ZOOM" }
-  | { type: "TOGGLE_TRACE_VISIBILITY"; trace: string }
-  // Display Layout — P7
-  | { type: "SET_TRACK_ORDER"; order: string[] }
-  | { type: "SET_TRACK_WIDTH"; trackId: string; width: number }
-  | { type: "TOGGLE_TRACK_VISIBILITY"; trackId: string }
-  | { type: "RESET_TRACK_LAYOUT" };
+  | { type: "TOGGLE_TRACE_VISIBILITY"; trace: string };
 
 const chartInitial: ChartState = {
   mode: "depth",
@@ -526,11 +442,6 @@ const chartInitial: ChartState = {
     inc: true,
     azi: true,
   },
-  trackOrder: TRACKS_META.map((t) => t.id),
-  trackWidths: Object.fromEntries(
-    TRACKS_META.map((t) => [t.id, t.defaultWidth]),
-  ),
-  trackVisibility: Object.fromEntries(TRACKS_META.map((t) => [t.id, true])),
 };
 
 function chartReducer(s: ChartState, a: ChartAction): ChartState {
@@ -556,28 +467,6 @@ function chartReducer(s: ChartState, a: ChartAction): ChartState {
           ...s.traceVisibility,
           [a.trace]: !s.traceVisibility[a.trace],
         },
-      };
-    case "SET_TRACK_ORDER":
-      return { ...s, trackOrder: a.order };
-    case "SET_TRACK_WIDTH":
-      return { ...s, trackWidths: { ...s.trackWidths, [a.trackId]: a.width } };
-    case "TOGGLE_TRACK_VISIBILITY":
-      return {
-        ...s,
-        trackVisibility: {
-          ...s.trackVisibility,
-          [a.trackId]: !s.trackVisibility[a.trackId],
-        },
-      };
-    case "RESET_TRACK_LAYOUT":
-      return {
-        ...s,
-        trackWidths: Object.fromEntries(
-          TRACKS_META.map((t) => [t.id, t.defaultWidth]),
-        ),
-        trackVisibility: Object.fromEntries(
-          TRACKS_META.map((t) => [t.id, true]),
-        ),
       };
     default:
       return s;
@@ -787,26 +676,20 @@ function UniversalTopbar() {
 
       {/* Action buttons */}
       <div className="flex items-center gap-1 pl-3 border-l border-(--theme-border)">
-        {/* Settings — Popover trigger directly on the button */}
-        <Popover
-          open={ui.settingsPopover}
-          onOpenChange={(open) =>
-            dispatch({ type: "SET_SETTINGS_POPOVER", open })
+        {/* Settings */}
+        <TopbarButton
+          title="Settings (Cmd+K)"
+          aria-label="Open settings"
+          onClick={() =>
+            dispatch({
+              type: "SET_SETTINGS_POPOVER",
+              open: !ui.settingsPopover,
+            })
           }
+          data-settings-trigger
         >
-          <PopoverTrigger
-            render={
-              <TopbarButton
-                title="Settings (Cmd+K)"
-                aria-label="Open settings"
-                data-settings-trigger
-              >
-                <SettingsIcon size={14} strokeWidth={2} />
-              </TopbarButton>
-            }
-          />
-          <SettingsPopoverContent />
-        </Popover>
+          <SettingsIcon size={14} strokeWidth={2} />
+        </TopbarButton>
 
         {/* Alarm bell */}
         <TopbarButton
@@ -892,157 +775,56 @@ function DashboardSubheader() {
   );
 }
 
-// ─── 4.3 ALARM TICKER (P6) ────────────────────────────────────────────────────
-function AlarmTicker() {
-  const { dispatch } = useUi();
-
-  const unackedAlarms = useMemo(
-    () =>
-      FEED_ITEMS.filter(
-        (f) =>
-          f.state === "unacked" &&
-          (f.severity === "critical" || f.severity === "warning"),
-      ),
-    [],
-  );
-  const hasAlarms = unackedAlarms.length > 0;
-
-  // Build alarm entries
-  const renderAlarmEntries = (keyPrefix: string) =>
-    unackedAlarms.map((alarm, i) => (
-      <React.Fragment key={`${keyPrefix}-${alarm.id}-${i}`}>
-        <button
-          type="button"
-          onClick={() => {
-            // Open alarm sidebar (only if currently closed — avoid toggling open→close)
-            dispatch({ type: "TOGGLE_ALARM_SIDEBAR" });
-          }}
-          className={cn(
-            "inline-flex items-center gap-1.5 cursor-pointer outline-none",
-            "hover:brightness-125 transition-[filter] duration-150",
-            alarm.severity === "critical"
-              ? "text-(--theme-critical)"
-              : "text-(--theme-warning)",
-          )}
-        >
-          <TriangleAlert size={11} strokeWidth={2.25} className="shrink-0" />
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] tracking-[0.04em]">
-            {alarm.severity === "critical" ? "CRITICAL" : "WARNING"}:{" "}
-            {alarm.message}
-          </span>
-        </button>
-        <span className="text-(--theme-fg-dim) shrink-0">·</span>
-      </React.Fragment>
-    ));
-
-  // Build nominal context entries
-  const renderNominalEntries = (keyPrefix: string) =>
-    TICKER_NOMINAL_ENTRIES.map((entry, i) => (
-      <React.Fragment key={`${keyPrefix}-${entry.label}-${i}`}>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-dim) uppercase tracking-[0.08em]">
-            {entry.label}:
-          </span>
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-muted) tracking-[0.04em]">
-            {entry.value}
-          </span>
-        </span>
-        <span className="text-(--theme-fg-dim) shrink-0">·</span>
-      </React.Fragment>
-    ));
-
-  return (
-    <div
-      className={cn(
-        "ticker-strip flex-1 relative overflow-hidden",
-        // Pause animation on hover
-        "[&:hover_.animate-ticker]:[animation-play-state:paused]",
-      )}
-    >
-      <div
-        className={cn(
-          "animate-ticker inline-flex gap-8 whitespace-nowrap",
-          // Slower pace when no urgent alarms
-          !hasAlarms && "[animation-duration:60s]",
-        )}
-      >
-        {hasAlarms ? (
-          <>
-            {renderAlarmEntries("a")}
-            {renderAlarmEntries("b")}
-          </>
-        ) : (
-          <>
-            {renderNominalEntries("a")}
-            {renderNominalEntries("b")}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── 4.4 FOOTER ───────────────────────────────────────────────────────────────
+// ─── 4.3 FOOTER ───────────────────────────────────────────────────────────────
 function Footer() {
   return (
     <footer
       className={cn(
         "flex items-center px-4 gap-4 flex-shrink-0 z-10",
         "bg-(--theme-base) border-t border-(--theme-border)",
-        "overflow-hidden",
       )}
       style={{ height: 28 }}
     >
-      {/* Left: version stamp */}
+      {/* Version stamp */}
       <span
         className={cn(
           "font-['Share_Tech_Mono',monospace] text-[9px] tracking-[0.06em]",
-          "text-(--theme-fg-dim) shrink-0",
+          "text-(--theme-fg-dim)",
         )}
       >
         RTDC v0.2.0-alpha · {CURRENT_WELL.name} · © 2025
       </span>
 
-      {/* Center: alarm ticker */}
-      <AlarmTicker />
+      <div className="flex-1" />
 
-      {/* Right: stats */}
-      <div className="flex items-center gap-3 shrink-0">
-        <FooterStat value="48 ms" label="Ping" />
-        <FooterStat value="0 frames" label="Dropped" />
-        <FooterStat value="—" label="Retry" />
-      </div>
+      {/* Stats */}
+      <FooterStat value="48 ms" label="Ping" />
+      <FooterStat value="0 frames" label="Dropped" />
+      <FooterStat value="—" label="Retry" />
     </footer>
   );
 }
 
 /* ============================================================================
-   5. LEFT TOOL RAIL — Collapsible (P1) + RailSection dividers (P2) + Layout (P5)
+   5. LEFT TOOL RAIL
    ============================================================================ */
-
-const RAIL_WIDTH_EXPANDED = 150;
-const RAIL_WIDTH_COLLAPSED = 48;
 
 function LeftToolRail() {
   const { state: chart, dispatch } = useChart();
   const { state: ui, dispatch: uiDispatch } = useUi();
-  const isCollapsed = ui.leftRail === "collapsed";
 
   return (
     <aside
       className={cn(
-        "flex flex-col gap-3 py-3 flex-shrink-0 relative",
+        "flex flex-col gap-3 px-3 py-3 flex-shrink-0",
         "bg-(--theme-surface) border-r border-(--theme-border)",
-        "z-10 overflow-hidden",
-        isCollapsed ? "px-1.5" : "px-3",
+        "z-10",
       )}
-      style={{
-        width: isCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED,
-        transition: "width 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-      }}
+      style={{ width: 150 }}
     >
-      {/* MODE section */}
-      <RailSection label="Mode" collapsed={isCollapsed}>
+      {/* MODE — RadioCard stack */}
+      <div className="flex flex-col gap-1.5">
+        <span className="section-heading">Mode</span>
         <RadioCardGroup
           value={chart.mode}
           onValueChange={(v) =>
@@ -1053,7 +835,6 @@ function LeftToolRail() {
           <RadioCard
             value="time"
             size="sm"
-            compact={isCollapsed}
             icon={<Clock size={14} strokeWidth={2} />}
             title="Time"
             subtitle="UTC ref"
@@ -1061,16 +842,16 @@ function LeftToolRail() {
           <RadioCard
             value="depth"
             size="sm"
-            compact={isCollapsed}
             icon={<Ruler size={14} strokeWidth={2} />}
             title="Depth"
             subtitle="ft MD ref"
           />
         </RadioCardGroup>
-      </RailSection>
+      </div>
 
-      {/* ZOOM section */}
-      <RailSection label="Zoom" collapsed={isCollapsed}>
+      {/* ZOOM trigger */}
+      <div className="flex flex-col gap-1.5">
+        <span className="section-heading">Zoom</span>
         <Popover
           open={ui.zoomPopover}
           onOpenChange={(open) =>
@@ -1082,151 +863,73 @@ function LeftToolRail() {
               <button
                 type="button"
                 className={cn(
-                  "flex items-center cursor-pointer transition-all duration-150 outline-none",
+                  "flex items-center gap-2 px-2.5 py-2 cursor-pointer",
                   "bg-(--theme-elevated) border border-(--theme-border)",
                   "rounded-(--radius-badge)",
                   "hover:border-(--theme-fg-dim) hover:bg-(--theme-overlay)",
+                  "transition-all duration-150 outline-none",
                   "focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
                   "data-[popup-open]:border-(--theme-accent) data-[popup-open]:bg-(--theme-accent-dim)",
-                  isCollapsed ? "size-9 justify-center" : "gap-2 px-2.5 py-2",
                 )}
-                aria-label="Open zoom controls"
-                title={isCollapsed ? "Zoom" : undefined}
               >
                 <Search
                   size={14}
                   strokeWidth={2}
                   className="text-(--theme-fg-muted) shrink-0"
                 />
-                {!isCollapsed && (
-                  <>
-                    <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
-                      Zoom
-                    </span>
-                    <span className="flex-1" />
-                    <LiveBadge
-                      state={chart.liveMode ? "live" : "frozen"}
-                      className="text-[8px] px-1 py-0"
-                    />
-                  </>
-                )}
+                <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
+                  Zoom
+                </span>
+                <span className="flex-1" />
+                <LiveBadge
+                  state={chart.liveMode ? "live" : "frozen"}
+                  className="text-[8px] px-1 py-0"
+                />
               </button>
             }
           />
           <ZoomPopoverContent />
         </Popover>
-      </RailSection>
-
-      {/* LAYOUT section (P5) */}
-      <RailSection label="Layout" collapsed={isCollapsed}>
-        <Popover
-          open={ui.displayLayoutPopover}
-          onOpenChange={(open) =>
-            uiDispatch({ type: "SET_DISPLAY_LAYOUT_POPOVER", open })
-          }
-        >
-          <PopoverTrigger
-            render={
-              <button
-                type="button"
-                className={cn(
-                  "flex items-center cursor-pointer transition-all duration-150 outline-none",
-                  "bg-(--theme-elevated) border border-(--theme-border)",
-                  "rounded-(--radius-badge)",
-                  "hover:border-(--theme-fg-dim) hover:bg-(--theme-overlay)",
-                  "focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
-                  "data-[popup-open]:border-(--theme-accent) data-[popup-open]:bg-(--theme-accent-dim)",
-                  isCollapsed ? "size-9 justify-center" : "gap-2 px-2.5 py-2",
-                )}
-                aria-label="Display layout"
-                title={isCollapsed ? "Layout" : undefined}
-              >
-                <LayoutGrid
-                  size={14}
-                  strokeWidth={2}
-                  className="text-(--theme-fg-muted) shrink-0"
-                />
-                {!isCollapsed && (
-                  <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
-                    Tracks
-                  </span>
-                )}
-              </button>
-            }
-          />
-          <DisplayLayoutPopoverContent />
-        </Popover>
-      </RailSection>
+      </div>
 
       <div className="flex-1" />
 
-      {/* PANELS section */}
-      <RailSection label="Panels" collapsed={isCollapsed}>
+      {/* Sidebar controls — quick toggle */}
+      <div className="flex flex-col gap-1.5">
+        <span className="section-heading">Panels</span>
         <button
           type="button"
           onClick={() => uiDispatch({ type: "TOGGLE_GAUGE_SIDEBAR" })}
           className={cn(
-            "flex items-center cursor-pointer transition-all duration-150",
-            "rounded-(--radius-badge) border",
-            isCollapsed ? "size-9 justify-center" : "gap-2 px-2.5 py-1.5",
+            "flex items-center gap-2 px-2.5 py-1.5 cursor-pointer",
+            "rounded-(--radius-badge) border transition-all duration-150",
             ui.gaugeSidebar === "open"
               ? "bg-(--theme-accent-dim) border-(--theme-accent) text-(--theme-accent)"
               : "bg-(--theme-elevated) border-(--theme-border) text-(--theme-fg-muted) hover:text-(--theme-fg)",
           )}
-          aria-label="Toggle gauges sidebar"
-          title={isCollapsed ? "Gauges (Cmd+.)" : undefined}
         >
           <GaugeIcon size={12} strokeWidth={2} />
-          {!isCollapsed && (
-            <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold uppercase tracking-[0.06em]">
-              Gauges
-            </span>
-          )}
+          <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold uppercase tracking-[0.06em]">
+            Gauges
+          </span>
         </button>
         <button
           type="button"
           onClick={() => uiDispatch({ type: "TOGGLE_ALARM_SIDEBAR" })}
           className={cn(
-            "flex items-center cursor-pointer transition-all duration-150",
-            "rounded-(--radius-badge) border",
-            isCollapsed ? "size-9 justify-center" : "gap-2 px-2.5 py-1.5",
+            "flex items-center gap-2 px-2.5 py-1.5 cursor-pointer",
+            "rounded-(--radius-badge) border transition-all duration-150",
             ui.alarmSidebar === "open"
               ? "bg-(--theme-accent-dim) border-(--theme-accent) text-(--theme-accent)"
               : "bg-(--theme-elevated) border-(--theme-border) text-(--theme-fg-muted) hover:text-(--theme-fg)",
           )}
-          aria-label="Toggle alarms sidebar"
-          title={isCollapsed ? "Alarms (Cmd+/)" : undefined}
         >
           <TriangleAlert size={12} strokeWidth={2} />
-          {!isCollapsed && (
-            <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold uppercase tracking-[0.06em]">
-              Alarms
-            </span>
-          )}
+          <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold uppercase tracking-[0.06em]">
+            Alarms
+          </span>
         </button>
-      </RailSection>
-
-      {/* Collapse toggle — bottom of rail */}
-      <button
-        type="button"
-        onClick={() => uiDispatch({ type: "TOGGLE_LEFT_RAIL" })}
-        className={cn(
-          "flex items-center justify-center cursor-pointer transition-all duration-150",
-          "rounded-(--radius-badge) border border-(--theme-border-subtle)",
-          "bg-(--theme-elevated) hover:bg-(--theme-overlay)",
-          "text-(--theme-fg-dim) hover:text-(--theme-fg)",
-          "outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
-          isCollapsed ? "size-9" : "h-7",
-        )}
-        aria-label={isCollapsed ? "Expand left rail" : "Collapse left rail"}
-        title={`${isCollapsed ? "Expand" : "Collapse"} (Cmd+B)`}
-      >
-        {isCollapsed ? (
-          <ChevronsRight size={14} strokeWidth={2} />
-        ) : (
-          <ChevronsLeft size={14} strokeWidth={2} />
-        )}
-      </button>
+      </div>
     </aside>
   );
 }

@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
 import { TriangleAlert } from "lucide-react";
-import { useUi } from "../../../stores/dashboard-store";
-import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "../../../data/dashboard-static";
-import { cn } from "../../../components";
+import { useUi } from "@/stores/dashboard-store";
+import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
+import { cn } from "@/lib/utils";
 
 export function AlarmTicker() {
   const { dispatch } = useUi();

@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
-import { useUi } from "../../../stores/dashboard-store.tsx";
-import { GAUGES } from "../../../data/dashboard-static";
-import { StatusDot, cn } from "../../../components";
+import { useUi } from "@/stores/dashboard-store";
+import { GAUGES } from "@/data/dashboard-static";
+import { StatusDot } from "@/components/core";
+import { cn } from "@/lib/utils";
 
 const STRIP_WIDTH = 32;
 

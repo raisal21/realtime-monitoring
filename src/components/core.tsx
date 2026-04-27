@@ -2,7 +2,7 @@ import * as React from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
-import { cn } from "../lib/utils";
+import { cn } from "@/lib/utils";
 
 // Base UI — sub-path imports for consistent tree-shaking
 import { Button as BaseButton } from "@base-ui/react/button";

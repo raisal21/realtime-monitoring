@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Diamond, ChevronDown, Check } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn } from "@/lib/utils";
 
 // Base UI
 import { Select as BaseSelect } from "@base-ui/react/select";

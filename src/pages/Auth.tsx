@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Button, Input, cn } from "../components";
+import { Button, Input } from "@/components/core";
+import { cn } from "@/lib/utils";
 
 /* ═══════════════════════════════════════════════════════════
    CONSTELLATION CANVAS

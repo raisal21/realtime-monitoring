@@ -2,10 +2,10 @@ import * as React from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 import { Check, Minus } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn } from "@/lib/utils";
 
 // Imports from core
-import { TraceColor, type TraceColorProps } from "./core";
+import { TraceColor, type TraceColorProps } from "@/components/core";
 
 /* ============================================================================
    2. TELEMETRY DATA DISPLAY

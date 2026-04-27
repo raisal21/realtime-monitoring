@@ -1,16 +1,13 @@
 import { useMemo } from "react";
 import { Bell, Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
-import { useUi } from "../../../stores/dashboard-store.tsx";
-import { FEED_ITEMS, CURRENT_WELL } from "../../../data/dashboard-static";
-import {
-  Popover,
-  PopoverTrigger,
-  TopbarButton,
-  BreadcrumbItem,
-  ConnectionStatus,
-  cn,
-} from "../../../components";
-import { SettingsPopoverContent } from "../popovers/SettingsPopover";
+import { useUi } from "@/stores/dashboard-store";
+import { FEED_ITEMS, CURRENT_WELL } from "@/data/dashboard-static";
+import { Popover, PopoverTrigger } from "@/components/popover";
+import { TopbarButton } from "@/components/navigation";
+import { BreadcrumbItem } from "@/components/navigation";
+import { ConnectionStatus } from "@/components/footer";
+import { cn } from "@/lib/utils";
+import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
 
 export function UniversalTopbar() {
   const { state: ui, dispatch } = useUi();

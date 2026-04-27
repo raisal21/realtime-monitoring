@@ -1,5 +1,5 @@
-import { DEPTH_TICKS } from "../../../data/dashboard-static";
-import { cn } from "../../../components";
+import { DEPTH_TICKS } from "@/data/dashboard-static";
+import { cn } from "@/lib/utils";
 
 export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
   return (

@@ -1,9 +1,10 @@
 import type {
   AlarmSeverity,
   ConnectionStatus,
-} from "../domain/message.types.ts";
-import { StreamDef } from "../domain/constants.ts";
-import type { DrillUpdate, GeoUpdate } from "../domain/message.types.ts";
+  DrillUpdate,
+  GeoUpdate,
+} from "@/domain/message.types";
+import { StreamDef } from "@/domain/constants";
 
 export interface GlobalRigState
   extends ConnectionSlice, TelemetrySlice, AlarmSlice, SubscriptionSlice {}

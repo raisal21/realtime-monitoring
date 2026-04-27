@@ -1,16 +1,12 @@
 import { Search, Clock, Ruler, ChevronsLeft, ChevronsRight, LayoutGrid, Gauge as GaugeIcon, TriangleAlert } from "lucide-react";
-import { useChart, useUi, type ChartMode } from "../../../stores/dashboard-store.tsx";
-import {
-  Popover,
-  PopoverTrigger,
-  RailSection,
-  RadioCard,
-  RadioCardGroup,
-  LiveBadge,
-  cn,
-} from "../../../components";
-import { ZoomPopoverContent } from "../popovers/ZoomPopover";
-import { DisplayLayoutPopoverContent } from "../popovers/DisplayLayoutPopover";
+import { useChart, useUi, type ChartMode } from "@/stores/dashboard-store";
+import { Popover, PopoverTrigger } from "@/components/popover";
+import { RailSection } from "@/components/display";
+import { RadioCard, RadioCardGroup } from "@/components/form";
+import { LiveBadge } from "@/components/display";
+import { cn } from "@/lib/utils";
+import { ZoomPopoverContent } from "@/components/dashboard/popovers/ZoomPopover";
+import { DisplayLayoutPopoverContent } from "@/components/dashboard/popovers/DisplayLayoutPopover";
 
 const RAIL_WIDTH_EXPANDED = 150;
 const RAIL_WIDTH_COLLAPSED = 48;

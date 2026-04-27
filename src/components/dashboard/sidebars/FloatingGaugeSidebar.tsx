@@ -1,7 +1,9 @@
 import { ChevronRight } from "lucide-react";
-import { useUi } from "../../../stores/dashboard-store";
-import { GAUGES } from "../../../data/dashboard-static";
-import { IconButton, GaugeCardCompact, cn } from "../../../components";
+import { useUi } from "@/stores/dashboard-store";
+import { GAUGES } from "@/data/dashboard-static";
+import { IconButton } from "@/components/form";
+import { GaugeCardCompact } from "@/components/telemetry";
+import { cn } from "@/lib/utils";
 
 const GAUGE_SIDEBAR_WIDTH = 240;
 

@@ -1,9 +1,9 @@
-import { useUi } from "../../../stores/dashboard-store.tsx";
+import { useUi } from "@/stores/dashboard-store";
 import {
   Popover,
   PopoverTrigger,
-} from "../../../components";
-import { SettingsPopoverContent } from "./SettingsPopover";
+} from "@/components/popover";
+import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
 
 export function SettingsPopoverWrapper() {
   const { state: ui, dispatch } = useUi();

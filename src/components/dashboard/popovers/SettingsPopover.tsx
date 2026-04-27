@@ -1,17 +1,18 @@
 import { Monitor, Database, BellRing } from "lucide-react";
-import { useSettings, type Theme, type Density, type FontSize, type SampleRate } from "../../../stores/dashboard-store.tsx";
-import { THEMES } from "../../../data/dashboard-static";
+import { useSettings, type Theme, type Density, type FontSize, type SampleRate } from "@/stores/dashboard-store";
+import { THEMES } from "@/data/dashboard-static";
 import {
   PopoverContent,
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
+} from "@/components/popover";
+import {
   RadioCard,
   RadioCardGroup,
-  ToggleGroup,
-  ToggleItem,
-  Switch,
-} from "../../../components";
+} from "@/components/form";
+import { ToggleGroup, ToggleItem } from "@/components/core";
+import { Switch } from "@/components/form";
 import type { ReactNode } from "react";
 
 function SettingRow({

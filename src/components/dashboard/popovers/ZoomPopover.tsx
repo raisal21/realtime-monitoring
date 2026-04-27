@@ -1,15 +1,14 @@
 import { ZoomIn, ZoomOut, RotateCcw, Activity } from "lucide-react";
-import { useChart } from "../../../stores/dashboard-store.tsx";
-import { RANGE_PRESETS_QUICK, RANGE_PRESETS_DOMAIN } from "../../../data/dashboard-static";
+import { useChart } from "@/stores/dashboard-store";
+import { RANGE_PRESETS_QUICK, RANGE_PRESETS_DOMAIN } from "@/data/dashboard-static";
 import {
   PopoverContent,
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
-  LiveBadge,
-  RangePresetButton,
-  Button,
-} from "../../../components";
+} from "@/components/popover";
+import { LiveBadge, RangePresetButton } from "@/components/display";
+import { Button } from "@/components/core";
 
 export function ZoomPopoverContent() {
   const { state, dispatch } = useChart();

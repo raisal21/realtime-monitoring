@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { FLOW_DATA } from "../../../data/dashboard-static";
-import { cn } from "../../../components";
+import { FLOW_DATA } from "@/data/dashboard-static";
+import { cn } from "@/lib/utils";
 
 export function FlowRuler() {
   const KICK_THRESHOLD = 0.1;

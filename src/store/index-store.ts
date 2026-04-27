@@ -1,5 +1,5 @@
 import { createStore } from "zustand";
-import { log } from "../utils/logger";
+import { log } from "@/utils/logger";
 import type { StateCreator } from "zustand";
 import type {
   GlobalRigState,
@@ -9,7 +9,7 @@ import type {
   SubscriptionSlice,
   AlarmEntity,
 } from "./store.types";
-import { StreamDef } from "../domain/constants";
+import { StreamDef } from "@/domain/constants";
 
 export const createConnectionSlice: StateCreator<
   GlobalRigState,

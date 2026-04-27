@@ -1,6 +1,8 @@
-import { useChart } from "../../../stores/dashboard-store";
-import { TRACK_TRACES } from "../../../data/dashboard-static";
-import { Badge, TrackFooterRow, cn } from "../../../components";
+import { useChart } from "@/stores/dashboard-store";
+import { TRACK_TRACES } from "@/data/dashboard-static";
+import { Badge } from "@/components/core";
+import { TrackFooterRow } from "@/components/display";
+import { cn } from "@/lib/utils";
 
 interface LogTrackProps {
   trackId: keyof typeof TRACK_TRACES;

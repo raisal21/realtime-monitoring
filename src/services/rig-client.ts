@@ -1,12 +1,12 @@
 // services/rig-client.ts
 
-import { log } from "../utils/logger";
-import { handleWelcome, handleClosing } from "./protocol";
-import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "../domain/constants";
-import type { StreamDef } from "../domain/constants";
-import { HANDSHAKE_TIMEOUT_MS } from "../domain/constants";
-import { parseServerMessage } from "../domain/message.schema";
-import { globalRigStore } from "../store/index-store";
+import { log } from "@/utils/logger";
+import { handleWelcome, handleClosing } from "@/services/protocol";
+import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "@/domain/constants";
+import type { StreamDef } from "@/domain/constants";
+import { HANDSHAKE_TIMEOUT_MS } from "@/domain/constants";
+import { parseServerMessage } from "@/domain/message.schema";
+import { globalRigStore } from "@/store/index-store";
 
 const ClientState = {
   CLOSED: "CLOSED",

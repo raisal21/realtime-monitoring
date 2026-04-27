@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { log } from "../utils/logger";
-import { DrillSchema, GeoSchema } from "../domain/message.schema";
-import type { DrillUpdate, GeoUpdate } from "../domain/message.types";
-import { PROTOCOL_VERSION } from "../domain/constants";
+import { log } from "@/utils/logger";
+import { DrillSchema, GeoSchema } from "@/domain/message.schema";
+import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
+import { PROTOCOL_VERSION } from "@/domain/constants";
 
 export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
   const view = new DataView(buffer);

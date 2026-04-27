@@ -12,7 +12,7 @@ import {
   ClosingPayload,
   DrillSchema,
   GeoSchema,
-} from "./message.schema";
+} from "@/domain/message.schema";
 
 export type ConnectionStatus =
   | "OFFLINE"

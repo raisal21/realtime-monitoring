@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useUi, useChart } from "../stores/dashboard-store";
+import { useUi, useChart } from "@/stores/dashboard-store";
 
 export function useClock() {
   const [time, setTime] = useState(() =>

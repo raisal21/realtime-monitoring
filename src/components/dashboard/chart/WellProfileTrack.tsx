@@ -1,5 +1,5 @@
-import { WELL_PROFILE_DATA } from "../../../data/dashboard-static";
-import { cn } from "../../../components";
+import { WELL_PROFILE_DATA } from "@/data/dashboard-static";
+import { cn } from "@/lib/utils";
 
 export function WellProfileTrack() {
   const maxDepth = 13000;

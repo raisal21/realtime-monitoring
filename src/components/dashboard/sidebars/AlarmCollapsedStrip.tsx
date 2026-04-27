@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { TriangleAlert, ChevronLeft } from "lucide-react";
-import { useUi } from "../../../stores/dashboard-store";
-import { FEED_ITEMS } from "../../../data/dashboard-static";
-import { cn } from "../../../components";
+import { useUi } from "@/stores/dashboard-store";
+import { FEED_ITEMS } from "@/data/dashboard-static";
+import { cn } from "@/lib/utils";
 
 const STRIP_WIDTH = 32;
 

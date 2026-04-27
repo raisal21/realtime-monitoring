@@ -5,7 +5,7 @@ import {
   BACKOFF_CAP_MS,
   MAX_RETRY_ATTEMPTS,
   MAX_RETRY_ELAPSED_MS,
-} from "../domain/constants";
+} from "@/domain/constants";
 
 function getRandom(min: number, max: number): number {
   return Math.random() * (max - min) + min;

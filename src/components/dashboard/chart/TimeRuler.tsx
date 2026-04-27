@@ -1,5 +1,5 @@
-import { TIME_TICKS } from "../../../data/dashboard-static";
-import { cn } from "../../../components";
+import { TIME_TICKS } from "@/data/dashboard-static";
+import { cn } from "@/lib/utils";
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   return (

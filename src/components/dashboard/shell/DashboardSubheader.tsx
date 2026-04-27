@@ -1,7 +1,8 @@
 import { Clock } from "lucide-react";
-import { useClock, useResizeObserver } from "../../../hooks/dashboard-hooks";
-import { CURRENT_WELL } from "../../../data/dashboard-static";
-import { ValueReadout, cn } from "../../../components";
+import { useClock, useResizeObserver } from "@/hooks/dashboard-hooks";
+import { CURRENT_WELL } from "@/data/dashboard-static";
+import { ValueReadout } from "@/components/telemetry";
+import { cn } from "@/lib/utils";
 
 export function DashboardSubheader() {
   const time = useClock();

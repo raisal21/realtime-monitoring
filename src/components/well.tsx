@@ -1,12 +1,12 @@
 import * as React from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
-import { cn } from "../lib/utils";
+import { cn } from "@/lib/utils";
 
 // Imports from core
-import { StatusDot } from "./core";
-import { Button } from "./core";
-import { Badge } from "./core";
+import { StatusDot } from "@/components/core";
+import { Button } from "@/components/core";
+import { Badge } from "@/components/core";
 
 /* ============================================================================
    5. WELL EXPLORER

@@ -5,7 +5,7 @@ import React, {
   createContext,
   type ReactNode,
 } from "react";
-import { TRACKS_META, RANGE_PRESETS_QUICK, RANGE_PRESETS_DOMAIN } from "../data/dashboard-static";
+import { TRACKS_META, RANGE_PRESETS_QUICK, RANGE_PRESETS_DOMAIN } from "@/data/dashboard-static";
 
 type Theme = "gruvbox" | "tomorrow" | "solarized";
 type Density = "compact" | "comfortable";

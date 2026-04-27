@@ -10,17 +10,11 @@ import React, {
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import {
-  Button,
-  StatusDot,
-  Surface,
-  ValueReadout,
-  SidebarStat,
-  WellListItem,
-  BreadcrumbItem,
-  Input,
-  cn,
-} from "../components";
+import { Button, Input, Surface, StatusDot } from "@/components/core";
+import { ValueReadout } from "@/components/telemetry";
+import { SidebarStat, WellListItem } from "@/components/well";
+import { BreadcrumbItem } from "@/components/navigation";
+import { cn } from "@/lib/utils";
 
 /* ─────────────────────────────────────────────────────────────
    MapLibre GL JS tidak memerlukan access token.

@@ -1,6 +1,7 @@
-import { AlarmTicker } from "./AlarmTicker";
-import { CURRENT_WELL } from "../../../data/dashboard-static";
-import { FooterStat, cn } from "../../../components";
+import { AlarmTicker } from "@/components/dashboard/shell/AlarmTicker";
+import { CURRENT_WELL } from "@/data/dashboard-static";
+import { FooterStat } from "@/components/footer";
+import { cn } from "@/lib/utils";
 
 export function Footer() {
   return (

@@ -1,19 +1,19 @@
 // services/connection-manager.ts
 
-import { createRigClient, connect, disconnect } from "./rig-client";
+import { createRigClient, connect, disconnect } from "@/services/rig-client";
 import {
   handleClosing,
   handleSubscribeAck,
   handleUnsubscribeAck,
-} from "./protocol";
-import { createBackoff } from "../utils/backoff";
-import { parseServerMessage } from "../domain/message.schema";
-import { log } from "../utils/logger";
-import { StreamDef, FAST_RETRY_MS } from "../domain/constants";
+} from "@/services/protocol";
+import { createBackoff } from "@/utils/backoff";
+import { parseServerMessage } from "@/domain/message.schema";
+import { log } from "@/utils/logger";
+import { StreamDef, FAST_RETRY_MS } from "@/domain/constants";
 import type { ConnectResult } from "./rig-client";
-import type { ServerMessage, ConnectionStatus } from "../domain/message.types";
-import { readDrillBuff, readGeoBuff } from "./binary-parser";
-import { globalRigStore } from "../store/index-store";
+import type { ServerMessage, ConnectionStatus } from "@/domain/message.types";
+import { readDrillBuff, readGeoBuff } from "@/services/binary-parser";
+import { globalRigStore } from "@/store/index-store";
 
 // =============================================================================
 // Types

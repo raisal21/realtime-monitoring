@@ -1,16 +1,15 @@
 import { GripVertical, RotateCcw } from "lucide-react";
-import { useChart } from "../../../stores/dashboard-store";
-import { TRACKS_META } from "../../../data/dashboard-static";
+import { useChart } from "@/stores/dashboard-store";
+import { TRACKS_META } from "@/data/dashboard-static";
 import {
   PopoverContent,
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
-  Slider,
-  Switch,
-  Button,
-  cn,
-} from "../../../components";
+} from "@/components/popover";
+import { Slider, Switch } from "@/components/form";
+import { Button } from "@/components/core";
+import { cn } from "@/lib/utils";
 
 export function DisplayLayoutPopoverContent() {
   const { state: chart, dispatch } = useChart();

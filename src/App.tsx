@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import WellExplorer from "./pages/WellExplorer";
-import Auth from "./pages/Auth";
+import Auth from "@/pages/Auth";
 
 function App() {
   return (

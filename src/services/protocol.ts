@@ -1,13 +1,13 @@
 // services/protocol.ts
 
-import { log } from "../utils/logger";
+import { log } from "@/utils/logger";
 import type {
   ServerMessage,
   WelcomeMessage,
   SubsAckMessage,
   UnsubsAckMessage,
   ClosingMessage,
-} from "../domain/message.types.ts";
+} from "@/domain/message.types";
 
 export function handleWelcome(
   msg: Extract<ServerMessage, { messageType: "WELCOME" }>,

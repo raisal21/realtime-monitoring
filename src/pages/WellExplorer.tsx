@@ -12,18 +12,15 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   Button,
-  Badge,
   StatusDot,
   Surface,
   ValueReadout,
   SidebarStat,
   WellListItem,
-  WellMetric,
   BreadcrumbItem,
-  ConnectionStatus,
   Input,
   cn,
-} from "../components/components";
+} from "../components";
 
 /* ─────────────────────────────────────────────────────────────
    MapLibre GL JS tidak memerlukan access token.
@@ -724,11 +721,11 @@ function useMaplibre({
 
   // Expose enter callback to popup HTML buttons
   useEffect(() => {
-    (window as Record<string, unknown>)["__rtdc_enter"] = (id: string) => {
+    (window as unknown as Record<string, unknown>)["__rtdc_enter"] = (id: string) => {
       onEnterDashboard(id);
     };
     return () => {
-      delete (window as Record<string, unknown>)["__rtdc_enter"];
+      delete (window as unknown as Record<string, unknown>)["__rtdc_enter"];
     };
   }, [onEnterDashboard]);
 

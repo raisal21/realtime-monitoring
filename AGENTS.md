@@ -3,7 +3,7 @@
 ## Commands
 
 ```bash
-pnpm dev      # Start Vite dev server
+pnpm dev      # Start Vite dev server (port 5173)
 pnpm build    # typecheck then build (tsc -b && vite build)
 pnpm lint     # ESLint
 ```

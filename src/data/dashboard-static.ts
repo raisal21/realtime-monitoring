@@ -182,6 +182,9 @@ export const WELL_PROFILE_DATA = [
   { date: "Apr 09", depth: 11400 },
   { date: "Apr 13", depth: 12100 },
   { date: "Apr 17", depth: 12563 },
+  { date: "Apr 20", depth: 13500 },
+  { date: "Apr 24", depth: 14300 },
+  { date: "Apr 28", depth: 15200 },
 ] as const;
 
 export const FLOW_DATA = [

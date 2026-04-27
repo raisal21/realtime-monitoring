@@ -1,6 +1,5 @@
 import React, {
   useReducer,
-  useEffect,
   useContext,
   createContext,
   type ReactNode,
@@ -297,9 +296,9 @@ const SettingsContext = createContext<{
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(settingsReducer, settingsInitial);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = state.theme;
-  }, [state.theme]);
+  // Directly update HTML attribute before children render - required for ECharts sync theme
+  // eslint-disable-next-line
+  document && (document.documentElement.dataset.theme = state.theme);
 
   return (
     <SettingsContext.Provider value={{ state, dispatch }}>

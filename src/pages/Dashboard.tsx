@@ -35,7 +35,6 @@ import React, {
   useReducer,
   useRef,
   useMemo,
-  useCallback,
   useContext,
   createContext,
   type ReactNode,
@@ -82,7 +81,6 @@ import {
   Surface,
   ToggleGroup,
   ToggleItem,
-  TraceColor,
   ValueReadout,
   FilterChip,
   FeedItem,
@@ -1904,8 +1902,8 @@ function FloatingAlarmSidebar() {
 }
 
 /* ============================================================================
-   10. SETTINGS POPOVER
-   ============================================================================ */
+    10. SETTINGS POPOVER
+    ============================================================================ */
 
 function SettingsPopoverContent() {
   const { state, dispatch } = useSettings();
@@ -1916,17 +1914,10 @@ function SettingsPopoverContent() {
       sideOffset={8}
       popupClassName="w-[360px] max-h-[540px] overflow-y-auto scrollbar-thin"
     >
-      {/* Header */}
-      <div className="flex items-center px-4 py-3 border-b border-(--theme-border)">
-        <SettingsIcon
-          size={13}
-          strokeWidth={2}
-          className="text-(--theme-accent) mr-2"
-        />
-        <span className="font-['Barlow_Condensed',sans-serif] text-[13px] font-bold uppercase tracking-[0.08em] flex-1">
-          Settings
-        </span>
-      </div>
+      <PopoverHeader>
+        <PopoverTitle>Settings</PopoverTitle>
+        <PopoverDescription>Personal preferences for this session</PopoverDescription>
+      </PopoverHeader>
 
       {/* DISPLAY section */}
       <div className="px-4 py-3 border-b border-(--theme-border)">
@@ -1941,33 +1932,39 @@ function SettingsPopoverContent() {
 
         <div className="flex flex-col gap-2.5">
           {/* Theme */}
-          <SettingRow label="Theme">
-            <div className="flex gap-1">
-              {(["gruvbox", "tomorrow", "solarized"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => dispatch({ type: "SET_THEME", theme: t })}
-                  className={cn(
-                    "px-2.5 py-1 rounded-(--radius-badge) border cursor-pointer transition-all duration-150",
-                    "font-['Share_Tech_Mono',monospace] text-[9px] uppercase tracking-[0.1em]",
-                    state.theme === t
-                      ? "bg-(--theme-accent-dim) border-(--theme-accent) text-(--theme-accent)"
-                      : "bg-(--theme-elevated) border-(--theme-border) text-(--theme-fg-muted) hover:text-(--theme-fg)",
-                  )}
-                >
-                  {t === "gruvbox" ? "GBX" : t === "tomorrow" ? "TNE" : "SOL"}
-                </button>
+          <div>
+            <span className="font-['Barlow',sans-serif] text-[12px] text-(--theme-fg-muted) block mb-2">
+              Theme
+            </span>
+            <RadioCardGroup
+              value={state.theme}
+              onValueChange={(v) => v && dispatch({ type: "SET_THEME", theme: v as Theme })}
+              className="flex flex-col gap-1.5"
+            >
+              {THEMES.map((t) => (
+                <RadioCard
+                  key={t.id}
+                  value={t.id}
+                  size="sm"
+                  icon={
+                    <span
+                      className="size-2.5 rounded-full shrink-0"
+                      style={{ background: t.swatch }}
+                    />
+                  }
+                  title={t.name}
+                  subtitle={t.subtitle}
+                />
               ))}
-            </div>
-          </SettingRow>
+            </RadioCardGroup>
+          </div>
 
           {/* Density */}
           <SettingRow label="Density">
             <ToggleGroup
-              value={state.density}
-              onValueChange={(v) =>
-                v && dispatch({ type: "SET_DENSITY", density: v as Density })
+              value={[state.density] as readonly string[]}
+              onValueChange={(v: readonly string[]) =>
+                v && v[0] && dispatch({ type: "SET_DENSITY", density: v[0] as Density })
               }
             >
               <ToggleItem value="compact">Compact</ToggleItem>
@@ -1978,9 +1975,9 @@ function SettingsPopoverContent() {
           {/* Font Size */}
           <SettingRow label="Font Size">
             <ToggleGroup
-              value={state.fontSize}
-              onValueChange={(v) =>
-                v && dispatch({ type: "SET_FONT_SIZE", size: v as FontSize })
+              value={[state.fontSize] as readonly string[]}
+              onValueChange={(v: readonly string[]) =>
+                v && v[0] && dispatch({ type: "SET_FONT_SIZE", size: v[0] as FontSize })
               }
             >
               <ToggleItem value="sm">SM</ToggleItem>
@@ -2005,10 +2002,9 @@ function SettingsPopoverContent() {
         <div className="flex flex-col gap-2.5">
           <SettingRow label="Sample Rate">
             <ToggleGroup
-              value={state.sampleRate}
-              onValueChange={(v) =>
-                v &&
-                dispatch({ type: "SET_SAMPLE_RATE", rate: v as SampleRate })
+              value={[state.sampleRate] as readonly string[]}
+              onValueChange={(v: readonly string[]) =>
+                v && v[0] && dispatch({ type: "SET_SAMPLE_RATE", rate: v[0] as SampleRate })
               }
             >
               <ToggleItem value="10hz">10Hz</ToggleItem>
@@ -2088,18 +2084,13 @@ function ZoomPopoverContent() {
       side="right"
       popupClassName="w-[280px]"
     >
-      {/* Header */}
-      <div className="flex items-center px-3 py-2 border-b border-(--theme-border)">
-        <Search
-          size={12}
-          strokeWidth={2}
-          className="text-(--theme-accent) mr-2"
-        />
-        <span className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold uppercase tracking-[0.08em] flex-1">
-          Zoom & Range
-        </span>
-        <LiveBadge state={state.liveMode ? "live" : "frozen"} />
-      </div>
+      <PopoverHeader>
+        <div className="flex items-center justify-between pr-2">
+          <PopoverTitle>Zoom & Range</PopoverTitle>
+          <LiveBadge state={state.liveMode ? "live" : "frozen"} />
+        </div>
+        <PopoverDescription>Adjust time range and zoom level</PopoverDescription>
+      </PopoverHeader>
 
       {/* QUICK presets */}
       <div className="px-3 py-2.5 border-b border-(--theme-border)">
@@ -2190,7 +2181,132 @@ function ZoomPopoverContent() {
 }
 
 /* ============================================================================
-   12. ACK MODAL
+    12. DISPLAY LAYOUT POPOVER (P5) — Track order/widths/visibility (visual only)
+    ============================================================================ */
+
+function DisplayLayoutPopoverContent() {
+  const { state: chart, dispatch: chartDispatch } = useChart();
+
+  return (
+    <PopoverContent
+      align="start"
+      sideOffset={6}
+      side="right"
+      popupClassName="w-[320px] max-h-[480px] overflow-y-auto scrollbar-thin"
+    >
+      <PopoverHeader>
+        <PopoverTitle>Display Settings</PopoverTitle>
+        <PopoverDescription>Track order, widths, and visibility</PopoverDescription>
+      </PopoverHeader>
+
+      {/* TRACK ORDER section */}
+      <div className="px-4 py-3 border-b border-(--theme-border)">
+        <span className="section-heading block mb-2">Track Order</span>
+        <div className="flex flex-col gap-1">
+          {chart.trackOrder.map((trackId) => {
+            const meta = TRACKS_META.find((t) => t.id === trackId);
+            if (!meta) return null;
+            return (
+              <div
+                key={trackId}
+                className={cn(
+                  "flex items-center gap-2 px-2 py-1.5 rounded-(--radius-badge)",
+                  "bg-(--theme-elevated) border border-(--theme-border)",
+                  "cursor-grab",
+                )}
+              >
+                <GripVertical
+                  size={12}
+                  strokeWidth={2}
+                  className="text-(--theme-fg-dim) shrink-0"
+                />
+                <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold text-(--theme-fg)">
+                  {meta.name}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* TRACK WIDTHS section */}
+      <div className="px-4 py-3 border-b border-(--theme-border)">
+        <span className="section-heading block mb-3">Track Widths</span>
+        <div className="flex flex-col gap-3">
+          {chart.trackOrder.map((trackId) => {
+            const meta = TRACKS_META.find((t) => t.id === trackId);
+            if (!meta) return null;
+            const width = chart.trackWidths[trackId] ?? meta.defaultWidth;
+
+            return (
+              <div key={trackId} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted) truncate">
+                  {meta.name}
+                </span>
+                <Slider
+                  value={[width]}
+                  onValueChange={(vals) =>
+                    chartDispatch({
+                      type: "SET_TRACK_WIDTH",
+                      trackId,
+                      width: Array.isArray(vals) ? vals[0] : vals as number,
+                    })
+                  }
+                  min={meta.isFixed ? 130 : 10}
+                  max={meta.isFixed ? 130 : 100}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="w-12 text-right font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim) tabular-nums shrink-0">
+                  {meta.isFixed ? `${width}px` : `${width}%`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <Button
+          intent="ghost"
+          size="sm"
+          className="mt-3 w-full"
+          onClick={() => chartDispatch({ type: "RESET_TRACK_LAYOUT" })}
+        >
+          <RotateCcw size={11} strokeWidth={2} />
+          Reset to default
+        </Button>
+      </div>
+
+      {/* TRACK VISIBILITY section */}
+      <div className="px-4 py-3">
+        <span className="section-heading block mb-2">Track Visibility</span>
+        <div className="flex flex-col gap-2">
+          {chart.trackOrder.map((trackId) => {
+            const meta = TRACKS_META.find((t) => t.id === trackId);
+            if (!meta) return null;
+            const visible = chart.trackVisibility[trackId] ?? true;
+
+            return (
+              <div key={trackId} className="flex items-center justify-between">
+                <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold text-(--theme-fg)">
+                  {meta.name}
+                </span>
+                <Switch
+                  checked={visible}
+                  size="sm"
+                  onCheckedChange={() =>
+                    chartDispatch({ type: "TOGGLE_TRACK_VISIBILITY", trackId })
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </PopoverContent>
+  );
+}
+
+/* ============================================================================
+   14. ACK MODAL
    ============================================================================ */
 
 function AckModal() {
@@ -2294,7 +2410,7 @@ function AckModal() {
 }
 
 /* ============================================================================
-   13. KEYBOARD SHORTCUTS HOOK
+   14. KEYBOARD SHORTCUTS HOOK
    ============================================================================ */
 
 function useKeyboardShortcuts() {
@@ -2357,6 +2473,11 @@ function useKeyboardShortcuts() {
           e.preventDefault();
           chartDispatch({ type: "TOGGLE_LIVE" });
           break;
+        case "b":
+        case "B":
+          e.preventDefault();
+          uiDispatch({ type: "TOGGLE_LEFT_RAIL" });
+          break;
       }
     };
 
@@ -2366,13 +2487,23 @@ function useKeyboardShortcuts() {
 }
 
 /* ============================================================================
-   14. MAIN DASHBOARD
+   15. MAIN DASHBOARD
    ============================================================================ */
 
 function DashboardInner() {
-  const { state: ui } = useUi();
+  const { state: ui, dispatch: uiDispatch } = useUi();
   const { state: chart } = useChart();
   useKeyboardShortcuts();
+
+  // Auto-collapse on initial mount when viewport < 1366px
+  useEffect(() => {
+    const checkWidth = () => {
+      if (window.innerWidth < 1366 && ui.leftRail === "expanded") {
+        uiDispatch({ type: "SET_LEFT_RAIL", value: "collapsed" });
+      }
+    };
+    checkWidth();
+  }, []);
 
   // Compute floating sidebar positions per PLAN 3.4
   // Alarm: always at right: 0

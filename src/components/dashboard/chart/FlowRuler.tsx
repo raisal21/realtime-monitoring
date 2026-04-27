@@ -25,7 +25,7 @@ export function FlowRuler() {
         value: -d.flowOut,
         itemStyle: {
           color: isKick
-            ? { type: "linear", x: 1, y: 0, x2: 0, y2: 0,
+            ? { type: "linear" as const, x: 1, y: 0, x2: 0, y2: 0,
                 colorStops: [
                   { offset: 0, color: c.critical },
                   { offset: 1, color: c.warning },
@@ -45,7 +45,7 @@ export function FlowRuler() {
         value: d.flowIn,
         itemStyle: {
           color: isKick
-            ? { type: "linear", x: 0, y: 0, x2: 1, y2: 0,
+            ? { type: "linear" as const, x: 0, y: 0, x2: 1, y2: 0,
                 colorStops: [
                   { offset: 0, color: c.info },
                   { offset: 1, color: c.accent },

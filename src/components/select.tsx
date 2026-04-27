@@ -54,14 +54,14 @@ export const PresetSelect = ({
     </BaseSelect.Trigger>
 
     <BaseSelect.Portal>
-      <BaseSelect.Positioner sideOffset={4} align="start">
+      <BaseSelect.Positioner sideOffset={4} align="start" className="z-[200]">
         <BaseSelect.Popup
           className={cn(
             "min-w-(--anchor-width)",
             "bg-(--theme-elevated) border border-(--theme-border)",
             "rounded-(--radius-panel)",
             "shadow-[0_8px_32px_rgba(0,0,0,0.6)]",
-            "py-1 z-50",
+            "py-1 relative",
             "data-starting-style:opacity-0 data-starting-style:scale-[0.96]",
             "transition-[opacity,scale] duration-150 origin-top",
           )}

@@ -133,7 +133,10 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           axisLine: { show: false },
           axisTick: { show: false },
           axisLabel: { show: false },
-          splitLine: { show: idx === 0 },
+          splitLine: { 
+            show: idx === 0,
+            lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" as const },
+          },
           splitNumber: 4,
         }))
       : [{ type: "value" as const, show: false, min: 0, max: 1 }];

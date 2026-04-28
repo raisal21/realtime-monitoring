@@ -1,7 +1,7 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useChart, useSettings } from "@/stores/dashboard-store";
+import { useChart, useSettings, TRACKS_META } from "@/stores/dashboard-store";
 import { TRACK_TRACES, WELL_SESSION } from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
@@ -90,6 +90,18 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const echartsRef = useRef<ReactECharts>(null);
   const wasRemote = useRef(false);
 
+  const handleDataZoom = useCallback((params: unknown) => {
+    const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
+    const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
+    if (raw.startValue !== undefined && raw.endValue !== undefined) {
+      dispatch({
+        type: "SET_MANUAL_RANGE",
+        min: Math.min(raw.startValue, raw.endValue),
+        max: Math.max(raw.startValue, raw.endValue),
+      });
+    }
+  }, [dispatch]);
+
   useEffect(() => {
     const ec = echartsRef.current?.getEchartsInstance();
     if (!ec) return;
@@ -171,9 +183,10 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         }))
       : [{ type: "value" as const, show: false, min: 0, max: 1 }];
 
-    const yRange = mode === "depth"
+    const sessionRange = mode === "depth"
       ? WELL_SESSION.depthAxis.range
       : WELL_SESSION.timeAxis.range;
+    const yRange = chart.manualRange ?? sessionRange;
 
     return {
       animation: false,
@@ -191,6 +204,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
         },
       },
+      dataZoom: [{ type: "inside", yAxisIndex: 0, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: false }],
       tooltip: {
         trigger: "axis",
         axisPointer: {
@@ -238,18 +252,22 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       },
       series,
     };
-  }, [traces, chart.traceVisibility, chart.mode, settings.theme]);
+  }, [traces, chart.traceVisibility, chart.mode, chart.manualRange, settings.theme]);
+
+  const trackMeta = TRACKS_META.find((t) => t.id === trackId);
+  const trackWidth = trackMeta ? (chart.trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;
 
   return (
     <div
       className={cn(
-        "flex flex-col flex-1 min-w-[180px]",
+        "flex flex-col flex-shrink-0",
         "border-r border-(--theme-border) last:border-r-0",
         "bg-(--theme-base) overflow-hidden",
         stream === "drill"
           ? "shadow-[inset_2px_0_0_var(--theme-ok)]"
           : "shadow-[inset_2px_0_0_var(--theme-info)]",
       )}
+      style={{ width: trackWidth }}
     >
       <div className="px-2 h-10 flex items-center gap-1.5 border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading flex-1">{title}</span>
@@ -270,6 +288,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           style={{ width: "100%", height: "100%" }}
           opts={{ renderer: "canvas" }}
           notMerge
+          onEvents={{ datazoom: handleDataZoom }}
         />
       </div>
     </div>

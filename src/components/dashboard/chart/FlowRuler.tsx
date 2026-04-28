@@ -23,12 +23,24 @@ export function FlowRuler() {
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
     const mode = chart.mode;
+    const range = chart.manualRange;
 
-    const flowValues = WELL_SESSION.flow.map((d) => ({ value: d.flow, depth: d.depth }));
+    const allFlowValues = WELL_SESSION.flow.map((d) => ({ value: d.flow, depth: d.depth }));
 
-    const yAxisCategories = mode === "depth"
-      ? flowValues.map(f => String(f.depth))
-      : WELL_SESSION.timePoints.map(t => minutesToHHMM(t));
+    let flowValues: typeof allFlowValues;
+    let yAxisCategories: string[];
+
+    if (mode === "depth") {
+      flowValues = range
+        ? allFlowValues.filter(f => f.depth >= range.min && f.depth <= range.max)
+        : allFlowValues;
+      yAxisCategories = flowValues.map(f => String(f.depth));
+    } else {
+      const timeEntries = WELL_SESSION.timePoints.map((t, i) => ({ t, i }));
+      const filtered = range ? timeEntries.filter(({ t }) => t >= range.min && t <= range.max) : timeEntries;
+      flowValues = filtered.map(({ i }) => allFlowValues[i] ?? { value: 0, depth: 0 });
+      yAxisCategories = filtered.map(({ t }) => minutesToHHMM(t));
+    }
 
     return {
       animation: false,
@@ -99,7 +111,7 @@ export function FlowRuler() {
         },
       },
     };
-  }, [chart.mode, settings.theme]);
+  }, [chart.mode, chart.manualRange, settings.theme]);
 
   return (
     <div

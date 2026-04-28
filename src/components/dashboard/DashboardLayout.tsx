@@ -11,6 +11,8 @@ import { TimeRuler } from "@/components/dashboard/chart/TimeRuler";
 import { DepthRuler } from "@/components/dashboard/chart/DepthRuler";
 import { FlowRuler } from "@/components/dashboard/chart/FlowRuler";
 import { LogTrack } from "@/components/dashboard/chart/LogTrack";
+import { TRACK_RENDER_CONFIG } from "@/data/dashboard-static";
+import type { TRACK_TRACES } from "@/data/dashboard-static";
 import { GaugeCollapsedStrip } from "@/components/dashboard/sidebars/GaugeCollapsedStrip";
 import { FloatingGaugeSidebar } from "@/components/dashboard/sidebars/FloatingGaugeSidebar";
 import { AlarmCollapsedStrip } from "@/components/dashboard/sidebars/AlarmCollapsedStrip";
@@ -66,7 +68,10 @@ export function DashboardLayout() {
 
           <section
             className="flex-1 flex overflow-hidden bg-(--theme-base) relative"
-            style={{ paddingRight: STRIP_WIDTH * 2 }}
+            style={{
+              paddingRight: alarmAnchor + STRIP_WIDTH,
+              transition: "padding-right 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
           >
             <div className="flex-1 flex overflow-x-auto overflow-y-hidden no-scrollbar">
               <WellProfileTrack />
@@ -74,25 +79,23 @@ export function DashboardLayout() {
               <DepthRuler isPrimary={chart.mode === "depth"} />
               <FlowRuler />
 
-              <LogTrack
-                trackId="drill"
-                title="DRILL"
-                hz="10 Hz"
-                stream="drill"
-              />
-              <LogTrack
-                trackId="hydraulics"
-                title="HYDRAULICS"
-                hz="10 Hz"
-                stream="drill"
-              />
-              <LogTrack trackId="geo" title="GEO" hz="1 Hz" stream="geo" />
-              <LogTrack
-                trackId="directional"
-                title="DIRECTIONAL"
-                hz="1 Hz"
-                stream="geo"
-              />
+              {chart.trackOrder
+                .filter((id) => id !== "well-profile")
+                .filter((id) => chart.trackVisibility[id] ?? true)
+                .map((id) => {
+                  const cfg = TRACK_RENDER_CONFIG[id];
+                  if (!cfg) return null;
+                  return (
+                    <LogTrack
+                      key={id}
+                      trackId={id as keyof typeof TRACK_TRACES}
+                      title={cfg.title}
+                      hz={cfg.hz}
+                      stream={cfg.stream}
+                    />
+                  );
+                })}
+              <div className="flex-1 bg-(--theme-base)" />
             </div>
           </section>
 

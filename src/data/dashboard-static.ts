@@ -33,11 +33,21 @@ export const TRACKS_META = [
     isFixed: true,
     defaultWidth: 130,
   },
-  { id: "drill", name: "Drill", isFixed: false, defaultWidth: 25 },
-  { id: "hydraulics", name: "Hydraulics", isFixed: false, defaultWidth: 25 },
-  { id: "geo", name: "Geo", isFixed: false, defaultWidth: 25 },
-  { id: "directional", name: "Directional", isFixed: false, defaultWidth: 25 },
+  { id: "drill", name: "Drill", isFixed: false, defaultWidth: 268 },
+  { id: "hydraulics", name: "Hydraulics", isFixed: false, defaultWidth: 268 },
+  { id: "geo", name: "Geo", isFixed: false, defaultWidth: 268 },
+  { id: "directional", name: "Directional", isFixed: false, defaultWidth: 268 },
 ] as const;
+
+export const TRACK_RENDER_CONFIG: Record<
+  string,
+  { title: string; hz: string; stream: "drill" | "geo" }
+> = {
+  drill:       { title: "DRILL",       hz: "10 Hz", stream: "drill" },
+  hydraulics:  { title: "HYDRAULICS",  hz: "10 Hz", stream: "drill" },
+  geo:         { title: "GEO",         hz: "1 Hz",  stream: "geo"   },
+  directional: { title: "DIRECTIONAL", hz: "1 Hz",  stream: "geo"   },
+};
 
 export const GAUGES = [
   {

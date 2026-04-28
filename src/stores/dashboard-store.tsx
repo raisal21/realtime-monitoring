@@ -4,7 +4,9 @@ import React, {
   createContext,
   type ReactNode,
 } from "react";
-import { TRACKS_META, RANGE_PRESETS_QUICK, RANGE_PRESETS_DOMAIN } from "@/data/dashboard-static";
+import { TRACKS_META, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
+
+export { TRACKS_META } from "@/data/dashboard-static";
 
 type Theme = "gruvbox" | "tomorrow" | "solarized";
 type Density = "compact" | "comfortable";
@@ -116,14 +118,14 @@ export function useUi() {
 }
 
 export type ChartMode = "time" | "depth";
-type RangePreset =
-  | (typeof RANGE_PRESETS_QUICK)[number]["id"]
-  | (typeof RANGE_PRESETS_DOMAIN)[number]["id"];
+type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
 
 type ChartState = {
   mode: ChartMode;
   liveMode: boolean;
   rangePreset: RangePreset | null;
+  manualRange: { min: number; max: number } | null;
+  dataZoomSlider: boolean;
   traceVisibility: Record<string, boolean>;
   trackOrder: string[];
   trackWidths: Record<string, number>;
@@ -137,6 +139,8 @@ type ChartAction =
   | { type: "TOGGLE_LIVE" }
   | { type: "SET_LIVE"; live: boolean }
   | { type: "SET_RANGE_PRESET"; preset: RangePreset }
+  | { type: "SET_MANUAL_RANGE"; min: number; max: number }
+  | { type: "TOGGLE_DATAZOOM_SLIDER" }
   | { type: "ZOOM_IN" }
   | { type: "ZOOM_OUT" }
   | { type: "RESET_ZOOM" }
@@ -150,6 +154,8 @@ const chartInitial: ChartState = {
   mode: "depth",
   liveMode: true,
   rangePreset: "1h",
+  manualRange: null,
+  dataZoomSlider: false,
   crosshairValue: null,
   traceVisibility: {
     rpm: true,
@@ -173,7 +179,7 @@ const chartInitial: ChartState = {
 function chartReducer(s: ChartState, a: ChartAction): ChartState {
   switch (a.type) {
     case "SET_MODE":
-      return { ...s, mode: a.mode, crosshairValue: null };
+      return { ...s, mode: a.mode, crosshairValue: null, manualRange: null };
     case "SET_CROSSHAIR_VALUE":
       return { ...s, crosshairValue: a.value };
     case "TOGGLE_LIVE":
@@ -181,13 +187,17 @@ function chartReducer(s: ChartState, a: ChartAction): ChartState {
     case "SET_LIVE":
       return { ...s, liveMode: a.live };
     case "SET_RANGE_PRESET":
-      return { ...s, rangePreset: a.preset, liveMode: true };
+      return { ...s, rangePreset: a.preset, liveMode: true, manualRange: null };
+    case "SET_MANUAL_RANGE":
+      return { ...s, manualRange: { min: a.min, max: a.max }, liveMode: false, rangePreset: null };
+    case "TOGGLE_DATAZOOM_SLIDER":
+      return { ...s, dataZoomSlider: !s.dataZoomSlider };
     case "ZOOM_IN":
       return { ...s, liveMode: false };
     case "ZOOM_OUT":
       return { ...s, liveMode: false };
     case "RESET_ZOOM":
-      return { ...s, liveMode: true, rangePreset: "1h" };
+      return { ...s, liveMode: true, rangePreset: "1h", manualRange: null };
     case "TOGGLE_TRACE_VISIBILITY":
       return {
         ...s,

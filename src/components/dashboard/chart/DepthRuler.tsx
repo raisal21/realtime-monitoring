@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { WELL_SESSION } from "@/data/dashboard-static";
@@ -12,8 +12,20 @@ function pixelToDepthValue(pct: number): number {
 }
 
 export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
-  const { dispatch: chartDispatch } = useChart();
+  const { state: chart, dispatch: chartDispatch } = useChart();
   const { state: settings } = useSettings();
+
+  const handleDataZoom = useCallback((params: unknown) => {
+    const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
+    const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
+    if (raw.startValue !== undefined && raw.endValue !== undefined) {
+      chartDispatch({
+        type: "SET_MANUAL_RANGE",
+        min: Math.min(raw.startValue, raw.endValue),
+        max: Math.max(raw.startValue, raw.endValue),
+      });
+    }
+  }, [chartDispatch]);
 
   const handleMouseMove = isPrimary
     ? (e: React.MouseEvent<HTMLDivElement>) => {
@@ -30,7 +42,8 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     ? () => chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: null })
     : undefined;
 
-  const { min: rangeMin, max: rangeMax } = WELL_SESSION.depthAxis.range;
+  const { min: sessionMin, max: sessionMax } = WELL_SESSION.depthAxis.range;
+  const yRange = (isPrimary && chart.manualRange) ? chart.manualRange : { min: sessionMin, max: sessionMax };
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -47,18 +60,14 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           type: "cross",
           label: { show: false },
           lineStyle: { width: 0 },
-          crossStyle: {
-            color: tickColor,
-            width: 1,
-            type: "dashed",
-          },
+          crossStyle: { color: tickColor, width: 1, type: "dashed" },
         },
       },
       xAxis: { type: "value", show: false, min: 0, max: 1 },
       yAxis: {
         type: "value",
-        min: rangeMin,
-        max: rangeMax,
+        min: yRange.min,
+        max: yRange.max,
         inverse: true,
         position: "left",
         interval: 10,
@@ -79,9 +88,10 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
         },
         splitLine: { show: false },
       },
+      dataZoom: [{ type: "inside", yAxisIndex: 0, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: false }],
       series: [],
     };
-  }, [settings.theme, isPrimary, rangeMin, rangeMax]);
+  }, [settings.theme, isPrimary, yRange.min, yRange.max]);
 
   return (
     <div
@@ -108,7 +118,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
         <div className="flex items-center pt-2 pb-1">
           <div className={cn("w-1.5 h-px flex-shrink-0", isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)")} />
           <span className={cn("font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1", isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)")}>
-            {rangeMin.toLocaleString()}
+            {yRange.min.toLocaleString()}
           </span>
         </div>
         <div className="flex flex-1">
@@ -117,7 +127,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
         <div className="flex items-center pt-1 pb-2">
           <div className={cn("w-1.5 h-px flex-shrink-0", isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)")} />
           <span className={cn("font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1", isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)")}>
-            {rangeMax.toLocaleString()}
+            {yRange.max.toLocaleString()}
           </span>
         </div>
       </div>
@@ -132,6 +142,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           style={{ width: "100%", height: "100%" }}
           opts={{ renderer: "canvas" }}
           notMerge
+          onEvents={{ datazoom: handleDataZoom }}
         />
       </div>
     </div>

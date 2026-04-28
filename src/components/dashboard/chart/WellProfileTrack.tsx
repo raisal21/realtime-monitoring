@@ -1,13 +1,26 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { WELL_SESSION } from "@/data/dashboard-static";
-import { useSettings } from "@/stores/dashboard-store";
+import { useChart, useSettings } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
 export function WellProfileTrack() {
+  const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
+
+  const handleDataZoom = useCallback((params: unknown) => {
+    const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
+    const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
+    if (raw.startValue !== undefined && raw.endValue !== undefined) {
+      dispatch({
+        type: "SET_MANUAL_RANGE",
+        min: Math.min(raw.startValue, raw.endValue),
+        max: Math.max(raw.startValue, raw.endValue),
+      });
+    }
+  }, [dispatch]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -90,9 +103,28 @@ export function WellProfileTrack() {
           return `<span style="color:${c.fgMuted}">${name}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${value.toLocaleString()} ft</span>`;
         },
       },
+      dataZoom: chart.dataZoomSlider
+        ? [
+            { type: "inside" as const, yAxisIndex: 0, filterMode: "none" as const, zoomOnMouseWheel: true, moveOnMouseMove: false },
+            {
+              type: "slider" as const,
+              yAxisIndex: 0,
+              orient: "vertical" as const,
+              right: 0,
+              width: 10,
+              borderColor: c.border,
+              backgroundColor: c.base,
+              fillerColor: c.accentDim + "55",
+              handleStyle: { color: c.accent, borderColor: c.accent },
+              emphasis: { handleStyle: { color: c.accent }, handleLabel: {} },
+              filterMode: "none" as const,
+              startValue: chart.manualRange?.min,
+              endValue: chart.manualRange?.max,
+            },
+          ]
+        : [{ type: "inside" as const, yAxisIndex: 0, filterMode: "none" as const, zoomOnMouseWheel: true, moveOnMouseMove: false }],
     };
-  // settings.theme triggers re-compute when theme changes
-  }, [settings.theme]);
+  }, [settings.theme, chart.dataZoomSlider, chart.manualRange]);
 
   return (
     <div
@@ -116,6 +148,7 @@ export function WellProfileTrack() {
           style={{ width: "100%", height: "100%" }}
           opts={{ renderer: "canvas" }}
           notMerge
+          onEvents={{ datazoom: handleDataZoom }}
         />
       </div>
 

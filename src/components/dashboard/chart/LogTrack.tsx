@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { useChart, useSettings } from "@/stores/dashboard-store";
-import { TRACK_TRACES } from "@/data/dashboard-static";
+import { TRACK_TRACES, WELL_SESSION } from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -14,18 +14,6 @@ interface LogTrackProps {
   stream: "drill" | "geo";
 }
 
-function generateMockData(traceIndex: number, length = 80) {
-  return Array.from({ length }, (_, i) => {
-    const t = i / (length - 1);
-    return (
-      0.3 +
-      0.4 * t +
-      0.15 * Math.sin(t * Math.PI * 6 + traceIndex * 2.1) +
-      0.08 * Math.cos(t * Math.PI * 14 + traceIndex * 1.3) +
-      0.04 * Math.sin(t * Math.PI * 28 + traceIndex * 0.7)
-    );
-  });
-}
 
 interface TrackHeaderProps {
   traces: typeof TRACK_TRACES[keyof typeof TRACK_TRACES];
@@ -36,7 +24,7 @@ interface TrackHeaderProps {
 
 function TrackHeader({ traces, traceColors, traceVisibility, onToggle }: TrackHeaderProps) {
   return (
-    <div className="flex-shrink-0 border-b border-(--theme-border)">
+    <div className="flex-shrink-0 min-h-[72px] border-b border-(--theme-border)">
       {traces.map((t) => {
         const color = traceColors[t.trace as keyof typeof traceColors] || "var(--theme-fg-dim)";
         const visible = traceVisibility[t.trace];
@@ -99,16 +87,55 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const traces = TRACK_TRACES[trackId];
   const tc = getTraceColors();
 
+  const echartsRef = useRef<ReactECharts>(null);
+  const wasRemote = useRef(false);
+
+  useEffect(() => {
+    const ec = echartsRef.current?.getEchartsInstance();
+    if (!ec) return;
+
+    const { crosshairValue } = chart;
+
+    if (crosshairValue !== null) {
+      const localTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
+      if (!localTraces.length) return;
+
+      const coords = ec.convertToPixel(
+        { xAxisIndex: 0, yAxisIndex: 0 },
+        [localTraces[0].min, crosshairValue],
+      );
+      if (!coords) return;
+
+      const pixelX = ec.getWidth() / 2;
+      const pixelY = (coords as number[])[1];
+      ec.dispatchAction({ type: "showTip", x: pixelX, y: pixelY });
+
+      if (!wasRemote.current) {
+        ec.setOption({ tooltip: { axisPointer: { label: { show: false } } } });
+        wasRemote.current = true;
+      }
+    } else if (wasRemote.current) {
+      // globalout clears both the tooltip popup and the crosshair lines;
+      // hideTip alone only hides the popup, leaving the crossStyle stuck
+      ec.getZr().trigger('globalout', {});
+      ec.setOption({ tooltip: { axisPointer: { label: { show: true } } } });
+      wasRemote.current = false;
+    }
+  }, [chart.crosshairValue, chart.traceVisibility, traces]);
+
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
     const tc = getTraceColors();
-    const yData = Array.from({ length: 80 }, (_, i) => i);
+    const mode = chart.mode;
 
     const visibleTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
+    const trackData = WELL_SESSION.traces[trackId] as Record<string, readonly number[]>;
+
+    const yPoints = mode === "depth" ? WELL_SESSION.depthPoints : WELL_SESSION.timePoints;
 
     const series = visibleTraces.map((t, idx) => {
-      const raw = generateMockData(idx);
-      const data = raw.map((norm, i) => [t.min + norm * (t.max - t.min), yData[i]]);
+      const values = trackData[t.trace] ?? [];
+      const data = values.map((val, i) => [val, yPoints[i]]);
       const color = tc[t.trace as keyof typeof tc] || c.fgMuted;
       return {
         type: "line" as const,
@@ -116,9 +143,11 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         yAxisIndex: 0,
         data,
         smooth: false,
-        symbol: "none",
-        lineStyle: { color, width: 1.2, opacity: 0.9 },
-        itemStyle: { color },
+        showSymbol: false,
+        symbol: "circle",
+        symbolSize: 5,
+        lineStyle: { color, width: 1.5, opacity: 0.95 },
+        itemStyle: { color, borderColor: c.base, borderWidth: 1.5 },
         z: 10 - idx,
       };
     });
@@ -133,13 +162,18 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           axisLine: { show: false },
           axisTick: { show: false },
           axisLabel: { show: false },
-          splitLine: { 
+          splitLine: {
             show: idx === 0,
             lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" as const },
           },
           splitNumber: 4,
+          axisPointer: { label: { show: false } },
         }))
       : [{ type: "value" as const, show: false, min: 0, max: 1 }];
+
+    const yRange = mode === "depth"
+      ? WELL_SESSION.depthAxis.range
+      : WELL_SESSION.timeAxis.range;
 
     return {
       animation: false,
@@ -149,8 +183,8 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       yAxis: {
         type: "value",
         inverse: true,
-        min: 0,
-        max: 79,
+        min: yRange.min,
+        max: yRange.max,
         show: false,
         splitLine: {
           show: true,
@@ -161,13 +195,32 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         trigger: "axis",
         axisPointer: {
           type: "cross",
+          axis: "y" as const,
           crossStyle: { color: c.fgDim, width: 0.8 },
           lineStyle: { color: c.accent, width: 0.8, type: "dashed" },
+          label: {
+            backgroundColor: c.accent,
+            color: c.fg,
+            borderWidth: 0,
+            fontSize: 8,
+            fontFamily: "Share Tech Mono, monospace",
+            padding: [3, 6],
+            formatter: mode === "depth"
+              ? (params: { value: number | string | Date }) => `${Math.round(Number(params.value))} ft`
+              : (params: { value: number | string | Date }) => {
+                  const min = Number(params.value);
+                  const h = Math.floor(min / 60);
+                  const m = Math.floor(min % 60);
+                  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+                },
+          },
         },
         backgroundColor: c.elevated,
         borderColor: c.border,
         borderWidth: 1,
         padding: [6, 10],
+        appendToBody: true,
+        extraCssText: "z-index: 20",
         textStyle: { color: c.fg, fontSize: 10, fontFamily: "Share Tech Mono, monospace" },
         formatter: (params: unknown) => {
           const ps = params as Array<{ value: [number, number] }>;
@@ -185,8 +238,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       },
       series,
     };
-  // settings.theme in deps ensures re-compute when theme changes (getChartColors reads CSS vars at call time)
-  }, [traces, chart.traceVisibility, settings.theme]);
+  }, [traces, chart.traceVisibility, chart.mode, settings.theme]);
 
   return (
     <div
@@ -199,11 +251,9 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           : "shadow-[inset_2px_0_0_var(--theme-info)]",
       )}
     >
-      <div className="px-2 py-1.5 border-b border-(--theme-border) flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="section-heading flex-1">{title}</span>
-          <Badge intent="neutral" size="xs">{hz}</Badge>
-        </div>
+      <div className="px-2 h-10 flex items-center gap-1.5 border-b border-(--theme-border) flex-shrink-0">
+        <span className="section-heading flex-1">{title}</span>
+        <Badge intent="neutral" size="xs">{hz}</Badge>
       </div>
 
       <TrackHeader
@@ -215,6 +265,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
 
       <div className="relative flex-1 overflow-hidden">
         <ReactECharts
+          ref={echartsRef}
           option={option}
           style={{ width: "100%", height: "100%" }}
           opts={{ renderer: "canvas" }}

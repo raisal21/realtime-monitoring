@@ -1,5 +1,5 @@
-import { Monitor, Database, BellRing } from "lucide-react";
-import { useSettings, type Theme, type Density, type FontSize, type SampleRate } from "@/stores/dashboard-store";
+import { Monitor, BellRing } from "lucide-react";
+import { useSettings, type Theme, type Density, type FontSize } from "@/stores/dashboard-store";
 import { THEMES } from "@/data/dashboard-static";
 import {
   PopoverContent,
@@ -107,39 +107,6 @@ export function SettingsPopoverContent() {
               <ToggleItem value="md">MD</ToggleItem>
               <ToggleItem value="lg">LG</ToggleItem>
             </ToggleGroup>
-          </SettingRow>
-        </div>
-      </div>
-
-      <div className="px-4 py-3 border-b border-(--theme-border)">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Database
-            size={11}
-            strokeWidth={2}
-            className="text-(--theme-fg-dim)"
-          />
-          <span className="section-heading">Data</span>
-        </div>
-
-        <div className="flex flex-col gap-2.5">
-          <SettingRow label="Sample Rate">
-            <ToggleGroup
-              value={[state.sampleRate] as readonly string[]}
-              onValueChange={(v: readonly string[]) =>
-                v && v[0] && dispatch({ type: "SET_SAMPLE_RATE", rate: v[0] as SampleRate })
-              }
-            >
-              <ToggleItem value="10hz">10Hz</ToggleItem>
-              <ToggleItem value="5hz">5Hz</ToggleItem>
-              <ToggleItem value="1hz">1Hz</ToggleItem>
-            </ToggleGroup>
-          </SettingRow>
-
-          <SettingRow label="Smoothing">
-            <Switch
-              checked={state.smoothing}
-              onCheckedChange={() => dispatch({ type: "TOGGLE_SMOOTHING" })}
-            />
           </SettingRow>
         </div>
       </div>

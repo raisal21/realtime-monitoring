@@ -188,36 +188,84 @@ export const WELL_PROFILE_DATA = [
 ] as const;
 
 export const FLOW_DATA = [
-  { depth: 12500, flowIn: 850, flowOut: 845 },
-  { depth: 12510, flowIn: 855, flowOut: 850 },
-  { depth: 12520, flowIn: 860, flowOut: 858 },
-  { depth: 12530, flowIn: 855, flowOut: 870 },
-  { depth: 12540, flowIn: 845, flowOut: 920 },
-  { depth: 12550, flowIn: 850, flowOut: 880 },
-  { depth: 12563, flowIn: 855, flowOut: 858 },
+  { depth: 12500, flow: 12 },
+  { depth: 12502, flow: 8 },
+  { depth: 12504, flow: 15 },
+  { depth: 12506, flow: 20 },
+  { depth: 12508, flow: 18 },
+  { depth: 12510, flow: 5 },
+  { depth: 12512, flow: -3 },
+  { depth: 12514, flow: -10 },
+  { depth: 12516, flow: -18 },
+  { depth: 12518, flow: -25 },
+  { depth: 12520, flow: -30 },
+  { depth: 12522, flow: -22 },
+  { depth: 12524, flow: -14 },
+  { depth: 12526, flow: -8 },
+  { depth: 12528, flow: 2 },
+  { depth: 12530, flow: 10 },
+  { depth: 12532, flow: 17 },
+  { depth: 12534, flow: 22 },
+  { depth: 12536, flow: 28 },
+  { depth: 12538, flow: 35 },
+  { depth: 12540, flow: 30 },
+  { depth: 12542, flow: 22 },
+  { depth: 12544, flow: 14 },
+  { depth: 12546, flow: 6 },
+  { depth: 12548, flow: -5 },
+  { depth: 12550, flow: -15 },
+  { depth: 12552, flow: -28 },
+  { depth: 12554, flow: -40 },
+  { depth: 12556, flow: -35 },
+  { depth: 12558, flow: -20 },
+  { depth: 12560, flow: -10 },
+  { depth: 12562, flow: 4 },
+  { depth: 12564, flow: 12 },
+  { depth: 12566, flow: 19 },
+  { depth: 12568, flow: 24 },
+  { depth: 12570, flow: 18 },
+  { depth: 12572, flow: 9 },
+  { depth: 12574, flow: 3 },
+  { depth: 12576, flow: -6 },
+  { depth: 12578, flow: -14 },
+  { depth: 12580, flow: -22 },
+  { depth: 12582, flow: -18 },
+  { depth: 12584, flow: -9 },
+  { depth: 12586, flow: 1 },
+  { depth: 12588, flow: 8 },
+  { depth: 12590, flow: 16 },
+  { depth: 12592, flow: 23 },
+  { depth: 12594, flow: 30 },
+  { depth: 12596, flow: 25 },
+  { depth: 12598, flow: 17 },
+  { depth: 12600, flow: 10 },
 ] as const;
 
 export const DEPTH_TICKS = [
-  { depth: "12,500", pct: 0, major: true },
-  { depth: "12,510", pct: 14, major: false },
-  { depth: "12,520", pct: 28, major: false },
-  { depth: "12,530", pct: 43, major: true },
-  { depth: "12,540", pct: 57, major: false },
-  { depth: "12,550", pct: 71, major: false },
-  { depth: "12,563", pct: 86, major: true },
-  { depth: "12,580", pct: 100, major: false },
+  { depth: "12,500", major: true },
+  { depth: "12,510", major: false },
+  { depth: "12,520", major: false },
+  { depth: "12,530", major: true },
+  { depth: "12,540", major: false },
+  { depth: "12,550", major: false },
+  { depth: "12,563", major: true },
+  { depth: "12,580", major: false },
 ] as const;
 
+export const CURRENT_DEPTH = "12,563";
+
 export const TIME_TICKS = [
-  { time: "14:00", pct: 0, major: true },
-  { time: "14:10", pct: 14, major: false },
-  { time: "14:15", pct: 28, major: false },
-  { time: "14:20", pct: 43, major: true },
-  { time: "14:25", pct: 57, major: false },
-  { time: "14:30", pct: 71, major: false },
-  { time: "14:31", pct: 86, major: true },
-  { time: "14:40", pct: 100, major: false },
+  { time: "14:00", major: true },
+  { time: "14:10", major: false },
+  { time: "14:15", major: false },
+  { time: "14:20", major: true },
+  { time: "14:25", major: false },
+  { time: "14:30", major: false },
+  { time: "14:31", major: true },
+  { time: "14:40", major: false },
 ] as const;
+
+export const CURRENT_TIME = "14:31";
 
 export const RANGE_PRESETS_QUICK = [
   { id: "1h", label: "1h" },
@@ -242,3 +290,165 @@ export const TICKER_NOMINAL_ENTRIES = [
   { label: "Well", value: "Alpha-1 · Block 7G" },
   { label: "Status", value: "All systems nominal" },
 ] as const;
+
+// ─── Unified session data ────────────────────────────────────────────────────
+// Single source of truth for all chart components during UI mock-up.
+// Replace with Zustand store slices once WebSocket integration is active.
+
+export const WELL_SESSION = {
+  cursor: {
+    depthFt: 12563,
+    depthLabel: "12,563",
+    time: "14:31",
+  },
+
+  depthAxis: {
+    ticks: [
+      { depth: "12,500", major: true },
+      { depth: "12,510", major: false },
+      { depth: "12,520", major: false },
+      { depth: "12,530", major: true },
+      { depth: "12,540", major: false },
+      { depth: "12,550", major: false },
+      { depth: "12,563", major: true },
+      { depth: "12,580", major: false },
+      { depth: "12,590", major: false },
+      { depth: "12,600", major: true },
+    ],
+    range: { min: 12500, max: 12600 },
+  },
+
+  timeAxis: {
+    ticks: TIME_TICKS,
+    range: { min: 840, max: 880 }, // minutes since midnight: 14:00–14:40
+  },
+
+  wellProfile: {
+    data: WELL_PROFILE_DATA,
+    maxDepthFt: 15200,
+  },
+
+  flow: FLOW_DATA,
+
+  // 51 time points (minutes since midnight) aligned to depthPoints.
+  // Index 0–31: 1 min/step (14:00–14:31, active drilling + connection).
+  // Index 31–50: ~0.47 min/step (14:31–14:40, slower ROP after connection).
+  timePoints: [
+    840, 841, 842, 843, 844, 845, 846, 847, 848, 849,
+    850, 851, 852, 853, 854, 855, 856, 857, 858, 859,
+    860, 861, 862, 863, 864, 865, 866, 867, 868, 869,
+    870, 871, 871.5, 872.0, 872.4, 872.9, 873.4, 873.8, 874.3, 874.8,
+    875.3, 875.7, 876.2, 876.7, 877.2, 877.6, 878.1, 878.6, 879.1, 879.5,
+    880.0,
+  ],
+
+  // 51 depth sample points — 12500 to 12600 ft, step 2 ft
+  depthPoints: [
+    12500, 12502, 12504, 12506, 12508, 12510, 12512, 12514, 12516, 12518,
+    12520, 12522, 12524, 12526, 12528, 12530, 12532, 12534, 12536, 12538,
+    12540, 12542, 12544, 12546, 12548, 12550, 12552, 12554, 12556, 12558,
+    12560, 12562, 12564, 12566, 12568, 12570, 12572, 12574, 12576, 12578,
+    12580, 12582, 12584, 12586, 12588, 12590, 12592, 12594, 12596, 12598,
+    12600,
+  ],
+
+  // Trace values aligned to depthPoints (index i → depthPoints[i]).
+  // 0 values at indices 19-21 (depth 12538-12542) = pipe connection.
+  traces: {
+    drill: {
+      rpm: [
+        120, 121, 122, 119, 121, 120, 122, 121, 120, 122,
+        121, 120, 119, 122, 121, 120, 122, 121, 120,   0,
+          0,   0, 121, 122, 120, 119, 121, 122, 120, 119,
+        121, 120, 121, 122, 120, 121, 120, 119, 121, 122,
+        120, 121, 122, 120, 121, 120, 122, 121, 120, 121,
+        120,
+      ],
+      wob: [
+        20.0, 20.5, 21.0, 20.2, 20.8, 21.2, 21.0, 20.5, 21.5, 21.0,
+        20.3, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0, 20.5,  0.0,
+         0.0,  0.0, 20.2, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0,
+        20.2, 20.5, 20.8, 21.0, 20.5, 20.8, 20.5, 20.2, 20.8, 21.0,
+        20.5, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0, 20.5, 20.8,
+        20.1,
+      ],
+      torque: [
+        4.8, 4.9, 5.0, 4.8, 4.9, 5.0, 4.9, 4.8, 5.1, 5.0,
+        4.9, 4.8, 5.0, 5.1, 4.9, 4.8, 5.0, 4.9, 4.8, 0.0,
+        0.0, 0.0, 4.9, 5.0, 4.9, 4.8, 4.9, 5.0, 5.1, 4.9,
+        4.8, 4.9, 5.0, 4.9, 4.8, 4.9, 4.8, 4.9, 5.0, 4.9,
+        4.8, 4.9, 5.0, 4.9, 4.8, 4.9, 5.0, 4.9, 4.8, 4.9,
+        4.9,
+      ],
+    },
+
+    hydraulics: {
+      spp: [
+        2490, 2495, 2498, 2492, 2497, 2502, 2498, 2495, 2505, 2500,
+        2497, 2492, 2498, 2505, 2500, 2495, 2502, 2497, 2492,    0,
+           0,    0, 2495, 2500, 2498, 2492, 2497, 2502, 2498, 2492,
+        2497, 2492, 2497, 2502, 2498, 2495, 2492, 2498, 2502, 2497,
+        2492, 2497, 2502, 2497, 2492, 2497, 2502, 2497, 2492, 2497,
+        2497,
+      ],
+      // HKLD spikes at connection (indices 19-21) as string weight transfers
+      hkld: [
+        201, 202, 201, 200, 202, 203, 201, 200, 202, 203,
+        201, 200, 202, 203, 201, 200, 202, 201, 200, 215,
+        218, 220, 201, 202, 201, 200, 202, 203, 201, 200,
+        202, 201, 202, 203, 201, 202, 201, 200, 202, 203,
+        201, 202, 203, 201, 200, 202, 203, 201, 200, 202,
+        201,
+      ],
+    },
+
+    geo: {
+      // GR: sandstone (low) → shale (high) → reservoir (low) → shale → transition
+      gamma: [
+         47,  49,  51,  52,  53,  54,  53,  52,  51,  52,
+         55,  62,  72,  83,  91,  98, 102, 106, 108, 105,
+         85,  65,  52,  45,  42,  40,  38,  40,  52,  88,
+         98, 108, 115, 120, 122, 118, 112, 105,  95,  82,
+         72,  65,  60,  58,  57,  58,  60,  62,  65,  67,
+         68,
+      ],
+      // ROP higher in shale, lower in harder formations; 0 during connection
+      rop: [
+        22, 23, 23, 22, 22, 23, 23, 24, 24, 23,
+        25, 27, 29, 31, 33, 34, 35, 33, 31,  0,
+         0,  0, 22, 21, 20, 19, 20, 22, 30, 32,
+        33, 34, 33, 32, 31, 30, 29, 27, 26, 24,
+        23, 23, 22, 23, 24, 24, 23, 22, 23, 24,
+        25,
+      ],
+      // Gas spike at 12554-12562 matches large negative flow (kick zone)
+      gas: [
+         6.0,  6.2,  7.0,  6.5,  7.0,  7.2,  6.8,  7.0,  7.2,  6.5,
+         7.0,  7.2,  8.0,  7.5,  8.0,  7.5,  8.2,  8.0,  9.0,  8.5,
+         8.0,  7.5,  7.0,  6.5,  7.0,  7.5,  8.0, 12.0, 28.0, 42.3,
+        38.0, 22.0, 14.0, 10.5,  8.5,  8.2,  8.0,  7.5,  8.0,  8.2,
+         8.0,  8.2,  7.5,  8.0,  8.2,  7.5,  8.0,  8.2,  7.5,  8.0,
+         8.2,
+      ],
+    },
+
+    directional: {
+      inc: [
+        3.2, 3.2, 3.3, 3.3, 3.3, 3.4, 3.4, 3.4, 3.4, 3.5,
+        3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5,
+        3.5, 3.5, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
+        3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
+        3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
+        3.4,
+      ],
+      azi: [
+        141.5, 141.6, 141.7, 141.8, 141.9, 142.0, 142.0, 142.1, 142.1, 142.2,
+        142.2, 142.3, 142.3, 142.3, 142.3, 142.3, 142.2, 142.2, 142.2, 142.1,
+        142.1, 142.1, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
+        142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
+        142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
+        142.0,
+      ],
+    },
+  },
+} as const;

@@ -128,10 +128,12 @@ type ChartState = {
   trackOrder: string[];
   trackWidths: Record<string, number>;
   trackVisibility: Record<string, boolean>;
+  crosshairValue: number | null;
 };
 
 type ChartAction =
   | { type: "SET_MODE"; mode: ChartMode }
+  | { type: "SET_CROSSHAIR_VALUE"; value: number | null }
   | { type: "TOGGLE_LIVE" }
   | { type: "SET_LIVE"; live: boolean }
   | { type: "SET_RANGE_PRESET"; preset: RangePreset }
@@ -148,6 +150,7 @@ const chartInitial: ChartState = {
   mode: "depth",
   liveMode: true,
   rangePreset: "1h",
+  crosshairValue: null,
   traceVisibility: {
     rpm: true,
     wob: true,
@@ -170,7 +173,9 @@ const chartInitial: ChartState = {
 function chartReducer(s: ChartState, a: ChartAction): ChartState {
   switch (a.type) {
     case "SET_MODE":
-      return { ...s, mode: a.mode };
+      return { ...s, mode: a.mode, crosshairValue: null };
+    case "SET_CROSSHAIR_VALUE":
+      return { ...s, crosshairValue: a.value };
     case "TOGGLE_LIVE":
       return { ...s, liveMode: !s.liveMode };
     case "SET_LIVE":

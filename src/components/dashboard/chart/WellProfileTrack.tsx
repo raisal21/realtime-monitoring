@@ -1,22 +1,21 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_PROFILE_DATA } from "@/data/dashboard-static";
+import { WELL_SESSION } from "@/data/dashboard-static";
 import { useSettings } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
-
-const MAX_DEPTH = 15200;
-const CURRENT_DEPTH = 12563;
 
 export function WellProfileTrack() {
   const { state: settings } = useSettings();
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
+    const { data, maxDepthFt } = WELL_SESSION.wellProfile;
+    const { depthFt: currentDepthFt } = WELL_SESSION.cursor;
 
-    const dates = WELL_PROFILE_DATA.map((d) => d.date);
-    const depths = WELL_PROFILE_DATA.map((d) => d.depth);
+    const dates = data.map((d) => d.date);
+    const depths = data.map((d) => d.depth);
 
     return {
       animation: false,
@@ -44,7 +43,7 @@ export function WellProfileTrack() {
         type: "value",
         inverse: true,
         min: 0,
-        max: MAX_DEPTH,
+        max: maxDepthFt,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { show: false },
@@ -57,38 +56,12 @@ export function WellProfileTrack() {
         {
           type: "line",
           data: depths,
-          smooth: 0.4,
+          step: "end" as const,
           symbol: "none",
-          lineStyle: { color: c.accent, width: 1.5, opacity: 0.9 },
-          areaStyle: {
-            color: {
-              type: "linear",
-              x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: `${c.accent}30` },
-                { offset: 1, color: `${c.accent}06` },
-              ],
-            },
-          },
-          markLine: {
-            silent: true,
-            symbol: "none",
-            data: [{ yAxis: CURRENT_DEPTH }],
-            lineStyle: { color: c.accent, width: 1, type: "solid", opacity: 0.7 },
-            label: {
-              show: true,
-              position: "insideEndTop",
-              formatter: `{c} ft`,
-              color: c.accent,
-              fontSize: 8,
-              fontFamily: "Share Tech Mono, monospace",
-              backgroundColor: c.surface,
-              padding: [1, 3],
-            },
-          },
+          lineStyle: { color: c.accent, width: 1.5, opacity: 0.95 },
           endLabel: {
             show: true,
-            formatter: `${CURRENT_DEPTH.toLocaleString()}`,
+            formatter: `${currentDepthFt.toLocaleString()}`,
             color: c.accent,
             fontSize: 8,
             fontFamily: "Share Tech Mono, monospace",
@@ -108,6 +81,8 @@ export function WellProfileTrack() {
           fontSize: 10,
           fontFamily: "Share Tech Mono, monospace",
         },
+        appendToBody: true,
+        extraCssText: "z-index: 20",
         formatter: (params: unknown) => {
           const ps = params as Array<{ name: string; value: number }>;
           if (!ps?.[0]) return "";
@@ -128,7 +103,7 @@ export function WellProfileTrack() {
       )}
       style={{ width: 130 }}
     >
-      <div className="px-2 py-1.5 border-b border-(--theme-border) flex-shrink-0">
+      <div className="px-2 h-10 flex flex-col justify-center border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading">Well Profile</span>
         <div className="flex items-center gap-1 mt-0.5">
           <span className="label-mono">depth × time</span>
@@ -149,7 +124,7 @@ export function WellProfileTrack() {
           TD
         </span>
         <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-fg-muted) tabular">
-          {MAX_DEPTH.toLocaleString()} ft
+          {WELL_SESSION.wellProfile.maxDepthFt.toLocaleString()} ft
         </span>
       </div>
     </div>

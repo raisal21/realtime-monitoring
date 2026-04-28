@@ -1,61 +1,34 @@
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { FLOW_DATA } from "@/data/dashboard-static";
-import { useSettings } from "@/stores/dashboard-store";
+import { WELL_SESSION } from "@/data/dashboard-static";
+import { useChart, useSettings } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
-const KICK_THRESHOLD = 0.1;
+const minutesToHHMM = (min: number) => {
+  const h = Math.floor(min / 60);
+  const m = Math.floor(min % 60);
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+};
+
+const FLOW_SCALE = Math.ceil(
+  Math.max(...WELL_SESSION.flow.map((d) => Math.abs(d.flow))) * 1.15,
+);
 
 export function FlowRuler() {
+  const { state: chart } = useChart();
   const { state: settings } = useSettings();
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
+    const mode = chart.mode;
 
-    const maxFlow = Math.max(...FLOW_DATA.map((d) => Math.max(d.flowIn, d.flowOut)));
-    const depths = FLOW_DATA.map((d) => d.depth);
+    const flowValues = WELL_SESSION.flow.map((d) => ({ value: d.flow, depth: d.depth }));
 
-    const outData = FLOW_DATA.map((d) => {
-      const max = Math.max(d.flowIn, d.flowOut);
-      const diff = Math.abs(d.flowIn - d.flowOut) / max;
-      const isKick = diff > KICK_THRESHOLD && d.flowOut > d.flowIn;
-      return {
-        value: -d.flowOut,
-        itemStyle: {
-          color: isKick
-            ? { type: "linear" as const, x: 1, y: 0, x2: 0, y2: 0,
-                colorStops: [
-                  { offset: 0, color: c.critical },
-                  { offset: 1, color: c.warning },
-                ],
-              }
-            : c.critical,
-          opacity: isKick ? 1 : 0.75,
-        },
-      };
-    });
-
-    const inData = FLOW_DATA.map((d) => {
-      const max = Math.max(d.flowIn, d.flowOut);
-      const diff = Math.abs(d.flowIn - d.flowOut) / max;
-      const isKick = diff > KICK_THRESHOLD && d.flowIn > d.flowOut;
-      return {
-        value: d.flowIn,
-        itemStyle: {
-          color: isKick
-            ? { type: "linear" as const, x: 0, y: 0, x2: 1, y2: 0,
-                colorStops: [
-                  { offset: 0, color: c.info },
-                  { offset: 1, color: c.accent },
-                ],
-              }
-            : c.info,
-          opacity: isKick ? 1 : 0.75,
-        },
-      };
-    });
+    const yAxisCategories = mode === "depth"
+      ? flowValues.map(f => String(f.depth))
+      : WELL_SESSION.timePoints.map(t => minutesToHHMM(t));
 
     return {
       animation: false,
@@ -69,8 +42,8 @@ export function FlowRuler() {
       },
       xAxis: {
         type: "value",
-        min: -maxFlow,
-        max: maxFlow,
+        min: -FLOW_SCALE,
+        max: FLOW_SCALE,
         show: false,
         splitLine: {
           show: true,
@@ -79,22 +52,17 @@ export function FlowRuler() {
       },
       yAxis: {
         type: "category",
-        data: depths,
+        data: yAxisCategories,
         inverse: true,
         show: false,
       },
       series: [
         {
           type: "bar",
-          data: outData,
-          barWidth: "80%",
-          barGap: "-100%",
-          label: { show: false },
-          emphasis: { disabled: true },
-        },
-        {
-          type: "bar",
-          data: inData,
+          data: flowValues.map(f => ({
+            value: f.value,
+            itemStyle: { color: f.value >= 0 ? c.info : c.critical, opacity: 0.85 },
+          })),
           barWidth: "80%",
           label: { show: false },
           emphasis: { disabled: true },
@@ -111,23 +79,27 @@ export function FlowRuler() {
           fontSize: 9,
           fontFamily: "Share Tech Mono, monospace",
         },
+        appendToBody: true,
+        extraCssText: "z-index: 20",
         formatter: (params: unknown) => {
           const ps = params as Array<{ dataIndex: number }>;
           if (!ps?.[0]) return "";
-          const d = FLOW_DATA[ps[0].dataIndex];
-          if (!d) return "";
-          const max = Math.max(d.flowIn, d.flowOut);
-          const diff = Math.abs(d.flowIn - d.flowOut) / max;
-          const kickMark = diff > KICK_THRESHOLD ? ` <span style="color:${c.warning}">⚠ KICK</span>` : "";
+          const f = flowValues[ps[0].dataIndex];
+          if (!f) return "";
+          const isIn = f.value >= 0;
+          const direction = isIn ? "◀ In" : "▶ Out";
+          const color = isIn ? c.info : c.critical;
+          const label = mode === "depth"
+            ? `${f.depth} ft`
+            : minutesToHHMM(WELL_SESSION.timePoints[ps[0].dataIndex]);
           return [
-            `<span style="color:${c.fgDim}">${d.depth} ft</span>${kickMark}`,
-            `<span style="color:${c.critical}">▶ Out</span> <span style="color:${c.fg}">${d.flowOut}</span>`,
-            `<span style="color:${c.info}">◀ In</span>&nbsp; <span style="color:${c.fg}">${d.flowIn}</span>`,
+            `<span style="color:${c.fgDim}">${label}</span>`,
+            `<span style="color:${color}">${direction}: ${Math.abs(f.value)}</span>`,
           ].join("<br/>");
         },
       },
     };
-  }, [settings.theme]);
+  }, [chart.mode, settings.theme]);
 
   return (
     <div
@@ -137,7 +109,7 @@ export function FlowRuler() {
       )}
       style={{ width: 60 }}
     >
-      <div className="px-1.5 py-1.5 border-b border-(--theme-border) flex-shrink-0">
+      <div className="px-1.5 h-10 flex flex-col justify-center border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading">Flow</span>
         <div className="flex items-center justify-between mt-0.5">
           <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-critical)">
@@ -146,6 +118,21 @@ export function FlowRuler() {
           <div className="w-px h-2.5 bg-(--theme-border)" />
           <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-info)">
             in
+          </span>
+        </div>
+      </div>
+
+      <div className="h-[72px] flex-shrink-0 border-b border-(--theme-border) flex flex-col items-center justify-center gap-1.5">
+        <span className="font-['Share_Tech_Mono',monospace] text-[7px] uppercase tracking-widest text-(--theme-fg-dim) opacity-60">
+          scale
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-['Share_Tech_Mono',monospace] text-[9px] tabular-nums text-(--theme-critical)">
+            -{FLOW_SCALE}
+          </span>
+          <div className="w-px h-3 bg-(--theme-border)" />
+          <span className="font-['Share_Tech_Mono',monospace] text-[9px] tabular-nums text-(--theme-info)">
+            +{FLOW_SCALE}
           </span>
         </div>
       </div>

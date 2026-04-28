@@ -1,10 +1,14 @@
 import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_SESSION } from "@/data/dashboard-static";
+import { WELL_SESSION, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
 import { useChart, useSettings } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
+
+const presetToMinutes: Record<string, number> = Object.fromEntries(
+  RANGE_PRESETS_QUICK.map((p) => [p.id, parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60)]),
+);
 
 function pixelToTimeValue(pct: number): number {
   const { min, max } = WELL_SESSION.timeAxis.range;
@@ -16,6 +20,24 @@ const minutesToHHMM = (min: number) => {
   const m = Math.floor(min % 60);
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 };
+
+function getEffectiveRange(
+  isPrimary: boolean,
+  liveMode: boolean,
+  manualRange: { min: number; max: number } | null,
+  rangePreset: string | null,
+  sessionMin: number,
+  sessionMax: number,
+) {
+  if (!isPrimary) return { min: sessionMin, max: sessionMax };
+  if (liveMode) {
+    const spanMinutes = rangePreset ? presetToMinutes[rangePreset] ?? 60 : 60;
+    const end = sessionMax;
+    const start = Math.max(sessionMin, end - spanMinutes);
+    return { min: start, max: end };
+  }
+  return manualRange ?? { min: sessionMin, max: sessionMax };
+}
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const { state: chart, dispatch: chartDispatch } = useChart();
@@ -49,7 +71,16 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     : undefined;
 
   const { min: sessionMin, max: sessionMax } = WELL_SESSION.timeAxis.range;
-  const yRange = (isPrimary && chart.manualRange) ? chart.manualRange : { min: sessionMin, max: sessionMax };
+  const yRange = getEffectiveRange(
+    isPrimary,
+    chart.liveMode,
+    chart.manualRange,
+    chart.rangePreset,
+    sessionMin,
+    sessionMax,
+  );
+
+  const showDataZoomSlider = isPrimary && chart.dataZoomSlider && !chart.liveMode;
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -70,34 +101,67 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
         },
       },
       xAxis: { type: "value", show: false, min: 0, max: 1 },
-      yAxis: {
-        type: "value",
-        min: yRange.min,
-        max: yRange.max,
-        inverse: true,
-        position: "left",
-        interval: 5,
-        axisLine: { show: false },
-        axisTick: {
-          show: true,
-          inside: true,
-          length: 6,
-          lineStyle: { color: tickColor, width: 1 },
+      yAxis: [
+        {
+          type: "value",
+          min: yRange.min,
+          max: yRange.max,
+          inverse: true,
+          position: "left",
+          interval: 5,
+          axisLine: { show: false },
+          axisTick: {
+            show: true,
+            inside: true,
+            length: 6,
+            lineStyle: { color: tickColor, width: 1 },
+          },
+          axisLabel: {
+            inside: true,
+            margin: 8,
+            fontSize: 8,
+            fontFamily: "Share Tech Mono, monospace",
+            color: labelColor,
+            formatter: (val: number) => (val % 10 === 0 ? minutesToHHMM(val) : ""),
+          },
+          splitLine: { show: false },
         },
-        axisLabel: {
-          inside: true,
-          margin: 8,
-          fontSize: 8,
-          fontFamily: "Share Tech Mono, monospace",
-          color: labelColor,
-          formatter: (val: number) => (val % 10 === 0 ? minutesToHHMM(val) : ""),
+        {
+          type: "value",
+          min: yRange.min,
+          max: yRange.max,
+          inverse: true,
+          show: false,
         },
-        splitLine: { show: false },
-      },
-      dataZoom: [{ type: "inside", yAxisIndex: 0, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: false }],
+      ],
+      dataZoom: showDataZoomSlider
+        ? [
+            { type: "inside", yAxisIndex: 1, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: true },
+            {
+              type: "slider",
+              yAxisIndex: 1,
+              orient: "vertical",
+              left: 0,
+              right: 0,
+              width: 42,
+              handleSize: 30,
+              borderColor: "transparent",
+              backgroundColor: "transparent",
+              fillerColor: c.accent + "50",
+              handleStyle: {
+                color: c.accent,
+                borderWidth: 1,
+                borderRadius: 0,
+              },
+              filterMode: "none",
+              showDataShadow: false,
+              showDetail: false,
+            },
+          ]
+        : [{ type: "inside", yAxisIndex: 1, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: true }],
       series: [],
     };
-  }, [settings.theme, isPrimary, yRange.min, yRange.max]);
+  }, [settings.theme, isPrimary, yRange.min, yRange.max, showDataZoomSlider, chart.manualRange]);
 
   return (
     <div

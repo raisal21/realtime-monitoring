@@ -1,13 +1,18 @@
+"use client";
+
 import { useState, useEffect, useCallback } from "react";
-import { RotateCcw, Activity, BarChart2 } from "lucide-react";
+import { Calendar as CalendarIcon, RotateCcw, Activity, BarChart2 } from "lucide-react";
 import { useChart } from "@/stores/dashboard-store";
 import { RANGE_PRESETS_QUICK, WELL_SESSION } from "@/data/dashboard-static";
 import {
+  Popover,
   PopoverContent,
+  PopoverTrigger,
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
 } from "@/components/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { LiveBadge, RangePresetButton } from "@/components/display";
 import { Button } from "@/components/core";
 import { cn } from "@/lib/utils";
@@ -56,8 +61,6 @@ export function ZoomPopoverContent() {
     dispatch({ type: "SET_MANUAL_RANGE", min, max });
   }, [draftMin, draftMax, dispatch]);
 
-  const isTimeMode = state.mode === "time";
-
   return (
     <PopoverContent
       align="start"
@@ -89,58 +92,53 @@ export function ZoomPopoverContent() {
         </div>
       </div>
 
-      {/* Range — date/depth range picker */}
+      {/* Date Range Picker */}
       <div className="px-3 py-2.5 border-b border-(--theme-border)">
-        <span className="section-heading block mb-2">
-          {isTimeMode ? "Time Range" : "Depth Range"}
-        </span>
+        <span className="section-heading block mb-2">Date Range</span>
         <div className="flex flex-col gap-1.5">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                intent="secondary"
+                size="sm"
+                fullWidth
+                className="justify-start font-normal"
+              >
+                <CalendarIcon className="mr-2 size-4" />
+                <span className="text-(--theme-fg-muted)">Pick a date range</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
+
+          {/* Time Range Inputs */}
           <div className="flex items-center gap-2">
             <span className="w-7 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted)">
               From
             </span>
-            {isTimeMode ? (
-              <input
-                type="time"
-                value={toHHMM(draftMin)}
-                onChange={(e) => setDraftMin(fromHHMM(e.target.value))}
-                className={inputCls}
-              />
-            ) : (
-              <>
-                <input
-                  type="number"
-                  value={draftMin}
-                  onChange={(e) => setDraftMin(Number(e.target.value))}
-                  className={inputCls}
-                />
-                <span className="label-mono text-(--theme-fg-dim) shrink-0">ft</span>
-              </>
-            )}
+            <input
+              type="time"
+              value={toHHMM(draftMin)}
+              onChange={(e) => setDraftMin(fromHHMM(e.target.value))}
+              className={inputCls}
+            />
           </div>
 
           <div className="flex items-center gap-2">
             <span className="w-7 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted)">
               To
             </span>
-            {isTimeMode ? (
-              <input
-                type="time"
-                value={toHHMM(draftMax)}
-                onChange={(e) => setDraftMax(fromHHMM(e.target.value))}
-                className={inputCls}
-              />
-            ) : (
-              <>
-                <input
-                  type="number"
-                  value={draftMax}
-                  onChange={(e) => setDraftMax(Number(e.target.value))}
-                  className={inputCls}
-                />
-                <span className="label-mono text-(--theme-fg-dim) shrink-0">ft</span>
-              </>
-            )}
+            <input
+              type="time"
+              value={toHHMM(draftMax)}
+              onChange={(e) => setDraftMax(fromHHMM(e.target.value))}
+              className={inputCls}
+            />
           </div>
 
           <div className="flex gap-1.5 mt-0.5">
@@ -170,7 +168,11 @@ export function ZoomPopoverContent() {
           intent={state.liveMode ? "primary" : "secondary"}
           size="md"
           fullWidth
-          onClick={() => dispatch({ type: "TOGGLE_LIVE" })}
+          onClick={() => {
+            const newLiveState = !state.liveMode;
+            dispatch({ type: "SET_LIVE", live: newLiveState });
+            dispatch({ type: "SET_DATAZOOM_SLIDER", value: !newLiveState });
+          }}
         >
           <Activity size={12} strokeWidth={2} />
           {state.liveMode ? "Following Live" : "Resume Live"}
@@ -183,10 +185,14 @@ export function ZoomPopoverContent() {
           intent={state.dataZoomSlider ? "primary" : "ghost"}
           size="sm"
           fullWidth
-          onClick={() => dispatch({ type: "TOGGLE_DATAZOOM_SLIDER" })}
+          onClick={() => {
+            const newSliderState = !state.dataZoomSlider;
+            dispatch({ type: "SET_DATAZOOM_SLIDER", value: newSliderState });
+            dispatch({ type: "SET_LIVE", live: !newSliderState });
+          }}
         >
           <BarChart2 size={12} strokeWidth={2} />
-          {state.dataZoomSlider ? "Hide Range Slider" : "Show Range Slider"}
+          Slider
         </Button>
       </div>
     </PopoverContent>

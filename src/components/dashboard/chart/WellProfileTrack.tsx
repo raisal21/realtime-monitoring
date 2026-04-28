@@ -10,17 +10,27 @@ export function WellProfileTrack() {
   const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
 
-  const handleDataZoom = useCallback((params: unknown) => {
-    const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
-    const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
-    if (raw.startValue !== undefined && raw.endValue !== undefined) {
-      dispatch({
-        type: "SET_MANUAL_RANGE",
-        min: Math.min(raw.startValue, raw.endValue),
-        max: Math.max(raw.startValue, raw.endValue),
-      });
-    }
-  }, [dispatch]);
+  const handleDataZoom = useCallback(
+    (params: unknown) => {
+      const p = params as {
+        startValue?: number;
+        endValue?: number;
+        batch?: Array<{ startValue?: number; endValue?: number }>;
+      };
+      const raw = (p.batch?.[0] ?? p) as {
+        startValue?: number;
+        endValue?: number;
+      };
+      if (raw.startValue !== undefined && raw.endValue !== undefined) {
+        dispatch({
+          type: "SET_MANUAL_RANGE",
+          min: Math.min(raw.startValue, raw.endValue),
+          max: Math.max(raw.startValue, raw.endValue),
+        });
+      }
+    },
+    [dispatch],
+  );
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -30,7 +40,7 @@ export function WellProfileTrack() {
     const dates = data.map((d) => d.date);
     const depths = data.map((d) => d.depth);
 
-    return {
+    const opt: EChartsOption = {
       animation: false,
       backgroundColor: c.surface,
       grid: {
@@ -52,22 +62,32 @@ export function WellProfileTrack() {
           lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
         },
       },
-      yAxis: {
-        type: "value",
-        inverse: true,
-        min: 0,
-        max: maxDepthFt,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { show: false },
-        splitLine: {
-          show: true,
-          lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
+      yAxis: [
+        {
+          type: "value",
+          inverse: true,
+          min: 0,
+          max: maxDepthFt,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { show: false },
+          splitLine: {
+            show: true,
+            lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
+          },
         },
-      },
+        {
+          type: "value",
+          inverse: true,
+          min: 0,
+          max: maxDepthFt,
+          show: false,
+        },
+      ],
       series: [
         {
           type: "line",
+          yAxisIndex: 0,
           data: depths,
           step: "end" as const,
           symbol: "none",
@@ -103,27 +123,51 @@ export function WellProfileTrack() {
           return `<span style="color:${c.fgMuted}">${name}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${value.toLocaleString()} ft</span>`;
         },
       },
-      dataZoom: chart.dataZoomSlider
-        ? [
-            { type: "inside" as const, yAxisIndex: 0, filterMode: "none" as const, zoomOnMouseWheel: true, moveOnMouseMove: false },
-            {
-              type: "slider" as const,
-              yAxisIndex: 0,
-              orient: "vertical" as const,
-              right: 0,
-              width: 10,
-              borderColor: c.border,
-              backgroundColor: c.base,
-              fillerColor: c.accentDim + "55",
-              handleStyle: { color: c.accent, borderColor: c.accent },
-              emphasis: { handleStyle: { color: c.accent }, handleLabel: {} },
-              filterMode: "none" as const,
-              startValue: chart.manualRange?.min,
-              endValue: chart.manualRange?.max,
-            },
-          ]
-        : [{ type: "inside" as const, yAxisIndex: 0, filterMode: "none" as const, zoomOnMouseWheel: true, moveOnMouseMove: false }],
+      dataZoom:
+        chart.dataZoomSlider && !chart.liveMode
+          ? [
+              {
+                type: "inside" as const,
+                yAxisIndex: 1,
+                filterMode: "none" as const,
+                zoomOnMouseWheel: true,
+                moveOnMouseMove: true,
+                moveOnMouseWheel: true,
+              },
+              {
+                type: "slider" as const,
+                yAxisIndex: 1,
+                orient: "vertical" as const,
+                left: 0,
+                right: 0,
+                width: 120,
+                handleSize: 30,
+                borderColor: "transparent",
+                backgroundColor: "transparent",
+                fillerColor: c.accent + "50",
+                handleStyle: {
+                  color: c.accent,
+                  borderWidth: 1,
+                  borderRadius: 0,
+                },
+                filterMode: "none" as const,
+                showDataShadow: false,
+                showDetail: false,
+              },
+            ]
+          : [
+              {
+                type: "inside" as const,
+                yAxisIndex: 1,
+                filterMode: "none" as const,
+                zoomOnMouseWheel: false,
+                moveOnMouseMove: true,
+                moveOnMouseWheel: true,
+              },
+            ],
     };
+
+    return opt;
   }, [settings.theme, chart.dataZoomSlider, chart.manualRange]);
 
   return (

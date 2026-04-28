@@ -10,16 +10,37 @@ import { Popover as BasePopover } from "@base-ui/react/popover";
 
 // ─── 8.1 POPOVER ──────────────────────────────────────────────────────
 // Reusable themed wrapper around Base UI Popover.
-// Composes Root → Trigger → Portal → Positioner → Popup with our styling.
-//
-// Usage:
+// Supports both render prop pattern and asChild pattern:
 //   <Popover>
-//     <PopoverTrigger render={<Button intent="ghost" size="icon">...</Button>} />
+//     <PopoverTrigger render={<Button>...</Button>} />
+//     <PopoverContent>...content...</PopoverContent>
+//   </Popover>
+// Or:
+//   <Popover>
+//     <PopoverTrigger asChild><Button>...</Button></PopoverTrigger>
 //     <PopoverContent>...content...</PopoverContent>
 //   </Popover>
 
 export const Popover = BasePopover.Root;
-export const PopoverTrigger = BasePopover.Trigger;
+
+export interface PopoverTriggerProps extends React.ComponentPropsWithoutRef<typeof BasePopover.Trigger> {
+  asChild?: boolean;
+}
+
+export const PopoverTrigger = React.forwardRef<
+  HTMLButtonElement,
+  PopoverTriggerProps
+>(({ asChild, children, ...props }, ref) => {
+  if (asChild && React.isValidElement(children)) {
+    return (
+      <BasePopover.Trigger {...props}>
+        {React.cloneElement(children as React.ReactElement<any>, { ref })}
+      </BasePopover.Trigger>
+    );
+  }
+  return <BasePopover.Trigger ref={ref} {...props} />;
+});
+PopoverTrigger.displayName = "PopoverTrigger";
 
 export interface PopoverContentProps extends React.ComponentPropsWithoutRef<
   typeof BasePopover.Popup

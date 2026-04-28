@@ -141,6 +141,7 @@ type ChartAction =
   | { type: "SET_RANGE_PRESET"; preset: RangePreset }
   | { type: "SET_MANUAL_RANGE"; min: number; max: number }
   | { type: "TOGGLE_DATAZOOM_SLIDER" }
+  | { type: "SET_DATAZOOM_SLIDER"; value: boolean }
   | { type: "ZOOM_IN" }
   | { type: "ZOOM_OUT" }
   | { type: "RESET_ZOOM" }
@@ -192,6 +193,8 @@ function chartReducer(s: ChartState, a: ChartAction): ChartState {
       return { ...s, manualRange: { min: a.min, max: a.max }, liveMode: false, rangePreset: null };
     case "TOGGLE_DATAZOOM_SLIDER":
       return { ...s, dataZoomSlider: !s.dataZoomSlider };
+    case "SET_DATAZOOM_SLIDER":
+      return { ...s, dataZoomSlider: a.value };
     case "ZOOM_IN":
       return { ...s, liveMode: false };
     case "ZOOM_OUT":

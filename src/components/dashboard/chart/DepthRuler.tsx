@@ -6,9 +6,28 @@ import { useChart, useSettings } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
+const DEFAULT_DEPTH_SPAN = 100;
+
 function pixelToDepthValue(pct: number): number {
   const { min, max } = WELL_SESSION.depthAxis.range;
   return min + pct * (max - min);
+}
+
+function getEffectiveRange(
+  isPrimary: boolean,
+  liveMode: boolean,
+  manualRange: { min: number; max: number } | null,
+  sessionMin: number,
+  sessionMax: number,
+) {
+  if (!isPrimary) return { min: sessionMin, max: sessionMax };
+  if (liveMode) {
+    const currentDepth = WELL_SESSION.cursor.depthFt;
+    const start = Math.max(sessionMin, currentDepth - DEFAULT_DEPTH_SPAN);
+    const end = currentDepth;
+    return { min: start, max: end };
+  }
+  return manualRange ?? { min: sessionMin, max: sessionMax };
 }
 
 export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
@@ -43,7 +62,15 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     : undefined;
 
   const { min: sessionMin, max: sessionMax } = WELL_SESSION.depthAxis.range;
-  const yRange = (isPrimary && chart.manualRange) ? chart.manualRange : { min: sessionMin, max: sessionMax };
+  const yRange = getEffectiveRange(
+    isPrimary,
+    chart.liveMode,
+    chart.manualRange,
+    sessionMin,
+    sessionMax,
+  );
+
+  const showDataZoomSlider = isPrimary && chart.dataZoomSlider && !chart.liveMode;
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -64,34 +91,67 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
         },
       },
       xAxis: { type: "value", show: false, min: 0, max: 1 },
-      yAxis: {
-        type: "value",
-        min: yRange.min,
-        max: yRange.max,
-        inverse: true,
-        position: "left",
-        interval: 10,
-        axisLine: { show: false },
-        axisTick: {
-          show: true,
-          inside: true,
-          length: 6,
-          lineStyle: { color: tickColor, width: 1 },
+      yAxis: [
+        {
+          type: "value",
+          min: yRange.min,
+          max: yRange.max,
+          inverse: true,
+          position: "left",
+          interval: 10,
+          axisLine: { show: false },
+          axisTick: {
+            show: true,
+            inside: true,
+            length: 6,
+            lineStyle: { color: tickColor, width: 1 },
+          },
+          axisLabel: {
+            inside: true,
+            margin: 8,
+            fontSize: 8,
+            fontFamily: "Share Tech Mono, monospace",
+            color: labelColor,
+            formatter: (val: number) => (val % 20 === 0 ? String(val) : ""),
+          },
+          splitLine: { show: false },
         },
-        axisLabel: {
-          inside: true,
-          margin: 8,
-          fontSize: 8,
-          fontFamily: "Share Tech Mono, monospace",
-          color: labelColor,
-          formatter: (val: number) => (val % 20 === 0 ? String(val) : ""),
+        {
+          type: "value",
+          min: yRange.min,
+          max: yRange.max,
+          inverse: true,
+          show: false,
         },
-        splitLine: { show: false },
-      },
-      dataZoom: [{ type: "inside", yAxisIndex: 0, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: false }],
+      ],
+      dataZoom: showDataZoomSlider
+        ? [
+            { type: "inside", yAxisIndex: 1, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: true },
+            {
+              type: "slider",
+              yAxisIndex: 1,
+              orient: "vertical",
+              left: 0,
+              right: 0,
+              width: 48,
+              handleSize: 30,
+              borderColor: "transparent",
+              backgroundColor: "transparent",
+              fillerColor: c.accent + "50",
+              handleStyle: {
+                color: c.accent,
+                borderWidth: 1,
+                borderRadius: 0,
+              },
+              filterMode: "none",
+              showDataShadow: false,
+              showDetail: false,
+            },
+          ]
+        : [{ type: "inside", yAxisIndex: 1, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: true }],
       series: [],
     };
-  }, [settings.theme, isPrimary, yRange.min, yRange.max]);
+  }, [settings.theme, isPrimary, yRange.min, yRange.max, showDataZoomSlider, chart.manualRange]);
 
   return (
     <div

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Calendar as CalendarIcon, RotateCcw, Activity, BarChart2 } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  RotateCcw,
+  Activity,
+  BarChart2,
+} from "lucide-react";
 import { useChart } from "@/stores/dashboard-store";
 import { RANGE_PRESETS_QUICK, WELL_SESSION } from "@/data/dashboard-static";
 import {
@@ -18,8 +23,12 @@ import { Button } from "@/components/core";
 import { cn } from "@/lib/utils";
 
 const toHHMM = (minutes: number) => {
-  const h = Math.floor(minutes / 60).toString().padStart(2, "0");
-  const m = Math.floor(minutes % 60).toString().padStart(2, "0");
+  const h = Math.floor(minutes / 60)
+    .toString()
+    .padStart(2, "0");
+  const m = Math.floor(minutes % 60)
+    .toString()
+    .padStart(2, "0");
   return `${h}:${m}`;
 };
 
@@ -34,6 +43,10 @@ const inputCls = cn(
   "font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg)",
   "focus:outline-none focus:border-(--theme-accent)",
   "tabular-nums",
+  "[&::-webkit-calendar-picker-indicator]:invert(1)",
+  "[&::-webkit-calendar-picker-indicator]:opacity-50",
+  "[&::-webkit-calendar-picker-filter]:sepia(1)",
+  "[&::-webkit-calendar-picker-filter]:hue-rotate(180deg)",
 );
 
 export function ZoomPopoverContent() {
@@ -73,7 +86,9 @@ export function ZoomPopoverContent() {
           <PopoverTitle>Zoom & Range</PopoverTitle>
           <LiveBadge state={state.liveMode ? "live" : "frozen"} />
         </div>
-        <PopoverDescription>Adjust time range and zoom level</PopoverDescription>
+        <PopoverDescription>
+          Adjust time range and zoom level
+        </PopoverDescription>
       </PopoverHeader>
 
       {/* Zoom To — quick presets */}
@@ -84,7 +99,9 @@ export function ZoomPopoverContent() {
             <RangePresetButton
               key={p.id}
               active={state.rangePreset === p.id && !state.manualRange}
-              onClick={() => dispatch({ type: "SET_RANGE_PRESET", preset: p.id })}
+              onClick={() =>
+                dispatch({ type: "SET_RANGE_PRESET", preset: p.id })
+              }
             >
               {p.label}
             </RangePresetButton>
@@ -104,15 +121,14 @@ export function ZoomPopoverContent() {
                 fullWidth
                 className="justify-start font-normal"
               >
-                <CalendarIcon className="mr-2 size-4" />
-                <span className="text-(--theme-fg-muted)">Pick a date range</span>
+                <CalendarIcon className="mr-2 size-4 text-(--theme-fg-muted)" />
+                <span className="text-(--theme-fg-muted)">
+                  Pick a date range
+                </span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                numberOfMonths={2}
-              />
+              <Calendar mode="range" numberOfMonths={2} />
             </PopoverContent>
           </Popover>
 
@@ -129,7 +145,7 @@ export function ZoomPopoverContent() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-(--theme-fg-muted)">
             <span className="w-7 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted)">
               To
             </span>
@@ -142,12 +158,7 @@ export function ZoomPopoverContent() {
           </div>
 
           <div className="flex gap-1.5 mt-0.5">
-            <Button
-              intent="primary"
-              size="sm"
-              fullWidth
-              onClick={handleApply}
-            >
+            <Button intent="primary" size="sm" fullWidth onClick={handleApply}>
               Apply
             </Button>
             <Button
@@ -198,3 +209,4 @@ export function ZoomPopoverContent() {
     </PopoverContent>
   );
 }
+

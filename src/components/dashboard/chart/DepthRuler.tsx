@@ -11,18 +11,25 @@ const DEFAULT_DEPTH_SPAN = 100;
 function getEffectiveRange(
   isPrimary: boolean,
   liveMode: boolean,
-  manualRange: { min: number; max: number } | null,
+  rulerRange: { min: number; max: number } | null,
+  rangePreset: string | null,
   sessionMin: number,
   sessionMax: number,
 ) {
   if (!isPrimary) return { min: sessionMin, max: sessionMax };
   if (liveMode) {
     const currentDepth = WELL_SESSION.cursor.depthFt;
-    const start = Math.max(sessionMin, currentDepth - DEFAULT_DEPTH_SPAN);
+    let start: number;
+    if (rangePreset) {
+      const depthSpan = parseInt(rangePreset) * 100;
+      start = Math.max(sessionMin, currentDepth - depthSpan);
+    } else {
+      start = Math.max(sessionMin, currentDepth - DEFAULT_DEPTH_SPAN);
+    }
     const end = currentDepth;
     return { min: start, max: end };
   }
-  return manualRange ?? { min: sessionMin, max: sessionMax };
+  return rulerRange ?? { min: sessionMin, max: sessionMax };
 }
 
 export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
@@ -35,7 +42,8 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
   const yRange = getEffectiveRange(
     isPrimary,
     chart.liveMode,
-    chart.manualRange,
+    chart.rulerRange,
+    chart.rangePreset,
     sessionMin,
     sessionMax,
   );
@@ -98,7 +106,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
       };
       if (raw.startValue !== undefined && raw.endValue !== undefined) {
         chartDispatch({
-          type: "SET_MANUAL_RANGE",
+          type: "SET_LOG_TRACK_RANGE",
           min: Math.min(raw.startValue, raw.endValue),
           max: Math.max(raw.startValue, raw.endValue),
         });
@@ -125,9 +133,21 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     : undefined;
 
   const showDataZoomSlider =
-    isPrimary && chart.dataZoomSlider && !chart.liveMode;
+    isPrimary && chart.mode === "depth" && chart.rulerSlider && !chart.liveMode;
 
   const fsScale = FS_SCALE[settings.fontSize];
+
+  // Adaptive tick density — depth range can span up to ~1300 ft, but zoom can
+  // narrow it well below 100 ft, so we step from 100→25→10→2 ft.
+  const span = yRange.max - yRange.min;
+  const { tickInterval, labelInterval } =
+    span > 800
+      ? { tickInterval: 50, labelInterval: 200 }
+      : span > 200
+      ? { tickInterval: 25, labelInterval: 100 }
+      : span > 50
+      ? { tickInterval: 10, labelInterval: 25 }
+      : { tickInterval: 2, labelInterval: 10 };
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -156,7 +176,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           max: yRange.max,
           inverse: true,
           position: "left",
-          interval: 10,
+          interval: tickInterval,
           axisLine: { show: false },
           axisTick: {
             show: true,
@@ -170,7 +190,8 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
             fontSize: 9 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
-            formatter: (val: number) => (val % 20 === 0 ? String(val) : ""),
+            formatter: (val: number) =>
+              val % labelInterval === 0 ? Math.round(val).toLocaleString() : "",
           },
           splitLine: { show: false },
           axisPointer: {
@@ -245,7 +266,9 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     yRange.min,
     yRange.max,
     showDataZoomSlider,
-    chart.manualRange,
+    chart.rulerRange,
+    tickInterval,
+    labelInterval,
   ]);
 
   return (

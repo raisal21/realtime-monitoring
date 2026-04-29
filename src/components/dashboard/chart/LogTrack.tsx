@@ -106,7 +106,9 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       yRange = { min: Math.max(sessionRange.min, sessionRange.max - span), max: sessionRange.max };
     }
   } else {
-    yRange = chart.manualRange ?? { min: sessionRange.min, max: sessionRange.max };
+    // Log-track scope first (set by ruler slider), fall back to ruler scope
+    // (set by well-profile slider / Date+Time Apply), finally session bounds.
+    yRange = chart.logTrackRange ?? chart.rulerRange ?? { min: sessionRange.min, max: sessionRange.max };
   }
 
   const echartsRef = useRef<ReactECharts>(null);
@@ -117,7 +119,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
     if (raw.startValue !== undefined && raw.endValue !== undefined) {
       dispatch({
-        type: "SET_MANUAL_RANGE",
+        type: "SET_LOG_TRACK_RANGE",
         min: Math.min(raw.startValue, raw.endValue),
         max: Math.max(raw.startValue, raw.endValue),
       });
@@ -235,7 +237,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
             formatter: mode === "depth"
               ? (params: { value: number | string | Date }) => `${Math.round(Number(params.value))} ft`
               : (params: { value: number | string | Date }) => {
-                  const min = Number(params.value);
+                  const min = ((Number(params.value) % 1440) + 1440) % 1440;
                   const h = Math.floor(min / 60);
                   const m = Math.floor(min % 60);
                   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;

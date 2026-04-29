@@ -305,32 +305,186 @@ export const TICKER_NOMINAL_ENTRIES = [
 // Single source of truth for all chart components during UI mock-up.
 // Replace with Zustand store slices once WebSocket integration is active.
 
+// Session anchor: minute 0 of timeAxis.range maps to this wall-clock instant.
+export const SESSION_START_DATE = new Date(2026, 3, 22, 0, 0, 0); // Apr 22, 2026 00:00 (local)
+
+const POINT_COUNT = 336; // 7 days × 48 samples/day at 30-min step
+const TIME_STEP_MIN = 30;
+const SESSION_TIME_MAX_MIN = (POINT_COUNT - 1) * TIME_STEP_MIN; // 10050 min ≈ 7d
+const SESSION_DEPTH_START_FT = 13900;
+const SESSION_DEPTH_END_FT = 15200;
+
+export const SESSION_RANGE = {
+  startDate: SESSION_START_DATE,
+  pointCount: POINT_COUNT,
+  timeStepMin: TIME_STEP_MIN,
+  timeMaxMin: SESSION_TIME_MAX_MIN,
+  depthStartFt: SESSION_DEPTH_START_FT,
+  depthEndFt: SESSION_DEPTH_END_FT,
+};
+
+// Base 51-point patterns — one drilling cycle (rotate → connection at idx 19-21
+// → rotate → gas kick at idx 27-32 → recover). Tiled across the full session.
+const BASE_RPM = [
+  120, 121, 122, 119, 121, 120, 122, 121, 120, 122,
+  121, 120, 119, 122, 121, 120, 122, 121, 120,   0,
+    0,   0, 121, 122, 120, 119, 121, 122, 120, 119,
+  121, 120, 121, 122, 120, 121, 120, 119, 121, 122,
+  120, 121, 122, 120, 121, 120, 122, 121, 120, 121,
+  120,
+];
+const BASE_WOB = [
+  20.0, 20.5, 21.0, 20.2, 20.8, 21.2, 21.0, 20.5, 21.5, 21.0,
+  20.3, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0, 20.5,  0.0,
+   0.0,  0.0, 20.2, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0,
+  20.2, 20.5, 20.8, 21.0, 20.5, 20.8, 20.5, 20.2, 20.8, 21.0,
+  20.5, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0, 20.5, 20.8,
+  20.1,
+];
+const BASE_TORQUE = [
+  4.8, 4.9, 5.0, 4.8, 4.9, 5.0, 4.9, 4.8, 5.1, 5.0,
+  4.9, 4.8, 5.0, 5.1, 4.9, 4.8, 5.0, 4.9, 4.8, 0.0,
+  0.0, 0.0, 4.9, 5.0, 4.9, 4.8, 4.9, 5.0, 5.1, 4.9,
+  4.8, 4.9, 5.0, 4.9, 4.8, 4.9, 4.8, 4.9, 5.0, 4.9,
+  4.8, 4.9, 5.0, 4.9, 4.8, 4.9, 5.0, 4.9, 4.8, 4.9,
+  4.9,
+];
+const BASE_SPP = [
+  2490, 2495, 2498, 2492, 2497, 2502, 2498, 2495, 2505, 2500,
+  2497, 2492, 2498, 2505, 2500, 2495, 2502, 2497, 2492,    0,
+     0,    0, 2495, 2500, 2498, 2492, 2497, 2502, 2498, 2492,
+  2497, 2492, 2497, 2502, 2498, 2495, 2492, 2498, 2502, 2497,
+  2492, 2497, 2502, 2497, 2492, 2497, 2502, 2497, 2492, 2497,
+  2497,
+];
+const BASE_HKLD = [
+  201, 202, 201, 200, 202, 203, 201, 200, 202, 203,
+  201, 200, 202, 203, 201, 200, 202, 201, 200, 215,
+  218, 220, 201, 202, 201, 200, 202, 203, 201, 200,
+  202, 201, 202, 203, 201, 202, 201, 200, 202, 203,
+  201, 202, 203, 201, 200, 202, 203, 201, 200, 202,
+  201,
+];
+const BASE_GAMMA = [
+   47,  49,  51,  52,  53,  54,  53,  52,  51,  52,
+   55,  62,  72,  83,  91,  98, 102, 106, 108, 105,
+   85,  65,  52,  45,  42,  40,  38,  40,  52,  88,
+   98, 108, 115, 120, 122, 118, 112, 105,  95,  82,
+   72,  65,  60,  58,  57,  58,  60,  62,  65,  67,
+   68,
+];
+const BASE_ROP = [
+  22, 23, 23, 22, 22, 23, 23, 24, 24, 23,
+  25, 27, 29, 31, 33, 34, 35, 33, 31,  0,
+   0,  0, 22, 21, 20, 19, 20, 22, 30, 32,
+  33, 34, 33, 32, 31, 30, 29, 27, 26, 24,
+  23, 23, 22, 23, 24, 24, 23, 22, 23, 24,
+  25,
+];
+const BASE_GAS = [
+   6.0,  6.2,  7.0,  6.5,  7.0,  7.2,  6.8,  7.0,  7.2,  6.5,
+   7.0,  7.2,  8.0,  7.5,  8.0,  7.5,  8.2,  8.0,  9.0,  8.5,
+   8.0,  7.5,  7.0,  6.5,  7.0,  7.5,  8.0, 12.0, 28.0, 42.3,
+  38.0, 22.0, 14.0, 10.5,  8.5,  8.2,  8.0,  7.5,  8.0,  8.2,
+   8.0,  8.2,  7.5,  8.0,  8.2,  7.5,  8.0,  8.2,  7.5,  8.0,
+   8.2,
+];
+const BASE_INC = [
+  3.2, 3.2, 3.3, 3.3, 3.3, 3.4, 3.4, 3.4, 3.4, 3.5,
+  3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5,
+  3.5, 3.5, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
+  3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
+  3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
+  3.4,
+];
+const BASE_AZI = [
+  141.5, 141.6, 141.7, 141.8, 141.9, 142.0, 142.0, 142.1, 142.1, 142.2,
+  142.2, 142.3, 142.3, 142.3, 142.3, 142.3, 142.2, 142.2, 142.2, 142.1,
+  142.1, 142.1, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
+  142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
+  142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
+  142.0,
+];
+
+function tile(src: readonly number[], count: number): number[] {
+  return Array.from({ length: count }, (_, i) => src[i % src.length]);
+}
+
+const SESSION_TIME_POINTS: number[] = Array.from(
+  { length: POINT_COUNT },
+  (_, i) => i * TIME_STEP_MIN,
+);
+
+const SESSION_DEPTH_POINTS: number[] = Array.from({ length: POINT_COUNT }, (_, i) => {
+  const t = i / (POINT_COUNT - 1);
+  return Math.round(
+    (SESSION_DEPTH_START_FT + (SESSION_DEPTH_END_FT - SESSION_DEPTH_START_FT) * t) * 10,
+  ) / 10;
+});
+
+function pad2(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+const sessionEndTimeOfDay = (() => {
+  const m = SESSION_TIME_MAX_MIN % 1440;
+  return `${pad2(Math.floor(m / 60))}:${pad2(Math.floor(m % 60))}`;
+})();
+
+// Convert "minutes since SESSION_START_DATE" → wall-clock Date.
+export function sessionMinuteToDate(minute: number): Date {
+  return new Date(SESSION_START_DATE.getTime() + minute * 60_000);
+}
+
+// Convert wall-clock Date → "minutes since SESSION_START_DATE".
+export function dateToSessionMinute(date: Date): number {
+  return (date.getTime() - SESSION_START_DATE.getTime()) / 60_000;
+}
+
+// Parse a well-profile entry date like "Mar 12" → Date in 2026 (the well year).
+const MONTH_INDEX: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+};
+export function parseWellProfileDate(label: string): Date {
+  const [mon, day] = label.split(" ");
+  return new Date(2026, MONTH_INDEX[mon] ?? 0, parseInt(day, 10));
+}
+
+// Linearly interpolate depth from WELL_PROFILE_DATA at a given wall-clock date.
+export function wellProfileDepthAt(date: Date): number {
+  const target = date.getTime();
+  const points = WELL_PROFILE_DATA.map((d) => ({
+    ms: parseWellProfileDate(d.date).getTime(),
+    depth: d.depth,
+  }));
+  if (target <= points[0].ms) return points[0].depth;
+  if (target >= points[points.length - 1].ms) return points[points.length - 1].depth;
+  for (let i = 1; i < points.length; i++) {
+    if (target <= points[i].ms) {
+      const t = (target - points[i - 1].ms) / (points[i].ms - points[i - 1].ms);
+      return points[i - 1].depth + t * (points[i].depth - points[i - 1].depth);
+    }
+  }
+  return points[points.length - 1].depth;
+}
+
 export const WELL_SESSION = {
   cursor: {
-    depthFt: 12563,
-    depthLabel: "12,563",
-    time: "14:31",
+    depthFt: SESSION_DEPTH_END_FT,
+    depthLabel: SESSION_DEPTH_END_FT.toLocaleString(),
+    time: sessionEndTimeOfDay,
   },
 
   depthAxis: {
-    ticks: [
-      { depth: "12,500", major: true },
-      { depth: "12,510", major: false },
-      { depth: "12,520", major: false },
-      { depth: "12,530", major: true },
-      { depth: "12,540", major: false },
-      { depth: "12,550", major: false },
-      { depth: "12,563", major: true },
-      { depth: "12,580", major: false },
-      { depth: "12,590", major: false },
-      { depth: "12,600", major: true },
-    ],
-    range: { min: 12500, max: 12600 },
+    ticks: DEPTH_TICKS,
+    range: { min: SESSION_DEPTH_START_FT, max: SESSION_DEPTH_END_FT },
   },
 
   timeAxis: {
     ticks: TIME_TICKS,
-    range: { min: 840, max: 880 }, // minutes since midnight: 14:00–14:40
+    // minutes since SESSION_START_DATE; spans 7 days
+    range: { min: 0, max: SESSION_TIME_MAX_MIN },
   },
 
   wellProfile: {
@@ -340,127 +494,30 @@ export const WELL_SESSION = {
 
   flow: FLOW_DATA,
 
-  // 51 time points (minutes since midnight) aligned to depthPoints.
-  // Uniform 0.8 min/step (14:00–14:40) — linear to match uniform depthPoints spacing.
-  timePoints: [
-    840.0, 840.8, 841.6, 842.4, 843.2, 844.0, 844.8, 845.6, 846.4, 847.2,
-    848.0, 848.8, 849.6, 850.4, 851.2, 852.0, 852.8, 853.6, 854.4, 855.2,
-    856.0, 856.8, 857.6, 858.4, 859.2, 860.0, 860.8, 861.6, 862.4, 863.2,
-    864.0, 864.8, 865.6, 866.4, 867.2, 868.0, 868.8, 869.6, 870.4, 871.2,
-    872.0, 872.8, 873.6, 874.4, 875.2, 876.0, 876.8, 877.6, 878.4, 879.2,
-    880.0,
-  ],
+  timePoints: SESSION_TIME_POINTS,
+  depthPoints: SESSION_DEPTH_POINTS,
 
-  // 51 depth sample points — 12500 to 12600 ft, step 2 ft
-  depthPoints: [
-    12500, 12502, 12504, 12506, 12508, 12510, 12512, 12514, 12516, 12518,
-    12520, 12522, 12524, 12526, 12528, 12530, 12532, 12534, 12536, 12538,
-    12540, 12542, 12544, 12546, 12548, 12550, 12552, 12554, 12556, 12558,
-    12560, 12562, 12564, 12566, 12568, 12570, 12572, 12574, 12576, 12578,
-    12580, 12582, 12584, 12586, 12588, 12590, 12592, 12594, 12596, 12598,
-    12600,
-  ],
-
-  // Trace values aligned to depthPoints (index i → depthPoints[i]).
-  // 0 values at indices 19-21 (depth 12538-12542) = pipe connection.
   traces: {
     drill: {
-      rpm: [
-        120, 121, 122, 119, 121, 120, 122, 121, 120, 122,
-        121, 120, 119, 122, 121, 120, 122, 121, 120,   0,
-          0,   0, 121, 122, 120, 119, 121, 122, 120, 119,
-        121, 120, 121, 122, 120, 121, 120, 119, 121, 122,
-        120, 121, 122, 120, 121, 120, 122, 121, 120, 121,
-        120,
-      ],
-      wob: [
-        20.0, 20.5, 21.0, 20.2, 20.8, 21.2, 21.0, 20.5, 21.5, 21.0,
-        20.3, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0, 20.5,  0.0,
-         0.0,  0.0, 20.2, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0,
-        20.2, 20.5, 20.8, 21.0, 20.5, 20.8, 20.5, 20.2, 20.8, 21.0,
-        20.5, 20.8, 21.2, 21.0, 20.5, 20.8, 21.2, 21.0, 20.5, 20.8,
-        20.1,
-      ],
-      torque: [
-        4.8, 4.9, 5.0, 4.8, 4.9, 5.0, 4.9, 4.8, 5.1, 5.0,
-        4.9, 4.8, 5.0, 5.1, 4.9, 4.8, 5.0, 4.9, 4.8, 0.0,
-        0.0, 0.0, 4.9, 5.0, 4.9, 4.8, 4.9, 5.0, 5.1, 4.9,
-        4.8, 4.9, 5.0, 4.9, 4.8, 4.9, 4.8, 4.9, 5.0, 4.9,
-        4.8, 4.9, 5.0, 4.9, 4.8, 4.9, 5.0, 4.9, 4.8, 4.9,
-        4.9,
-      ],
+      rpm: tile(BASE_RPM, POINT_COUNT),
+      wob: tile(BASE_WOB, POINT_COUNT),
+      torque: tile(BASE_TORQUE, POINT_COUNT),
     },
-
     hydraulics: {
-      spp: [
-        2490, 2495, 2498, 2492, 2497, 2502, 2498, 2495, 2505, 2500,
-        2497, 2492, 2498, 2505, 2500, 2495, 2502, 2497, 2492,    0,
-           0,    0, 2495, 2500, 2498, 2492, 2497, 2502, 2498, 2492,
-        2497, 2492, 2497, 2502, 2498, 2495, 2492, 2498, 2502, 2497,
-        2492, 2497, 2502, 2497, 2492, 2497, 2502, 2497, 2492, 2497,
-        2497,
-      ],
-      // HKLD spikes at connection (indices 19-21) as string weight transfers
-      hkld: [
-        201, 202, 201, 200, 202, 203, 201, 200, 202, 203,
-        201, 200, 202, 203, 201, 200, 202, 201, 200, 215,
-        218, 220, 201, 202, 201, 200, 202, 203, 201, 200,
-        202, 201, 202, 203, 201, 202, 201, 200, 202, 203,
-        201, 202, 203, 201, 200, 202, 203, 201, 200, 202,
-        201,
-      ],
+      spp: tile(BASE_SPP, POINT_COUNT),
+      hkld: tile(BASE_HKLD, POINT_COUNT),
     },
-
     geo: {
-      // GR: sandstone (low) → shale (high) → reservoir (low) → shale → transition
-      gamma: [
-         47,  49,  51,  52,  53,  54,  53,  52,  51,  52,
-         55,  62,  72,  83,  91,  98, 102, 106, 108, 105,
-         85,  65,  52,  45,  42,  40,  38,  40,  52,  88,
-         98, 108, 115, 120, 122, 118, 112, 105,  95,  82,
-         72,  65,  60,  58,  57,  58,  60,  62,  65,  67,
-         68,
-      ],
-      // ROP higher in shale, lower in harder formations; 0 during connection
-      rop: [
-        22, 23, 23, 22, 22, 23, 23, 24, 24, 23,
-        25, 27, 29, 31, 33, 34, 35, 33, 31,  0,
-         0,  0, 22, 21, 20, 19, 20, 22, 30, 32,
-        33, 34, 33, 32, 31, 30, 29, 27, 26, 24,
-        23, 23, 22, 23, 24, 24, 23, 22, 23, 24,
-        25,
-      ],
-      // Gas spike at 12554-12562 matches large negative flow (kick zone)
-      gas: [
-         6.0,  6.2,  7.0,  6.5,  7.0,  7.2,  6.8,  7.0,  7.2,  6.5,
-         7.0,  7.2,  8.0,  7.5,  8.0,  7.5,  8.2,  8.0,  9.0,  8.5,
-         8.0,  7.5,  7.0,  6.5,  7.0,  7.5,  8.0, 12.0, 28.0, 42.3,
-        38.0, 22.0, 14.0, 10.5,  8.5,  8.2,  8.0,  7.5,  8.0,  8.2,
-         8.0,  8.2,  7.5,  8.0,  8.2,  7.5,  8.0,  8.2,  7.5,  8.0,
-         8.2,
-      ],
+      gamma: tile(BASE_GAMMA, POINT_COUNT),
+      rop: tile(BASE_ROP, POINT_COUNT),
+      gas: tile(BASE_GAS, POINT_COUNT),
     },
-
     directional: {
-      inc: [
-        3.2, 3.2, 3.3, 3.3, 3.3, 3.4, 3.4, 3.4, 3.4, 3.5,
-        3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5,
-        3.5, 3.5, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
-        3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
-        3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4,
-        3.4,
-      ],
-      azi: [
-        141.5, 141.6, 141.7, 141.8, 141.9, 142.0, 142.0, 142.1, 142.1, 142.2,
-        142.2, 142.3, 142.3, 142.3, 142.3, 142.3, 142.2, 142.2, 142.2, 142.1,
-        142.1, 142.1, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
-        142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
-        142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0, 142.0,
-        142.0,
-      ],
+      inc: tile(BASE_INC, POINT_COUNT),
+      azi: tile(BASE_AZI, POINT_COUNT),
     },
-   },
- } as const;
+  },
+};
 
 // ─── Well profile date bounds ───────────────────────────────────────────
 // Parsed from WELL_PROFILE_DATA for use in date pickers.

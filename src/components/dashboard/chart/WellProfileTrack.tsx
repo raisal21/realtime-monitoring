@@ -1,7 +1,12 @@
 import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_SESSION } from "@/data/dashboard-static";
+import {
+  WELL_SESSION,
+  WELL_PROFILE_DATA,
+  parseWellProfileDate,
+  dateToSessionMinute,
+} from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -11,6 +16,10 @@ export function WellProfileTrack() {
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
 
+  // Well-profile y-axis is a category axis of dates, so dataZoom emits
+  // start/end as category indices. Map indices → wall-clock date via
+  // WELL_PROFILE_DATA, then translate to the current chart mode's units
+  // and write to the Ruler scope (well-profile slider drives Time/Depth Ruler).
   const handleDataZoom = useCallback(
     (params: unknown) => {
       const p = params as {
@@ -22,15 +31,31 @@ export function WellProfileTrack() {
         startValue?: number;
         endValue?: number;
       };
-      if (raw.startValue !== undefined && raw.endValue !== undefined) {
+      if (raw.startValue === undefined || raw.endValue === undefined) return;
+
+      const lastIdx = WELL_PROFILE_DATA.length - 1;
+      const startIdx = Math.max(0, Math.min(lastIdx, Math.floor(Math.min(raw.startValue, raw.endValue))));
+      const endIdx = Math.max(0, Math.min(lastIdx, Math.ceil(Math.max(raw.startValue, raw.endValue))));
+      const startEntry = WELL_PROFILE_DATA[startIdx];
+      const endEntry = WELL_PROFILE_DATA[endIdx];
+
+      if (chart.mode === "depth") {
         dispatch({
-          type: "SET_MANUAL_RANGE",
-          min: Math.min(raw.startValue, raw.endValue),
-          max: Math.max(raw.startValue, raw.endValue),
+          type: "SET_RULER_RANGE",
+          min: Math.min(startEntry.depth, endEntry.depth),
+          max: Math.max(startEntry.depth, endEntry.depth),
+        });
+      } else {
+        const startMin = dateToSessionMinute(parseWellProfileDate(startEntry.date));
+        const endMin = dateToSessionMinute(parseWellProfileDate(endEntry.date));
+        dispatch({
+          type: "SET_RULER_RANGE",
+          min: Math.min(startMin, endMin),
+          max: Math.max(startMin, endMin),
         });
       }
     },
-    [dispatch],
+    [chart.mode, dispatch],
   );
 
   const option = useMemo((): EChartsOption => {
@@ -38,7 +63,7 @@ export function WellProfileTrack() {
     const { data, maxDepthFt } = WELL_SESSION.wellProfile;
     const { depthFt: currentDepthFt } = WELL_SESSION.cursor;
 
-    const dates = data.map((d) => d.date);
+    const dates = data.map((d) => d.date) as string[];
     const depths = data.map((d) => d.depth);
 
     const opt: EChartsOption = {
@@ -51,13 +76,53 @@ export function WellProfileTrack() {
         right: 0,
         containLabel: false,
       },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: {
+          type: "cross",
+          crossStyle: { color: c.fgDim, width: 0.8 },
+          lineStyle: { color: c.accent, width: 0.8, type: "dashed" },
+        },
+        backgroundColor: c.elevated,
+        borderColor: c.border,
+        borderWidth: 1,
+        padding: [5, 8],
+        textStyle: {
+          color: c.fg,
+          fontSize: 10 * fsScale,
+          fontFamily: "Share Tech Mono, monospace",
+        },
+        appendToBody: true,
+        extraCssText: "z-index: 20",
+        formatter: (params: unknown) => {
+          const ps = params as Array<{ axisValue: string; value: number }>;
+          if (!ps?.[0]) return "";
+          const { axisValue, value } = ps[0];
+          return `<span style="color:${c.fgMuted}">${axisValue}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${value.toLocaleString()} ft</span>`;
+        },
+      },
       xAxis: {
-        type: "category",
-        data: dates,
-        boundaryGap: false,
+        type: "value",
+        min: 0,
+        max: maxDepthFt,
+        inverse: false,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { show: false },
+        axisPointer: {
+          show: true,
+          label: {
+            show: true,
+            backgroundColor: c.accent,
+            color: c.fg,
+            borderWidth: 0,
+            fontSize: 8 * fsScale,
+            fontFamily: "Share Tech Mono, monospace",
+            padding: [3, 6],
+            formatter: (params: { value: number | string | Date }) =>
+              `${Math.round(Number(params.value))} ft`,
+          },
+        },
         splitLine: {
           show: true,
           lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
@@ -65,10 +130,9 @@ export function WellProfileTrack() {
       },
       yAxis: [
         {
-          type: "value",
+          type: "category",
+          data: dates,
           inverse: true,
-          min: 0,
-          max: maxDepthFt,
           axisLine: { show: false },
           axisTick: { show: false },
           axisLabel: { show: false },
@@ -76,19 +140,36 @@ export function WellProfileTrack() {
             show: true,
             lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
           },
+          axisPointer: {
+            show: true,
+            label: {
+              show: true,
+              backgroundColor: c.accent,
+              color: c.fg,
+              borderWidth: 0,
+              fontSize: 8 * fsScale,
+              fontFamily: "Share Tech Mono, monospace",
+              padding: [3, 6],
+              formatter: (params: { value: number | string | Date }) => {
+                const idx = dates.indexOf(String(params.value));
+                return idx >= 0 ? dates[idx] : String(params.value);
+              },
+            },
+          },
         },
         {
-          type: "value",
+          type: "category",
+          data: dates,
           inverse: true,
-          min: 0,
-          max: maxDepthFt,
           show: false,
+          axisPointer: { show: false },
         },
       ],
       series: [
         {
           type: "line",
           yAxisIndex: 0,
+          xAxisIndex: 0,
           data: depths,
           step: "end" as const,
           symbol: "none",
@@ -104,28 +185,8 @@ export function WellProfileTrack() {
           },
         },
       ],
-      tooltip: {
-        trigger: "axis",
-        backgroundColor: c.elevated,
-        borderColor: c.border,
-        borderWidth: 1,
-        padding: [5, 8],
-        textStyle: {
-          color: c.fg,
-          fontSize: 10 * fsScale,
-          fontFamily: "Share Tech Mono, monospace",
-        },
-        appendToBody: true,
-        extraCssText: "z-index: 20",
-        formatter: (params: unknown) => {
-          const ps = params as Array<{ name: string; value: number }>;
-          if (!ps?.[0]) return "";
-          const { name, value } = ps[0];
-          return `<span style="color:${c.fgMuted}">${name}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${value.toLocaleString()} ft</span>`;
-        },
-      },
       dataZoom:
-        chart.dataZoomSlider && !chart.liveMode
+        chart.wellProfileSlider && !chart.liveMode
           ? [
               {
                 type: "inside" as const,
@@ -169,7 +230,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.theme, chart.dataZoomSlider, chart.manualRange, fsScale]);
+  }, [settings.theme, chart.wellProfileSlider, chart.liveMode, chart.rulerRange, fsScale]);
 
   return (
     <div
@@ -183,7 +244,7 @@ export function WellProfileTrack() {
       <div className="px-2 h-10 flex flex-col justify-center border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading">Well Profile</span>
         <div className="flex items-center gap-1 mt-0.5">
-          <span className="label-mono">depth × time</span>
+          <span className="label-mono">time × depth</span>
         </div>
       </div>
 

@@ -24,7 +24,7 @@ export function FlowRuler() {
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
     const mode = chart.mode;
-    const range = chart.manualRange;
+    const range = chart.logTrackRange ?? chart.rulerRange;
 
     const allFlowValues = WELL_SESSION.flow.map((d) => ({
       value: d.flow,
@@ -125,7 +125,7 @@ export function FlowRuler() {
         },
       },
     };
-  }, [chart.mode, chart.manualRange, settings.theme, fsScale]);
+  }, [chart.mode, chart.logTrackRange, chart.rulerRange, settings.theme, fsScale]);
 
   return (
     <div

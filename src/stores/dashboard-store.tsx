@@ -128,12 +128,21 @@ export function useUi() {
 export type ChartMode = "time" | "depth";
 type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
 
+type Range = { min: number; max: number };
+
 type ChartState = {
   mode: ChartMode;
   liveMode: boolean;
   rangePreset: RangePreset | null;
-  manualRange: { min: number; max: number } | null;
-  dataZoomSlider: boolean;
+  // Range scopes (null = inherit from live/session).
+  // rulerRange controls TimeRuler/DepthRuler y-axis;
+  //   set by Well Profile slider and Date+Time Apply in ZoomPopover.
+  // logTrackRange controls LogTrack y-axis (sub-window of ruler);
+  //   set by Ruler slider (dataZoom inside Time/Depth Ruler).
+  rulerRange: Range | null;
+  logTrackRange: Range | null;
+  wellProfileSlider: boolean;
+  rulerSlider: boolean;
   traceVisibility: Record<string, boolean>;
   trackOrder: string[];
   trackWidths: Record<string, number>;
@@ -147,9 +156,10 @@ type ChartAction =
   | { type: "TOGGLE_LIVE" }
   | { type: "SET_LIVE"; live: boolean }
   | { type: "SET_RANGE_PRESET"; preset: RangePreset }
-  | { type: "SET_MANUAL_RANGE"; min: number; max: number }
-  | { type: "TOGGLE_DATAZOOM_SLIDER" }
-  | { type: "SET_DATAZOOM_SLIDER"; value: boolean }
+  | { type: "SET_RULER_RANGE"; min: number; max: number }
+  | { type: "SET_LOG_TRACK_RANGE"; min: number; max: number }
+  | { type: "SET_WELL_PROFILE_SLIDER"; value: boolean }
+  | { type: "SET_RULER_SLIDER"; value: boolean }
   | { type: "ZOOM_IN" }
   | { type: "ZOOM_OUT" }
   | { type: "RESET_ZOOM" }
@@ -163,8 +173,10 @@ const chartInitial: ChartState = {
   mode: "depth",
   liveMode: true,
   rangePreset: "1h",
-  manualRange: null,
-  dataZoomSlider: false,
+  rulerRange: null,
+  logTrackRange: null,
+  wellProfileSlider: false,
+  rulerSlider: false,
   crosshairValue: null,
   traceVisibility: {
     rpm: true,
@@ -188,27 +200,51 @@ const chartInitial: ChartState = {
 function chartReducer(s: ChartState, a: ChartAction): ChartState {
   switch (a.type) {
     case "SET_MODE":
-      return { ...s, mode: a.mode, crosshairValue: null, manualRange: null };
+      return { ...s, mode: a.mode, crosshairValue: null, rulerRange: null, logTrackRange: null };
     case "SET_CROSSHAIR_VALUE":
       return { ...s, crosshairValue: a.value };
     case "TOGGLE_LIVE":
       return { ...s, liveMode: !s.liveMode };
     case "SET_LIVE":
-      return { ...s, liveMode: a.live };
+      // Resuming live drops manual zoom on both scopes.
+      return a.live
+        ? { ...s, liveMode: true, rulerRange: null, logTrackRange: null }
+        : { ...s, liveMode: false };
     case "SET_RANGE_PRESET":
-      return { ...s, rangePreset: a.preset, liveMode: true, manualRange: null };
-    case "SET_MANUAL_RANGE":
-      return { ...s, manualRange: { min: a.min, max: a.max }, liveMode: false, rangePreset: null };
-    case "TOGGLE_DATAZOOM_SLIDER":
-      return { ...s, dataZoomSlider: !s.dataZoomSlider };
-    case "SET_DATAZOOM_SLIDER":
-      return { ...s, dataZoomSlider: a.value };
+      return { ...s, rangePreset: a.preset, rulerRange: null, logTrackRange: null };
+    case "SET_RULER_RANGE":
+      // Setting ruler range invalidates the log-track sub-window.
+      return {
+        ...s,
+        rulerRange: { min: a.min, max: a.max },
+        logTrackRange: null,
+        liveMode: false,
+        rangePreset: null,
+      };
+    case "SET_LOG_TRACK_RANGE":
+      return {
+        ...s,
+        logTrackRange: { min: a.min, max: a.max },
+        liveMode: false,
+      };
+    case "SET_WELL_PROFILE_SLIDER":
+      return { ...s, wellProfileSlider: a.value };
+    case "SET_RULER_SLIDER":
+      return { ...s, rulerSlider: a.value };
     case "ZOOM_IN":
       return { ...s, liveMode: false };
     case "ZOOM_OUT":
       return { ...s, liveMode: false };
     case "RESET_ZOOM":
-      return { ...s, liveMode: true, rangePreset: "1h", manualRange: null };
+      return {
+        ...s,
+        liveMode: true,
+        rangePreset: "1h",
+        rulerRange: null,
+        logTrackRange: null,
+        wellProfileSlider: false,
+        rulerSlider: false,
+      };
     case "TOGGLE_TRACE_VISIBILITY":
       return {
         ...s,

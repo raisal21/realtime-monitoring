@@ -14,6 +14,8 @@ import {
   WELL_SESSION,
   WELL_PROFILE_START_DATE,
   WELL_PROFILE_END_DATE,
+  dateToSessionMinute,
+  wellProfileDepthAt,
 } from "@/data/dashboard-static";
 import {
   Popover,
@@ -37,10 +39,18 @@ export function ZoomPopoverContent() {
       ? WELL_SESSION.timeAxis.range
       : WELL_SESSION.depthAxis.range;
 
-  const currentRange = state.manualRange ?? axisRange;
+  // TimePicker holds minutes-of-day (0–1439). Default to the visible window's
+  // local time-of-day; in time mode that is rulerRange % 1440, in depth mode
+  // we just default to 00:00 / 23:59 since the field is conceptually moot.
+  const initialDraftMin = state.mode === "time"
+    ? ((state.rulerRange?.min ?? 0) % 1440 + 1440) % 1440
+    : 0;
+  const initialDraftMax = state.mode === "time"
+    ? ((state.rulerRange?.max ?? 1439) % 1440 + 1440) % 1440
+    : 1439;
 
-  const [draftMin, setDraftMin] = useState(currentRange.min);
-  const [draftMax, setDraftMax] = useState(currentRange.max);
+  const [draftMin, setDraftMin] = useState(initialDraftMin);
+  const [draftMax, setDraftMax] = useState(initialDraftMax);
   const [fromDate, setFromDate] = useState<Date | undefined>(
     WELL_PROFILE_START_DATE,
   );
@@ -51,10 +61,11 @@ export function ZoomPopoverContent() {
   const [toOpen, setToOpen] = useState(false);
 
   useEffect(() => {
-    const r = state.manualRange ?? axisRange;
-    setDraftMin(r.min);
-    setDraftMax(r.max);
-  }, [state.manualRange, state.mode]);
+    if (state.mode !== "time") return;
+    const r = state.rulerRange ?? axisRange;
+    setDraftMin(((r.min % 1440) + 1440) % 1440);
+    setDraftMax(((r.max % 1440) + 1440) % 1440);
+  }, [state.rulerRange, state.mode, axisRange]);
 
   const fromLabel = fromDate
     ? format(fromDate, "MMM dd, yyyy")
@@ -64,10 +75,38 @@ export function ZoomPopoverContent() {
     : "—";
 
   const handleApply = useCallback(() => {
-    const min = Math.min(draftMin, draftMax);
-    const max = Math.max(draftMin, draftMax);
-    dispatch({ type: "SET_MANUAL_RANGE", min, max });
-  }, [draftMin, draftMax, dispatch]);
+    if (!fromDate || !toDate) return;
+
+    let min: number;
+    let max: number;
+
+    if (state.mode === "time") {
+      // Combine date (midnight) + minutes-of-day, convert to minutes since
+      // SESSION_START_DATE — the unit the Time Ruler renders.
+      const startMs =
+        new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate()).getTime() +
+        draftMin * 60_000;
+      const endMs =
+        new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate()).getTime() +
+        draftMax * 60_000;
+      const a = dateToSessionMinute(new Date(startMs));
+      const b = dateToSessionMinute(new Date(endMs));
+      min = Math.min(a, b);
+      max = Math.max(a, b);
+    } else {
+      // Depth mode: derive depth at each picked date via the well profile.
+      const a = wellProfileDepthAt(fromDate);
+      const b = wellProfileDepthAt(toDate);
+      min = Math.min(a, b);
+      max = Math.max(a, b);
+    }
+
+    if (min === max) return; // ignore empty range
+
+    dispatch({ type: "SET_RULER_RANGE", min, max });
+    dispatch({ type: "SET_WELL_PROFILE_SLIDER", value: true });
+    dispatch({ type: "SET_LIVE", live: false });
+  }, [fromDate, toDate, draftMin, draftMax, state.mode, dispatch]);
 
   return (
     <PopoverContent
@@ -93,7 +132,7 @@ export function ZoomPopoverContent() {
           {RANGE_PRESETS_QUICK.map((p) => (
             <RangePresetButton
               key={p.id}
-              active={state.rangePreset === p.id && !state.manualRange}
+              active={state.rangePreset === p.id && !state.rulerRange}
               onClick={() =>
                 dispatch({ type: "SET_RANGE_PRESET", preset: p.id })
               }
@@ -213,7 +252,8 @@ export function ZoomPopoverContent() {
           onClick={() => {
             const newLiveState = !state.liveMode;
             dispatch({ type: "SET_LIVE", live: newLiveState });
-            dispatch({ type: "SET_DATAZOOM_SLIDER", value: !newLiveState });
+            dispatch({ type: "SET_WELL_PROFILE_SLIDER", value: !newLiveState });
+            dispatch({ type: "SET_RULER_SLIDER", value: !newLiveState });
           }}
         >
           <Activity size={12} strokeWidth={2} />
@@ -221,15 +261,16 @@ export function ZoomPopoverContent() {
         </Button>
       </div>
 
-      {/* DataZoom Slider toggle */}
+      {/* Slider toggle */}
       <div className="px-rt-pad-sm py-rt-pad-sm">
         <Button
-          intent={state.dataZoomSlider ? "primary" : "secondary"}
+          intent={state.wellProfileSlider || state.rulerSlider ? "primary" : "secondary"}
           size="md"
           fullWidth
           onClick={() => {
-            const newSliderState = !state.dataZoomSlider;
-            dispatch({ type: "SET_DATAZOOM_SLIDER", value: newSliderState });
+            const newSliderState = !(state.wellProfileSlider || state.rulerSlider);
+            dispatch({ type: "SET_WELL_PROFILE_SLIDER", value: newSliderState });
+            dispatch({ type: "SET_RULER_SLIDER", value: newSliderState });
             dispatch({ type: "SET_LIVE", live: !newSliderState });
           }}
         >

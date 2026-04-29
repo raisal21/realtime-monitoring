@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_SESSION, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
+import { WELL_SESSION, RANGE_PRESETS_QUICK, sessionMinuteToDate } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -14,15 +14,18 @@ const presetToMinutes: Record<string, number> = Object.fromEntries(
 );
 
 const minutesToHHMM = (min: number) => {
-  const h = Math.floor(min / 60);
-  const m = Math.floor(min % 60);
+  const wrapped = ((min % 1440) + 1440) % 1440;
+  const h = Math.floor(wrapped / 60);
+  const m = Math.floor(wrapped % 60);
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function getEffectiveRange(
   isPrimary: boolean,
   liveMode: boolean,
-  manualRange: { min: number; max: number } | null,
+  rulerRange: { min: number; max: number } | null,
   rangePreset: string | null,
   sessionMin: number,
   sessionMax: number,
@@ -34,7 +37,7 @@ function getEffectiveRange(
     const start = Math.max(sessionMin, end - spanMinutes);
     return { min: start, max: end };
   }
-  return manualRange ?? { min: sessionMin, max: sessionMax };
+  return rulerRange ?? { min: sessionMin, max: sessionMax };
 }
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
@@ -47,7 +50,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const yRange = getEffectiveRange(
     isPrimary,
     chart.liveMode,
-    chart.manualRange,
+    chart.rulerRange,
     chart.rangePreset,
     sessionMin,
     sessionMax,
@@ -110,7 +113,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       };
       if (raw.startValue !== undefined && raw.endValue !== undefined) {
         chartDispatch({
-          type: "SET_MANUAL_RANGE",
+          type: "SET_LOG_TRACK_RANGE",
           min: Math.min(raw.startValue, raw.endValue),
           max: Math.max(raw.startValue, raw.endValue),
         });
@@ -137,9 +140,22 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     : undefined;
 
   const showDataZoomSlider =
-    isPrimary && chart.dataZoomSlider && !chart.liveMode;
+    isPrimary && chart.mode === "time" && chart.rulerSlider && !chart.liveMode;
 
   const fsScale = FS_SCALE[settings.fontSize];
+
+  // Pick tick density based on visible span (range covers up to 7 days).
+  const span = yRange.max - yRange.min;
+  const { tickInterval, labelInterval } =
+    span > 4320
+      ? { tickInterval: 720, labelInterval: 1440 }   // > 3d:  6h ticks, daily labels
+      : span > 1440
+      ? { tickInterval: 240, labelInterval: 720 }    // > 1d:  4h ticks, 12h labels
+      : span > 360
+      ? { tickInterval: 60, labelInterval: 180 }     // > 6h:  1h ticks, 3h labels
+      : span > 60
+      ? { tickInterval: 15, labelInterval: 60 }      // > 1h:  15m ticks, hourly labels
+      : { tickInterval: 5, labelInterval: 15 };      // ≤ 1h:  5m ticks, 15m labels
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -168,7 +184,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
           max: yRange.max,
           inverse: true,
           position: "left",
-          interval: 5,
+          interval: tickInterval,
           axisLine: { show: false },
           axisTick: {
             show: true,
@@ -183,7 +199,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
             formatter: (val: number) =>
-              val % 10 === 0 ? minutesToHHMM(val) : "",
+              val % labelInterval === 0 ? minutesToHHMM(val % 1440) : "",
           },
           splitLine: { show: false },
           axisPointer: {
@@ -196,7 +212,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
               formatter: (params: { value: number | string | Date }) => {
-                const min = Number(params.value);
+                const min = ((Number(params.value) % 1440) + 1440) % 1440;
                 const h = Math.floor(min / 60);
                 const m = Math.floor(min % 60);
                 return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
@@ -262,7 +278,9 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     yRange.min,
     yRange.max,
     showDataZoomSlider,
-    chart.manualRange,
+    chart.rulerRange,
+    tickInterval,
+    labelInterval,
   ]);
 
   return (
@@ -294,14 +312,20 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)",
             )}
           />
-          <span
+          <div
             className={cn(
-              "font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums ml-1",
+              "flex flex-col items-start ml-1 leading-none gap-px",
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
-            {minutesToHHMM(yRange.min)}
-          </span>
+            <span className="font-['Barlow_Condensed',sans-serif] text-fs-7 uppercase tracking-wider opacity-75">
+              {MONTHS[sessionMinuteToDate(yRange.min).getMonth()]}{" "}
+              {sessionMinuteToDate(yRange.min).getDate()}
+            </span>
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums">
+              {minutesToHHMM(yRange.min)}
+            </span>
+          </div>
         </div>
         <div className="flex flex-1">
           <div
@@ -319,14 +343,20 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)",
             )}
           />
-          <span
+          <div
             className={cn(
-              "font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums ml-1",
+              "flex flex-col items-start ml-1 leading-none gap-px",
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
-            {minutesToHHMM(yRange.max)}
-          </span>
+            <span className="font-['Barlow_Condensed',sans-serif] text-fs-7 uppercase tracking-wider opacity-75">
+              {MONTHS[sessionMinuteToDate(yRange.max).getMonth()]}{" "}
+              {sessionMinuteToDate(yRange.max).getDate()}
+            </span>
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums">
+              {minutesToHHMM(yRange.max)}
+            </span>
+          </div>
         </div>
       </div>
 

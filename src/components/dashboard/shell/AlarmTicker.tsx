@@ -1,11 +1,35 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useRef } from "react";
 import { TriangleAlert } from "lucide-react";
-import { useUi } from "@/stores/dashboard-store";
+import { useUi, useSettings } from "@/stores/dashboard-store";
 import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
 import { cn } from "@/lib/utils";
 
+let audioCtx: AudioContext | null = null;
+
+function playAlarmSound() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.frequency.value = 880;
+  osc.type = "square";
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.25);
+}
+
 export function AlarmTicker() {
   const { dispatch } = useUi();
+  const { state: settings } = useSettings();
+  const intervalRef = useRef<number | null>(null);
+  const hasAlarmsRef = useRef<boolean>(false);
 
   const unackedAlarms = useMemo(
     () =>
@@ -17,6 +41,33 @@ export function AlarmTicker() {
     [],
   );
   const hasAlarms = unackedAlarms.length > 0;
+
+  useEffect(() => {
+    hasAlarmsRef.current = hasAlarms;
+
+    if (settings.soundEnabled && hasAlarms) {
+      playAlarmSound();
+      if (!intervalRef.current) {
+        intervalRef.current = window.setInterval(() => {
+          if (hasAlarmsRef.current && settings.soundEnabled) {
+            playAlarmSound();
+          }
+        }, 2000);
+      }
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [hasAlarms, settings.soundEnabled]);
 
   const renderAlarmEntries = (keyPrefix: string) =>
     unackedAlarms.map((alarm, i) => (
@@ -62,7 +113,7 @@ export function AlarmTicker() {
   return (
     <div
       className={cn(
-        "ticker-strip flex-1 relative overflow-hidden",
+        "ticker-strip relative overflow-hidden w-full",
         "[&:hover_.animate-ticker]:[animation-play-state:paused]",
       )}
     >
@@ -76,11 +127,15 @@ export function AlarmTicker() {
           <>
             {renderAlarmEntries("a")}
             {renderAlarmEntries("b")}
+            {renderAlarmEntries("c")}
+            {renderAlarmEntries("d")}
           </>
         ) : (
           <>
             {renderNominalEntries("a")}
             {renderNominalEntries("b")}
+            {renderNominalEntries("c")}
+            {renderNominalEntries("d")}
           </>
         )}
       </div>

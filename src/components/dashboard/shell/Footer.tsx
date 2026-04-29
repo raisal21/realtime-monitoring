@@ -23,7 +23,7 @@ export function Footer() {
 
       <AlarmTicker />
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-3 shrink-0 ml-auto">
         <FooterStat value="48 ms" label="Ping" />
         <FooterStat value="0 frames" label="Dropped" />
         <FooterStat value="—" label="Retry" />
@@ -31,3 +31,4 @@ export function Footer() {
     </footer>
   );
 }
+

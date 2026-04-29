@@ -43,7 +43,7 @@ const inputCls = cn(
   "font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg)",
   "focus:outline-none focus:border-(--theme-accent)",
   "tabular-nums",
-  "[&::-webkit-calendar-picker-indicator]:invert(1)",
+  "[&::-webkit-calendar-picker-indicator]:invert(0)",
   "[&::-webkit-calendar-picker-indicator]:opacity-50",
   "[&::-webkit-calendar-picker-filter]:sepia(1)",
   "[&::-webkit-calendar-picker-filter]:hue-rotate(180deg)",
@@ -191,10 +191,10 @@ export function ZoomPopoverContent() {
       </div>
 
       {/* DataZoom Slider toggle */}
-      <div className="px-3 py-2.5">
+      <div className="px-3 py-2.5 border-b border-(--theme-border)">
         <Button
-          intent={state.dataZoomSlider ? "primary" : "ghost"}
-          size="sm"
+          intent={state.dataZoomSlider ? "primary" : "secondary"}
+          size="md"
           fullWidth
           onClick={() => {
             const newSliderState = !state.dataZoomSlider;
@@ -209,4 +209,3 @@ export function ZoomPopoverContent() {
     </PopoverContent>
   );
 }
-

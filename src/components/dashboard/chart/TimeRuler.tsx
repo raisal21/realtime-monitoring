@@ -7,7 +7,10 @@ import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
 const presetToMinutes: Record<string, number> = Object.fromEntries(
-  RANGE_PRESETS_QUICK.map((p) => [p.id, parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60)]),
+  RANGE_PRESETS_QUICK.map((p) => [
+    p.id,
+    parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60),
+  ]),
 );
 
 const minutesToHHMM = (min: number) => {
@@ -26,7 +29,7 @@ function getEffectiveRange(
 ) {
   if (!isPrimary) return { min: sessionMin, max: sessionMax };
   if (liveMode) {
-    const spanMinutes = rangePreset ? presetToMinutes[rangePreset] ?? 60 : 60;
+    const spanMinutes = rangePreset ? (presetToMinutes[rangePreset] ?? 60) : 60;
     const end = sessionMax;
     const start = Math.max(sessionMin, end - spanMinutes);
     return { min: start, max: end };
@@ -38,67 +41,103 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const { state: chart, dispatch: chartDispatch } = useChart();
   const { state: settings } = useSettings();
   const echartsRef = useRef<ReactECharts>(null);
-  const isHovering = useRef(false);
+  const axisPointerActive = useRef(false);
 
   const { min: sessionMin, max: sessionMax } = WELL_SESSION.timeAxis.range;
-  const yRange = getEffectiveRange(isPrimary, chart.liveMode, chart.manualRange, chart.rangePreset, sessionMin, sessionMax);
+  const yRange = getEffectiveRange(
+    isPrimary,
+    chart.liveMode,
+    chart.manualRange,
+    chart.rangePreset,
+    sessionMin,
+    sessionMax,
+  );
 
   useEffect(() => {
-    if (isHovering.current && isPrimary) return;
     const ec = echartsRef.current?.getEchartsInstance();
     if (!ec) return;
 
     const { crosshairValue } = chart;
-    if (crosshairValue === null) {
+
+    if (crosshairValue !== null) {
+      const timeValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
+      const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [
+        0.5,
+        timeValue,
+      ]);
+      if (coords) {
+        ec.dispatchAction({
+          type: "showTip",
+          x: ec.getWidth() / 2,
+          y: (coords as number[])[1],
+        });
+      }
+      if (!axisPointerActive.current) {
+        ec.setOption({
+          yAxis: [
+            {
+              axisPointer: { label: { show: true }, crossStyle: { width: 1 } },
+            },
+            {},
+          ],
+        });
+        axisPointerActive.current = true;
+      }
+    } else if (axisPointerActive.current) {
       ec.dispatchAction({ type: "hideTip" });
+      ec.dispatchAction({ type: "updateAxisPointer", currTrigger: "leave" });
       ec.getZr().trigger("globalout", {});
-      return;
-    }
-
-    const timeValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
-    const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [0.5, timeValue]);
-    if (!coords) return;
-    ec.dispatchAction({ type: "showTip", x: ec.getWidth() / 2, y: (coords as number[])[1] });
-  }, [chart.crosshairValue, isPrimary, yRange.min, yRange.max]);
-
-  const handleDataZoom = useCallback((params: unknown) => {
-    const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
-    const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
-    if (raw.startValue !== undefined && raw.endValue !== undefined) {
-      chartDispatch({
-        type: "SET_MANUAL_RANGE",
-        min: Math.min(raw.startValue, raw.endValue),
-        max: Math.max(raw.startValue, raw.endValue),
+      ec.setOption({
+        yAxis: [
+          { axisPointer: { label: { show: false }, crossStyle: { width: 0 } } },
+          {},
+        ],
       });
+      axisPointerActive.current = false;
     }
-  }, [chartDispatch]);
+  }, [chart.crosshairValue, yRange.min, yRange.max]);
 
-  const showTipAtValue = useCallback((timeValue: number) => {
-    const ec = echartsRef.current?.getEchartsInstance();
-    if (!ec) return;
-    const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [0.5, timeValue]);
-    if (!coords) return;
-    ec.dispatchAction({ type: "showTip", x: ec.getWidth() / 2, y: (coords as number[])[1] });
-  }, []);
+  const handleDataZoom = useCallback(
+    (params: unknown) => {
+      const p = params as {
+        startValue?: number;
+        endValue?: number;
+        batch?: Array<{ startValue?: number; endValue?: number }>;
+      };
+      const raw = (p.batch?.[0] ?? p) as {
+        startValue?: number;
+        endValue?: number;
+      };
+      if (raw.startValue !== undefined && raw.endValue !== undefined) {
+        chartDispatch({
+          type: "SET_MANUAL_RANGE",
+          min: Math.min(raw.startValue, raw.endValue),
+          max: Math.max(raw.startValue, raw.endValue),
+        });
+      }
+    },
+    [chartDispatch],
+  );
 
   const handleMouseMove = isPrimary
     ? (e: React.MouseEvent<HTMLDivElement>) => {
-        isHovering.current = true;
         const rect = e.currentTarget.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        const pct = Math.max(
+          0,
+          Math.min(1, (e.clientY - rect.top) / rect.height),
+        );
         chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: pct });
-        showTipAtValue(yRange.min + pct * (yRange.max - yRange.min));
       }
     : undefined;
 
   const handleMouseLeave = isPrimary
     ? () => {
-        isHovering.current = false;
         chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: null });
       }
     : undefined;
 
-  const showDataZoomSlider = isPrimary && chart.dataZoomSlider && !chart.liveMode;
+  const showDataZoomSlider =
+    isPrimary && chart.dataZoomSlider && !chart.liveMode;
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -141,7 +180,8 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             fontSize: 8,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
-            formatter: (val: number) => (val % 10 === 0 ? minutesToHHMM(val) : ""),
+            formatter: (val: number) =>
+              val % 10 === 0 ? minutesToHHMM(val) : "",
           },
           splitLine: { show: false },
           axisPointer: {
@@ -172,7 +212,14 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       ],
       dataZoom: showDataZoomSlider
         ? [
-            { type: "inside", yAxisIndex: 1, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: true },
+            {
+              type: "inside",
+              yAxisIndex: 1,
+              filterMode: "none",
+              zoomOnMouseWheel: true,
+              moveOnMouseMove: true,
+              moveOnMouseWheel: true,
+            },
             {
               type: "slider",
               yAxisIndex: 1,
@@ -194,10 +241,26 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               showDetail: false,
             },
           ]
-        : [{ type: "inside", yAxisIndex: 1, filterMode: "none", zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: true }],
+        : [
+            {
+              type: "inside",
+              yAxisIndex: 1,
+              filterMode: "none",
+              zoomOnMouseWheel: true,
+              moveOnMouseMove: true,
+              moveOnMouseWheel: true,
+            },
+          ],
       series: [],
     };
-  }, [settings.theme, isPrimary, yRange.min, yRange.max, showDataZoomSlider, chart.manualRange]);
+  }, [
+    settings.theme,
+    isPrimary,
+    yRange.min,
+    yRange.max,
+    showDataZoomSlider,
+    chart.manualRange,
+  ]);
 
   return (
     <div
@@ -222,17 +285,43 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
 
       <div className="h-[72px] flex-shrink-0 border-b border-(--theme-border) flex flex-col">
         <div className="flex items-center pt-2 pb-1">
-          <div className={cn("w-1.5 h-px flex-shrink-0", isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)")} />
-          <span className={cn("font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1", isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)")}>
+          <div
+            className={cn(
+              "w-1.5 h-px flex-shrink-0",
+              isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)",
+            )}
+          />
+          <span
+            className={cn(
+              "font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1",
+              isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
+            )}
+          >
             {minutesToHHMM(yRange.min)}
           </span>
         </div>
         <div className="flex flex-1">
-          <div className={cn("w-px ml-[3px]", isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-border)")} style={{ opacity: 0.35 }} />
+          <div
+            className={cn(
+              "w-px ml-[3px]",
+              isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-border)",
+            )}
+            style={{ opacity: 0.35 }}
+          />
         </div>
         <div className="flex items-center pt-1 pb-2">
-          <div className={cn("w-1.5 h-px flex-shrink-0", isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)")} />
-          <span className={cn("font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1", isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)")}>
+          <div
+            className={cn(
+              "w-1.5 h-px flex-shrink-0",
+              isPrimary ? "bg-(--theme-accent)" : "bg-(--theme-fg-dim)",
+            )}
+          />
+          <span
+            className={cn(
+              "font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1",
+              isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
+            )}
+          >
             {minutesToHHMM(yRange.max)}
           </span>
         </div>

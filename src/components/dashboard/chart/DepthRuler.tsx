@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { WELL_SESSION } from "@/data/dashboard-static";
@@ -7,11 +7,6 @@ import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_DEPTH_SPAN = 100;
-
-function pixelToDepthValue(pct: number): number {
-  const { min, max } = WELL_SESSION.depthAxis.range;
-  return min + pct * (max - min);
-}
 
 function getEffectiveRange(
   isPrimary: boolean,
@@ -33,6 +28,29 @@ function getEffectiveRange(
 export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
   const { state: chart, dispatch: chartDispatch } = useChart();
   const { state: settings } = useSettings();
+  const echartsRef = useRef<ReactECharts>(null);
+  const isHovering = useRef(false);
+
+  const { min: sessionMin, max: sessionMax } = WELL_SESSION.depthAxis.range;
+  const yRange = getEffectiveRange(isPrimary, chart.liveMode, chart.manualRange, sessionMin, sessionMax);
+
+  useEffect(() => {
+    if (isHovering.current && isPrimary) return;
+    const ec = echartsRef.current?.getEchartsInstance();
+    if (!ec) return;
+
+    const { crosshairValue } = chart;
+    if (crosshairValue === null) {
+      ec.dispatchAction({ type: "hideTip" });
+      ec.getZr().trigger("globalout", {});
+      return;
+    }
+
+    const depthValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
+    const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [0.5, depthValue]);
+    if (!coords) return;
+    ec.dispatchAction({ type: "showTip", x: ec.getWidth() / 2, y: (coords as number[])[1] });
+  }, [chart.crosshairValue, isPrimary, yRange.min, yRange.max]);
 
   const handleDataZoom = useCallback((params: unknown) => {
     const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
@@ -46,29 +64,30 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     }
   }, [chartDispatch]);
 
+  const showTipAtValue = useCallback((depthValue: number) => {
+    const ec = echartsRef.current?.getEchartsInstance();
+    if (!ec) return;
+    const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [0.5, depthValue]);
+    if (!coords) return;
+    ec.dispatchAction({ type: "showTip", x: ec.getWidth() / 2, y: (coords as number[])[1] });
+  }, []);
+
   const handleMouseMove = isPrimary
     ? (e: React.MouseEvent<HTMLDivElement>) => {
+        isHovering.current = true;
         const rect = e.currentTarget.getBoundingClientRect();
-        const pct = (e.clientY - rect.top) / rect.height;
-        chartDispatch({
-          type: "SET_CROSSHAIR_VALUE",
-          value: pixelToDepthValue(Math.max(0, Math.min(1, pct))),
-        });
+        const pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: pct });
+        showTipAtValue(yRange.min + pct * (yRange.max - yRange.min));
       }
     : undefined;
 
   const handleMouseLeave = isPrimary
-    ? () => chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: null })
+    ? () => {
+        isHovering.current = false;
+        chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: null });
+      }
     : undefined;
-
-  const { min: sessionMin, max: sessionMax } = WELL_SESSION.depthAxis.range;
-  const yRange = getEffectiveRange(
-    isPrimary,
-    chart.liveMode,
-    chart.manualRange,
-    sessionMin,
-    sessionMax,
-  );
 
   const showDataZoomSlider = isPrimary && chart.dataZoomSlider && !chart.liveMode;
 
@@ -83,6 +102,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
       grid: { top: 0, bottom: 0, left: 0, right: 4, containLabel: false },
       tooltip: {
         trigger: "axis",
+        triggerOn: "none",
         axisPointer: {
           type: "cross",
           label: { show: false },
@@ -115,6 +135,19 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
             formatter: (val: number) => (val % 20 === 0 ? String(val) : ""),
           },
           splitLine: { show: false },
+          axisPointer: {
+            label: {
+              show: true,
+              backgroundColor: c.accent,
+              color: c.fg,
+              borderWidth: 0,
+              fontSize: 8,
+              fontFamily: "Share Tech Mono, monospace",
+              padding: [3, 6],
+              formatter: (params: { value: number | string | Date }) =>
+                `${Math.round(Number(params.value))} ft`,
+            },
+          },
         },
         {
           type: "value",
@@ -198,6 +231,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
         onMouseLeave={handleMouseLeave}
       >
         <ReactECharts
+          ref={echartsRef}
           option={option}
           style={{ width: "100%", height: "100%" }}
           opts={{ renderer: "canvas" }}

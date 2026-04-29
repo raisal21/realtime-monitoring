@@ -2,7 +2,7 @@ import { useMemo, useRef, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { useChart, useSettings, TRACKS_META } from "@/stores/dashboard-store";
-import { TRACK_TRACES, WELL_SESSION } from "@/data/dashboard-static";
+import { TRACK_TRACES, WELL_SESSION, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -81,11 +81,29 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle }: TrackHe
   );
 }
 
+const presetToMinutes: Record<string, number> = Object.fromEntries(
+  RANGE_PRESETS_QUICK.map((p) => [p.id, parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60)]),
+);
+
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
   const traces = TRACK_TRACES[trackId];
   const tc = getTraceColors();
+
+  const sessionRange = chart.mode === "depth" ? WELL_SESSION.depthAxis.range : WELL_SESSION.timeAxis.range;
+  let yRange: { min: number; max: number };
+  if (chart.liveMode) {
+    if (chart.mode === "depth") {
+      const cur = WELL_SESSION.cursor.depthFt;
+      yRange = { min: Math.max(sessionRange.min, cur - 100), max: cur };
+    } else {
+      const span = chart.rangePreset ? presetToMinutes[chart.rangePreset] ?? 60 : 60;
+      yRange = { min: Math.max(sessionRange.min, sessionRange.max - span), max: sessionRange.max };
+    }
+  } else {
+    yRange = chart.manualRange ?? { min: sessionRange.min, max: sessionRange.max };
+  }
 
   const echartsRef = useRef<ReactECharts>(null);
   const wasRemote = useRef(false);
@@ -112,10 +130,8 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       const localTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
       if (!localTraces.length) return;
 
-      const coords = ec.convertToPixel(
-        { xAxisIndex: 0, yAxisIndex: 0 },
-        [localTraces[0].min, crosshairValue],
-      );
+      const logValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
+      const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [localTraces[0].min, logValue]);
       if (!coords) return;
 
       const pixelX = ec.getWidth() / 2;
@@ -127,13 +143,11 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         wasRemote.current = true;
       }
     } else if (wasRemote.current) {
-      // globalout clears both the tooltip popup and the crosshair lines;
-      // hideTip alone only hides the popup, leaving the crossStyle stuck
       ec.getZr().trigger('globalout', {});
       ec.setOption({ tooltip: { axisPointer: { label: { show: true } } } });
       wasRemote.current = false;
     }
-  }, [chart.crosshairValue, chart.traceVisibility, traces]);
+  }, [chart.crosshairValue, chart.traceVisibility, traces, yRange.min, yRange.max]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -182,11 +196,6 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           axisPointer: { label: { show: false } },
         }))
       : [{ type: "value" as const, show: false, min: 0, max: 1 }];
-
-    const sessionRange = mode === "depth"
-      ? WELL_SESSION.depthAxis.range
-      : WELL_SESSION.timeAxis.range;
-    const yRange = chart.manualRange ?? sessionRange;
 
     return {
       animation: false,
@@ -252,7 +261,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       },
       series,
     };
-  }, [traces, chart.traceVisibility, chart.mode, chart.manualRange, settings.theme]);
+  }, [traces, chart.traceVisibility, chart.mode, yRange.min, yRange.max, settings.theme]);
 
   const trackMeta = TRACKS_META.find((t) => t.id === trackId);
   const trackWidth = trackMeta ? (chart.trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;

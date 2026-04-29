@@ -459,5 +459,12 @@ export const WELL_SESSION = {
         142.0,
       ],
     },
-  },
-} as const;
+   },
+ } as const;
+
+// ─── Well profile date bounds ───────────────────────────────────────────
+// Parsed from WELL_PROFILE_DATA for use in date pickers.
+// Year 2026 matches the app's time context.
+
+export const WELL_PROFILE_START_DATE = new Date(2026, 2, 12); // Mar 12, 2026
+export const WELL_PROFILE_END_DATE = new Date(2026, 3, 28); // Apr 28, 2026

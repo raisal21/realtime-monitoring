@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { format } from "date-fns";
 import {
-  Calendar as CalendarIcon,
   RotateCcw,
   Activity,
   BarChart2,
+  CalendarRange,
 } from "lucide-react";
 import { useChart } from "@/stores/dashboard-store";
-import { RANGE_PRESETS_QUICK, WELL_SESSION } from "@/data/dashboard-static";
+import {
+  RANGE_PRESETS_QUICK,
+  WELL_SESSION,
+  WELL_PROFILE_START_DATE,
+  WELL_PROFILE_END_DATE,
+} from "@/data/dashboard-static";
 import {
   Popover,
   PopoverContent,
@@ -18,36 +24,10 @@ import {
   PopoverDescription,
 } from "@/components/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { TimePicker } from "@/components/ui/time-picker";
 import { LiveBadge, RangePresetButton } from "@/components/display";
 import { Button } from "@/components/core";
 import { cn } from "@/lib/utils";
-
-const toHHMM = (minutes: number) => {
-  const h = Math.floor(minutes / 60)
-    .toString()
-    .padStart(2, "0");
-  const m = Math.floor(minutes % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${h}:${m}`;
-};
-
-const fromHHMM = (hhmm: string): number => {
-  const [h, m] = hhmm.split(":").map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-};
-
-const inputCls = cn(
-  "flex-1 min-w-0 px-2 py-1 rounded-(--radius-badge)",
-  "bg-(--theme-elevated) border border-(--theme-border)",
-  "font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg)",
-  "focus:outline-none focus:border-(--theme-accent)",
-  "tabular-nums",
-  "[&::-webkit-calendar-picker-indicator]:invert(0)",
-  "[&::-webkit-calendar-picker-indicator]:opacity-50",
-  "[&::-webkit-calendar-picker-filter]:sepia(1)",
-  "[&::-webkit-calendar-picker-filter]:hue-rotate(180deg)",
-);
 
 export function ZoomPopoverContent() {
   const { state, dispatch } = useChart();
@@ -61,12 +41,27 @@ export function ZoomPopoverContent() {
 
   const [draftMin, setDraftMin] = useState(currentRange.min);
   const [draftMax, setDraftMax] = useState(currentRange.max);
+  const [fromDate, setFromDate] = useState<Date | undefined>(
+    WELL_PROFILE_START_DATE,
+  );
+  const [toDate, setToDate] = useState<Date | undefined>(
+    WELL_PROFILE_END_DATE,
+  );
+  const [fromOpen, setFromOpen] = useState(false);
+  const [toOpen, setToOpen] = useState(false);
 
   useEffect(() => {
     const r = state.manualRange ?? axisRange;
     setDraftMin(r.min);
     setDraftMax(r.max);
   }, [state.manualRange, state.mode]);
+
+  const fromLabel = fromDate
+    ? format(fromDate, "MMM dd, yyyy")
+    : "—";
+  const toLabel = toDate
+    ? format(toDate, "MMM dd, yyyy")
+    : "—";
 
   const handleApply = useCallback(() => {
     const min = Math.min(draftMin, draftMax);
@@ -79,7 +74,7 @@ export function ZoomPopoverContent() {
       align="start"
       sideOffset={6}
       side="right"
-      popupClassName="w-[280px]"
+      popupClassName="w-[320px]"
     >
       <PopoverHeader>
         <div className="flex items-center justify-between pr-2">
@@ -109,66 +104,102 @@ export function ZoomPopoverContent() {
         </div>
       </div>
 
-      {/* Date Range Picker */}
+      {/* Date & Time Range — compact side-by-side */}
       <div className="px-3 py-2.5 border-b border-(--theme-border)">
-        <span className="section-heading block mb-2">Date Range</span>
-        <div className="flex flex-col gap-1.5">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                intent="secondary"
-                size="sm"
-                fullWidth
-                className="justify-start font-normal"
-              >
-                <CalendarIcon className="mr-2 size-4 text-(--theme-fg-muted)" />
-                <span className="text-(--theme-fg-muted)">
-                  Pick a date range
+        <span className="section-heading block mb-2">Date & Time</span>
+
+        {/* From — Date + Time side by side */}
+        <div className="flex gap-1.5 mb-2">
+          <Popover open={fromOpen} onOpenChange={setFromOpen}>
+            <PopoverTrigger
+              className={cn(
+                "group flex-1 flex items-stretch",
+                "rounded-(--radius-badge) overflow-hidden",
+                "bg-(--theme-elevated) border border-(--theme-border)",
+                "hover:border-(--theme-accent) transition-colors",
+                "focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-accent)",
+              )}
+            >
+              <div className="flex flex-col items-start flex-1 min-w-0 px-2.5 py-1.5">
+                <span className="font-['Barlow_Condensed',sans-serif] text-[9px] font-bold uppercase tracking-[0.14em] text-(--theme-fg-dim) leading-none">
+                  From
                 </span>
-              </Button>
+                <span className="font-['Share_Tech_Mono',monospace] tabular-nums text-[13px] font-semibold text-(--theme-fg) leading-tight mt-0.5">
+                  {fromLabel}
+                </span>
+              </div>
+              <div className="flex items-center justify-center px-2 border-l border-(--theme-border-subtle) text-(--theme-fg-muted) group-hover:text-(--theme-accent) transition-colors">
+                <CalendarRange size={13} strokeWidth={2} />
+              </div>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="range" numberOfMonths={2} />
+            <PopoverContent align="start" sideOffset={6} popupClassName="p-0">
+              <Calendar
+                mode="single"
+                defaultMonth={fromDate}
+                selected={fromDate}
+                onSelect={(date) => {
+                  setFromDate(date ?? undefined);
+                  setFromOpen(false);
+                }}
+              />
             </PopoverContent>
           </Popover>
 
-          {/* Time Range Inputs */}
-          <div className="flex items-center gap-2">
-            <span className="w-7 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted)">
-              From
-            </span>
-            <input
-              type="time"
-              value={toHHMM(draftMin)}
-              onChange={(e) => setDraftMin(fromHHMM(e.target.value))}
-              className={inputCls}
-            />
-          </div>
+          <TimePicker value={draftMin} onChange={setDraftMin} />
+        </div>
 
-          <div className="flex items-center gap-2 text-(--theme-fg-muted)">
-            <span className="w-7 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted)">
-              To
-            </span>
-            <input
-              type="time"
-              value={toHHMM(draftMax)}
-              onChange={(e) => setDraftMax(fromHHMM(e.target.value))}
-              className={inputCls}
-            />
-          </div>
-
-          <div className="flex gap-1.5 mt-0.5">
-            <Button intent="primary" size="sm" fullWidth onClick={handleApply}>
-              Apply
-            </Button>
-            <Button
-              intent="ghost"
-              size="sm"
-              onClick={() => dispatch({ type: "RESET_ZOOM" })}
+        {/* To — Date + Time side by side */}
+        <div className="flex gap-1.5 mb-2">
+          <Popover open={toOpen} onOpenChange={setToOpen}>
+            <PopoverTrigger
+              className={cn(
+                "group flex-1 flex items-stretch",
+                "rounded-(--radius-badge) overflow-hidden",
+                "bg-(--theme-elevated) border border-(--theme-border)",
+                "hover:border-(--theme-accent) transition-colors",
+                "focus:outline-none focus-visible:ring-1 focus-visible:ring-(--theme-accent)",
+              )}
             >
-              <RotateCcw size={11} strokeWidth={2} />
-            </Button>
-          </div>
+              <div className="flex flex-col items-start flex-1 min-w-0 px-2.5 py-1.5">
+                <span className="font-['Barlow_Condensed',sans-serif] text-[9px] font-bold uppercase tracking-[0.14em] text-(--theme-fg-dim) leading-none">
+                  To
+                </span>
+                <span className="font-['Share_Tech_Mono',monospace] tabular-nums text-[13px] font-semibold text-(--theme-fg) leading-tight mt-0.5">
+                  {toLabel}
+                </span>
+              </div>
+              <div className="flex items-center justify-center px-2 border-l border-(--theme-border-subtle) text-(--theme-fg-muted) group-hover:text-(--theme-accent) transition-colors">
+                <CalendarRange size={13} strokeWidth={2} />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent align="start" sideOffset={6} popupClassName="p-0">
+              <Calendar
+                mode="single"
+                defaultMonth={toDate}
+                selected={toDate}
+                onSelect={(date) => {
+                  setToDate(date ?? undefined);
+                  setToOpen(false);
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+
+          <TimePicker value={draftMax} onChange={setDraftMax} />
+        </div>
+
+        {/* Apply / Reset */}
+        <div className="flex gap-1.5 mt-2.5">
+          <Button intent="primary" size="sm" fullWidth onClick={handleApply}>
+            Apply
+          </Button>
+          <Button
+            intent="ghost"
+            size="sm"
+            onClick={() => dispatch({ type: "RESET_ZOOM" })}
+          >
+            <RotateCcw size={11} strokeWidth={2} />
+          </Button>
         </div>
       </div>
 
@@ -191,7 +222,7 @@ export function ZoomPopoverContent() {
       </div>
 
       {/* DataZoom Slider toggle */}
-      <div className="px-3 py-2.5 border-b border-(--theme-border)">
+      <div className="px-3 py-2.5">
         <Button
           intent={state.dataZoomSlider ? "primary" : "secondary"}
           size="md"

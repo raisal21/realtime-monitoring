@@ -21,7 +21,9 @@ import { Popover as BasePopover } from "@base-ui/react/popover";
 //     <PopoverContent>...content...</PopoverContent>
 //   </Popover>
 
-export const Popover = BasePopover.Root;
+export function Popover(props: React.ComponentPropsWithoutRef<typeof BasePopover.Root>) {
+  return <BasePopover.Root {...props} />;
+}
 
 export interface PopoverTriggerProps extends React.ComponentPropsWithoutRef<typeof BasePopover.Trigger> {
   asChild?: boolean;
@@ -38,7 +40,7 @@ export const PopoverTrigger = React.forwardRef<
       </BasePopover.Trigger>
     );
   }
-  return <BasePopover.Trigger ref={ref} {...props} />;
+  return <BasePopover.Trigger ref={ref} {...props}>{children}</BasePopover.Trigger>;
 });
 PopoverTrigger.displayName = "PopoverTrigger";
 

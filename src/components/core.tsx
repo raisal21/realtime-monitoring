@@ -29,7 +29,7 @@ const buttonVariants = cva(
     variants: {
       intent: {
         primary: [
-          "bg-(--theme-accent)",
+          "bg-(--theme-accent) -[#0c0e10]",
           "hover:brightness-110",
           "hover:shadow-[0_0_24px_color-mix(in_srgb,var(--theme-accent)_40%,transparent)]",
           "active:scale-[0.98] active:brightness-95",

@@ -165,7 +165,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           axisLabel: {
             inside: true,
             margin: 8,
-            fontSize: 8,
+            fontSize: 9,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
             formatter: (val: number) => (val % 20 === 0 ? String(val) : ""),
@@ -177,11 +177,11 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               backgroundColor: c.accent,
               color: c.fg,
               borderWidth: 0,
-              fontSize: 8,
+              fontSize: 11,
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
               formatter: (params: { value: number | string | Date }) =>
-                `${Math.round(Number(params.value))} ft`,
+                `${Math.round(Number(params.value))}`,
             },
           },
         },

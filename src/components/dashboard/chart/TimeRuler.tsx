@@ -177,7 +177,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
           axisLabel: {
             inside: true,
             margin: 8,
-            fontSize: 8,
+            fontSize: 9,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
             formatter: (val: number) =>
@@ -190,7 +190,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               backgroundColor: c.accent,
               color: c.fg,
               borderWidth: 0,
-              fontSize: 8,
+              fontSize: 11,
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
               formatter: (params: { value: number | string | Date }) => {

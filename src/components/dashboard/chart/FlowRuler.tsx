@@ -25,20 +25,29 @@ export function FlowRuler() {
     const mode = chart.mode;
     const range = chart.manualRange;
 
-    const allFlowValues = WELL_SESSION.flow.map((d) => ({ value: d.flow, depth: d.depth }));
+    const allFlowValues = WELL_SESSION.flow.map((d) => ({
+      value: d.flow,
+      depth: d.depth,
+    }));
 
     let flowValues: typeof allFlowValues;
     let yAxisCategories: string[];
 
     if (mode === "depth") {
       flowValues = range
-        ? allFlowValues.filter(f => f.depth >= range.min && f.depth <= range.max)
+        ? allFlowValues.filter(
+            (f) => f.depth >= range.min && f.depth <= range.max,
+          )
         : allFlowValues;
-      yAxisCategories = flowValues.map(f => String(f.depth));
+      yAxisCategories = flowValues.map((f) => String(f.depth));
     } else {
       const timeEntries = WELL_SESSION.timePoints.map((t, i) => ({ t, i }));
-      const filtered = range ? timeEntries.filter(({ t }) => t >= range.min && t <= range.max) : timeEntries;
-      flowValues = filtered.map(({ i }) => allFlowValues[i] ?? { value: 0, depth: 0 });
+      const filtered = range
+        ? timeEntries.filter(({ t }) => t >= range.min && t <= range.max)
+        : timeEntries;
+      flowValues = filtered.map(
+        ({ i }) => allFlowValues[i] ?? { value: 0, depth: 0 },
+      );
       yAxisCategories = filtered.map(({ t }) => minutesToHHMM(t));
     }
 
@@ -71,9 +80,12 @@ export function FlowRuler() {
       series: [
         {
           type: "bar",
-          data: flowValues.map(f => ({
+          data: flowValues.map((f) => ({
             value: f.value,
-            itemStyle: { color: f.value >= 0 ? c.info : c.critical, opacity: 0.85 },
+            itemStyle: {
+              color: f.value >= 0 ? c.info : c.critical,
+              opacity: 0.85,
+            },
           })),
           barWidth: "80%",
           label: { show: false },
@@ -101,9 +113,10 @@ export function FlowRuler() {
           const isIn = f.value >= 0;
           const direction = isIn ? "◀ In" : "▶ Out";
           const color = isIn ? c.info : c.critical;
-          const label = mode === "depth"
-            ? `${f.depth} ft`
-            : minutesToHHMM(WELL_SESSION.timePoints[ps[0].dataIndex]);
+          const label =
+            mode === "depth"
+              ? `${f.depth} ft`
+              : minutesToHHMM(WELL_SESSION.timePoints[ps[0].dataIndex]);
           return [
             `<span style="color:${c.fgDim}">${label}</span>`,
             `<span style="color:${color}">${direction}: ${Math.abs(f.value)}</span>`,
@@ -122,7 +135,7 @@ export function FlowRuler() {
       style={{ width: 60 }}
     >
       <div className="px-1.5 h-10 flex flex-col justify-center border-b border-(--theme-border) flex-shrink-0">
-        <span className="section-heading">Flow</span>
+        <span className="section-heading block">Flow</span>
         <div className="flex items-center justify-between mt-0.5">
           <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-critical)">
             out
@@ -135,7 +148,7 @@ export function FlowRuler() {
       </div>
 
       <div className="h-[72px] flex-shrink-0 border-b border-(--theme-border) flex flex-col items-center justify-center gap-1.5">
-        <span className="font-['Share_Tech_Mono',monospace] text-[7px] uppercase tracking-widest text-(--theme-fg-dim) opacity-60">
+        <span className="font-['Share_Tech_Mono',monospace] text-xs uppercase tracking-widest text-(--theme-fg-dim) opacity-60">
           scale
         </span>
         <div className="flex items-center gap-1.5">

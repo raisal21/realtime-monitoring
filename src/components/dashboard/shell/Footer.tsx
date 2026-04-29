@@ -7,15 +7,14 @@ export function Footer() {
   return (
     <footer
       className={cn(
-        "flex items-center px-4 gap-4 flex-shrink-0 z-10",
+        "flex items-center px-4 gap-4 flex-shrink-0 z-10 h-rt-shell-foot",
         "bg-(--theme-base) border-t border-(--theme-border)",
         "overflow-hidden",
       )}
-      style={{ height: 28 }}
     >
       <span
         className={cn(
-          "font-['Share_Tech_Mono',monospace] text-[9px] tracking-[0.06em]",
+          "font-['Share_Tech_Mono',monospace] text-fs-9 tracking-[0.06em]",
           "text-(--theme-fg-dim) shrink-0",
         )}
       >

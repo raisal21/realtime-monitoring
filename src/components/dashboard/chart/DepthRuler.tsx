@@ -2,7 +2,7 @@ import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { WELL_SESSION } from "@/data/dashboard-static";
-import { useChart, useSettings } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +127,8 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
   const showDataZoomSlider =
     isPrimary && chart.dataZoomSlider && !chart.liveMode;
 
+  const fsScale = FS_SCALE[settings.fontSize];
+
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
     const tickColor = isPrimary ? c.accent : c.fgDim;
@@ -165,7 +167,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           axisLabel: {
             inside: true,
             margin: 8,
-            fontSize: 9,
+            fontSize: 9 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
             formatter: (val: number) => (val % 20 === 0 ? String(val) : ""),
@@ -177,7 +179,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               backgroundColor: c.accent,
               color: c.fg,
               borderWidth: 0,
-              fontSize: 11,
+              fontSize: 11 * fsScale,
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
               formatter: (params: { value: number | string | Date }) =>
@@ -238,6 +240,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     };
   }, [
     settings.theme,
+    fsScale,
     isPrimary,
     yRange.min,
     yRange.max,
@@ -276,7 +279,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           />
           <span
             className={cn(
-              "font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1",
+              "font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums ml-1",
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
@@ -301,7 +304,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
           />
           <span
             className={cn(
-              "font-['Share_Tech_Mono',monospace] text-[8px] tabular-nums ml-1",
+              "font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums ml-1",
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >

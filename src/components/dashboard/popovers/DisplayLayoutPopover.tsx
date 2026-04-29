@@ -59,11 +59,11 @@ function SortableTrackItem({
           isFixed ? "text-(--theme-border)" : "text-(--theme-fg-dim)",
         )}
       />
-      <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold text-(--theme-fg) flex-1">
+      <span className="font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold text-(--theme-fg) flex-1">
         {name}
       </span>
       {isFixed && (
-        <span className="font-['Barlow_Condensed',sans-serif] text-[9px] text-(--theme-fg-dim) uppercase tracking-wider">
+        <span className="font-['Barlow_Condensed',sans-serif] text-fs-9 text-(--theme-fg-dim) uppercase tracking-wider">
           fixed
         </span>
       )}
@@ -96,7 +96,7 @@ export function DisplayLayoutPopoverContent() {
         <PopoverDescription>Track order, widths, and visibility</PopoverDescription>
       </PopoverHeader>
 
-      <div className="px-4 py-3 border-b border-(--theme-border)">
+      <div className="px-rt-pad py-rt-pad-sm border-b border-(--theme-border)">
         <span className="section-heading block mb-2">Track Order</span>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
@@ -123,7 +123,7 @@ export function DisplayLayoutPopoverContent() {
         </DndContext>
       </div>
 
-      <div className="px-4 py-3 border-b border-(--theme-border)">
+      <div className="px-rt-pad py-rt-pad-sm border-b border-(--theme-border)">
         <span className="section-heading block mb-3">Track Widths</span>
         <div className="flex flex-col gap-3">
           {chart.trackOrder
@@ -135,7 +135,7 @@ export function DisplayLayoutPopoverContent() {
 
             return (
               <div key={trackId} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold text-(--theme-fg-muted) truncate">
+                <span className="w-24 shrink-0 font-['Barlow_Condensed',sans-serif] text-fs-10 font-semibold text-(--theme-fg-muted) truncate">
                   {meta.name}
                 </span>
                 <Slider
@@ -152,7 +152,7 @@ export function DisplayLayoutPopoverContent() {
                   step={1}
                   className="flex-1"
                 />
-                <span className="w-12 text-right font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim) tabular-nums shrink-0">
+                <span className="w-12 text-right font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-dim) tabular-nums shrink-0">
                   {width} px
                 </span>
               </div>
@@ -170,7 +170,7 @@ export function DisplayLayoutPopoverContent() {
         </Button>
       </div>
 
-      <div className="px-4 py-3">
+      <div className="px-rt-pad py-rt-pad-sm">
         <span className="section-heading block mb-2">Track Visibility</span>
         <div className="flex flex-col gap-2">
           {chart.trackOrder.map((trackId) => {
@@ -180,7 +180,7 @@ export function DisplayLayoutPopoverContent() {
 
             return (
               <div key={trackId} className="flex items-center justify-between">
-                <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold text-(--theme-fg)">
+                <span className="font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold text-(--theme-fg)">
                   {meta.name}
                 </span>
                 <Switch

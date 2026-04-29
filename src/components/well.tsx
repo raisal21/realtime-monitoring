@@ -113,11 +113,11 @@ export const WellListItem = ({
     </div>
 
     <div className="flex-1 min-w-0">
-      <p className="font-['Barlow_Condensed',sans-serif] text-[13px] font-bold tracking-[0.04em] truncate mb-0.5">
+      <p className="font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold tracking-[0.04em] truncate mb-0.5">
         {name}
       </p>
       {block && (
-        <p className="text-[10px] text-(--theme-fg-muted) tracking-[0.04em] mb-1.25">
+        <p className="text-fs-10 text-(--theme-fg-muted) tracking-[0.04em] mb-1.25">
           {block}
         </p>
       )}
@@ -171,15 +171,15 @@ export const WellMetric = ({
   ...props
 }: WellMetricProps) => (
   <div className={cn("flex flex-col gap-0", className)} {...props}>
-    <span className="font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg) leading-none">
+    <span className="font-['Share_Tech_Mono',monospace] text-fs-11 text-(--theme-fg) leading-none">
       {value}
       {unit && (
-        <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-fg-dim) ml-px">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-fg-dim) ml-px">
           {unit}
         </span>
       )}
     </span>
-    <span className="text-[8px] text-(--theme-fg-dim) uppercase tracking-[0.08em]">
+    <span className="text-fs-8 text-(--theme-fg-dim) uppercase tracking-[0.08em]">
       {metricKey}
     </span>
   </div>
@@ -218,10 +218,10 @@ export const SidebarStat = ({
     className={cn(sidebarStatVariants({ colorScheme }), className)}
     {...props}
   >
-    <span className="stat-val font-['Share_Tech_Mono',monospace] text-[18px] leading-none">
+    <span className="stat-val font-['Share_Tech_Mono',monospace] text-fs-18 leading-none">
       {value}
     </span>
-    <span className="text-[9px] text-(--theme-fg-dim) uppercase tracking-[0.08em]">
+    <span className="text-fs-9 text-(--theme-fg-dim) uppercase tracking-[0.08em]">
       {label}
     </span>
   </div>

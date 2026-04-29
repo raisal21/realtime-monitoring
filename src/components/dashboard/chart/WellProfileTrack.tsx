@@ -2,13 +2,14 @@ import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { WELL_SESSION } from "@/data/dashboard-static";
-import { useChart, useSettings } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
 export function WellProfileTrack() {
   const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
+  const fsScale = FS_SCALE[settings.fontSize];
 
   const handleDataZoom = useCallback(
     (params: unknown) => {
@@ -96,7 +97,7 @@ export function WellProfileTrack() {
             show: true,
             formatter: `${currentDepthFt.toLocaleString()}`,
             color: c.accent,
-            fontSize: 8,
+            fontSize: 8 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             backgroundColor: c.surface,
             padding: [1, 3],
@@ -111,7 +112,7 @@ export function WellProfileTrack() {
         padding: [5, 8],
         textStyle: {
           color: c.fg,
-          fontSize: 10,
+          fontSize: 10 * fsScale,
           fontFamily: "Share Tech Mono, monospace",
         },
         appendToBody: true,
@@ -168,7 +169,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.theme, chart.dataZoomSlider, chart.manualRange]);
+  }, [settings.theme, chart.dataZoomSlider, chart.manualRange, fsScale]);
 
   return (
     <div
@@ -197,10 +198,10 @@ export function WellProfileTrack() {
       </div>
 
       <div className="px-2 py-1 border-t border-(--theme-border) flex items-center justify-between flex-shrink-0">
-        <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-fg-dim)">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-fg-dim)">
           TD
         </span>
-        <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-fg-muted) tabular">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-fg-muted) tabular">
           {WELL_SESSION.wellProfile.maxDepthFt.toLocaleString()} ft
         </span>
       </div>

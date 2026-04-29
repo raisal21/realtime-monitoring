@@ -38,6 +38,10 @@ export function DashboardLayout() {
 
   const alarmAnchor =
     ui.alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH;
+  // Chart section reserves only the collapsed strip widths on the right
+  // (gauge strip + alarm strip). Open sidebars float on top of the chart
+  // instead of shrinking it, keeping canvas width constant.
+  const chartRightInset = STRIP_WIDTH * 2;
 
   return (
     <>
@@ -47,10 +51,10 @@ export function DashboardLayout() {
           strokeWidth={1.5}
           className="text-(--theme-fg-dim) opacity-40"
         />
-        <span className="section-heading text-[16px]">
+        <span className="section-heading text-fs-16">
           Large Display Required
         </span>
-        <span className="font-['Barlow',sans-serif] text-[12px] text-(--theme-fg-muted) max-w-[300px] text-center leading-relaxed">
+        <span className="font-['Barlow',sans-serif] text-fs-12 text-(--theme-fg-muted) max-w-[300px] text-center leading-relaxed">
           This enterprise control room is engineered for large displays. Please
           open on a desktop or laptop.
         </span>
@@ -58,7 +62,10 @@ export function DashboardLayout() {
 
       <div
         className="grid h-screen w-screen overflow-hidden"
-        style={{ gridTemplateRows: "44px 36px 1fr 28px" }}
+        style={{
+          gridTemplateRows:
+            "var(--spacing-rt-shell-top) var(--spacing-rt-shell-sub) 1fr var(--spacing-rt-shell-foot)",
+        }}
       >
         <UniversalTopbar />
         <DashboardSubheader />
@@ -68,17 +75,17 @@ export function DashboardLayout() {
 
           <section
             className="flex-1 flex overflow-hidden bg-(--theme-base) relative"
-            style={{
-              paddingRight: alarmAnchor + STRIP_WIDTH,
-              transition: "padding-right 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-            }}
+            style={{ paddingRight: chartRightInset }}
           >
-            <div className="flex-1 flex overflow-x-auto overflow-y-hidden no-scrollbar">
-              <WellProfileTrack />
-              <TimeRuler isPrimary={chart.mode === "time"} />
-              <DepthRuler isPrimary={chart.mode === "depth"} />
-              <FlowRuler />
+            {/* Permanent left columns — sticky, never scroll horizontally */}
+            <WellProfileTrack />
+            <TimeRuler isPrimary={chart.mode === "time"} />
+            <DepthRuler isPrimary={chart.mode === "depth"} />
+            <FlowRuler />
 
+            {/* LogTracks scroll horizontally when their total width exceeds
+                the available chart area (e.g. when sidebars float over). */}
+            <div className="flex-1 flex overflow-x-auto overflow-y-hidden no-scrollbar">
               {chart.trackOrder
                 .filter((id) => id !== "well-profile")
                 .filter((id) => chart.trackVisibility[id] ?? true)

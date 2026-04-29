@@ -17,12 +17,12 @@ const valueReadoutVariants = cva(
   {
     variants: {
       size: {
-        xs: "text-[11px]",
-        sm: "text-[14px]",
-        md: "text-[18px]",
-        lg: "text-[24px]",
-        xl: "text-[28px]",
-        "2xl": "text-[36px]",
+        xs: "text-fs-11",
+        sm: "text-fs-14",
+        md: "text-fs-18",
+        lg: "text-fs-24",
+        xl: "text-fs-28",
+        "2xl": "text-fs-36",
       },
       status: {
         ok: "text-(--theme-ok)",
@@ -39,12 +39,12 @@ const valueReadoutVariants = cva(
 );
 
 const UNIT_SIZE: Record<string, string> = {
-  "2xl": "text-[13px]",
-  xl: "text-[11px]",
-  lg: "text-[10px]",
-  md: "text-[9px]",
-  sm: "text-[8px]",
-  xs: "text-[8px]",
+  "2xl": "text-fs-13",
+  xl: "text-fs-11",
+  lg: "text-fs-10",
+  md: "text-fs-9",
+  sm: "text-fs-8",
+  xs: "text-fs-8",
 };
 
 export interface ValueReadoutProps
@@ -186,7 +186,7 @@ export const GaugeCard = ({
 const traceItemVariants = cva(
   [
     "flex items-center gap-[8px] px-[12px] py-[6px] cursor-pointer",
-    "font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold tracking-[0.04em] uppercase",
+    "font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold tracking-[0.04em] uppercase",
     "transition-all duration-120",
     "hover:bg-[color-mix(in_srgb,var(--theme-elevated)_60%,transparent)]",
   ].join(" "),
@@ -226,7 +226,7 @@ export const TraceItem = ({
   <div className={cn(traceItemVariants({ active }), className)} {...props}>
     <TraceColor trace={trace} type="line" />
     <span className="flex-1 min-w-0 truncate">{name}</span>
-    <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-muted) tabular-nums">
+    <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-muted) tabular-nums">
       {value}
       {unit && <span className="text-(--theme-fg-dim) ml-0.5">{unit}</span>}
     </span>
@@ -245,7 +245,7 @@ const traceToggleVariants = cva(
   [
     "flex items-center justify-center shrink-0",
     "w-[16px] h-[16px] rounded-xs border",
-    "text-[9px] font-bold cursor-pointer",
+    "text-fs-9 font-bold cursor-pointer",
     "transition-all duration-120",
   ].join(" "),
   {

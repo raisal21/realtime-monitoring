@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { WELL_SESSION } from "@/data/dashboard-static";
-import { useChart, useSettings } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ const FLOW_SCALE = Math.ceil(
 export function FlowRuler() {
   const { state: chart } = useChart();
   const { state: settings } = useSettings();
+  const fsScale = FS_SCALE[settings.fontSize];
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -100,7 +101,7 @@ export function FlowRuler() {
         padding: [5, 8],
         textStyle: {
           color: c.fg,
-          fontSize: 9,
+          fontSize: 9 * fsScale,
           fontFamily: "Share Tech Mono, monospace",
         },
         appendToBody: true,
@@ -124,7 +125,7 @@ export function FlowRuler() {
         },
       },
     };
-  }, [chart.mode, chart.manualRange, settings.theme]);
+  }, [chart.mode, chart.manualRange, settings.theme, fsScale]);
 
   return (
     <div
@@ -137,11 +138,11 @@ export function FlowRuler() {
       <div className="px-1.5 h-10 flex flex-col justify-center border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading block">Flow</span>
         <div className="flex items-center justify-between mt-0.5">
-          <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-critical)">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-critical)">
             out
           </span>
           <div className="w-px h-2.5 bg-(--theme-border)" />
-          <span className="font-['Share_Tech_Mono',monospace] text-[8px] text-(--theme-info)">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-info)">
             in
           </span>
         </div>
@@ -152,11 +153,11 @@ export function FlowRuler() {
           scale
         </span>
         <div className="flex items-center gap-1.5">
-          <span className="font-['Share_Tech_Mono',monospace] text-[9px] tabular-nums text-(--theme-critical)">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-9 tabular-nums text-(--theme-critical)">
             -{FLOW_SCALE}
           </span>
           <div className="w-px h-3 bg-(--theme-border)" />
-          <span className="font-['Share_Tech_Mono',monospace] text-[9px] tabular-nums text-(--theme-info)">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-9 tabular-nums text-(--theme-info)">
             +{FLOW_SCALE}
           </span>
         </div>

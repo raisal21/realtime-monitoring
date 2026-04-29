@@ -12,7 +12,7 @@ const topbarButtonVariants = cva(
     "relative flex items-center justify-center",
     "w-[30px] h-[30px] rounded-(--radius-badge)",
     "border border-transparent cursor-pointer",
-    "text-[14px] text-(--theme-fg-muted)",
+    "text-fs-14 text-(--theme-fg-muted)",
     "transition-all duration-150",
     "hover:bg-(--theme-elevated) hover:border-(--theme-border) hover:text-(--theme-fg)",
     "outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
@@ -63,7 +63,7 @@ export const TopbarButton = ({
           "min-w-[14px] h-[14px] px-0.5",
           "rounded-full flex items-center justify-center",
           "bg-(--theme-critical) text-white",
-          "font-['Share_Tech_Mono',monospace] text-[8px] font-bold leading-none",
+          "font-['Share_Tech_Mono',monospace] text-fs-8 font-bold leading-none",
         )}
       >
         {badgeCount > 9 ? "9+" : badgeCount}
@@ -74,12 +74,12 @@ export const TopbarButton = ({
 
 // ─── 4.2 BREADCRUMB ITEM ──────────────────────────────────────────────
 const breadcrumbItemVariants = cva(
-  "font-['Barlow_Condensed',sans-serif] text-[11px] transition-colors duration-150",
+  "font-['Barlow_Condensed',sans-serif] text-fs-11 transition-colors duration-150",
   {
     variants: {
       type: {
         link: "text-(--theme-fg-muted) hover:text-(--theme-accent) cursor-pointer",
-        separator: "text-(--theme-fg-dim) text-[10px] select-none",
+        separator: "text-(--theme-fg-dim) text-fs-10 select-none",
         current: "text-(--theme-fg) font-semibold cursor-default",
       },
     },

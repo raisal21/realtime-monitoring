@@ -42,7 +42,7 @@ export function FloatingAlarmSidebar() {
         />
       )}
 
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-(--theme-border) flex-shrink-0">
+      <div className="flex items-center gap-1.5 px-rt-pad-sm py-rt-pad-sm border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading flex-1">Alarms & Notes</span>
         <FilterChip
           intent="critical"
@@ -97,7 +97,7 @@ export function FloatingAlarmSidebar() {
         ))}
         {visibleItems.length === 0 && (
           <div className="px-4 py-6 text-center">
-            <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-dim)">
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim)">
               No alarms match current filters
             </span>
           </div>

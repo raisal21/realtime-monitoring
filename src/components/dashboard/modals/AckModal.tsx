@@ -30,7 +30,7 @@ export function AckModal() {
             strokeWidth={2.25}
             className="text-(--theme-critical)"
           />
-          <span className="font-['Barlow_Condensed',sans-serif] text-[14px] font-bold uppercase tracking-[0.08em] flex-1">
+          <span className="font-['Barlow_Condensed',sans-serif] text-fs-14 font-bold uppercase tracking-[0.08em] flex-1">
             Acknowledge Alarm
           </span>
           <IconButton
@@ -51,10 +51,10 @@ export function AckModal() {
               "border border-[color-mix(in_srgb,var(--theme-critical)_30%,transparent)]",
             )}
           >
-            <p className="font-['Barlow_Condensed',sans-serif] text-[13px] font-bold text-(--theme-critical) uppercase tracking-[0.04em]">
+            <p className="font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold text-(--theme-critical) uppercase tracking-[0.04em]">
               {alarm.severity.toUpperCase()} — {alarm.message}
             </p>
-            <p className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-muted) mt-0.5">
+            <p className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-muted) mt-0.5">
               {alarm.meta} · Raised at {alarm.timestamp}
             </p>
           </div>

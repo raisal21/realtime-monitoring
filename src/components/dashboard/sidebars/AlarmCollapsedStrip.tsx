@@ -45,21 +45,21 @@ export function AlarmCollapsedStrip() {
             strokeWidth={2.25}
             className="text-(--theme-critical) animate-pulse-critical"
           />
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] font-bold text-(--theme-critical) tabular leading-none">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 font-bold text-(--theme-critical) tabular leading-none">
             {totalUnacked}
           </span>
         </>
       )}
 
       {unackedCritical === 0 && totalUnacked > 0 && (
-        <span className="font-['Share_Tech_Mono',monospace] text-[10px] font-bold text-(--theme-warning) tabular leading-none">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-10 font-bold text-(--theme-warning) tabular leading-none">
           {totalUnacked}
         </span>
       )}
 
       <div className="flex-1" />
 
-      <span className="text-vertical-rl font-['Barlow_Condensed',sans-serif] text-[10px] font-bold uppercase text-(--theme-fg-muted)">
+      <span className="text-vertical-rl font-['Barlow_Condensed',sans-serif] text-fs-10 font-bold uppercase text-(--theme-fg-muted)">
         Alarms
       </span>
       <div className="flex-1" />

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 // Imports from core
 import { Badge } from "@/components/core";
 import { Button } from "@/components/core";
+import { useSettings } from "@/stores/dashboard-store";
 
 /* ============================================================================
    3. ALARM SYSTEM
@@ -16,7 +17,7 @@ const filterChipVariants = cva(
   [
     "inline-flex items-center gap-[4px] px-[8px] py-[3px]",
     "rounded-(--radius-badge) border cursor-pointer select-none",
-    "font-['Share_Tech_Mono',monospace] text-[9px] font-bold uppercase tracking-[0.1em]",
+    "font-['Share_Tech_Mono',monospace] text-fs-9 font-bold uppercase tracking-[0.1em]",
     "transition-all duration-150",
   ].join(" "),
   {
@@ -104,7 +105,7 @@ export const FilterChip = ({
 // ─── 3.2 FEED ITEM ────────────────────────────────────────────────────
 const feedItemVariants = cva(
   [
-    "relative px-[14px] py-2.5",
+    "relative px-rt-pad-sm py-rt-pad-sm",
     "border-b border-(--theme-border-subtle)",
     "border-l-[3px]",
     "transition-all duration-200",
@@ -228,8 +229,15 @@ export const FeedItem = ({
   className,
   ...props
 }: FeedItemProps) => {
+  const { state: settings } = useSettings();
+  const compact = settings.density === "compact";
   const needsAck =
     state === "unacked" && (severity === "critical" || severity === "warning");
+  // In compact mode trim "HH:mm:ss" → "HH:mm" so the row stays single-line.
+  const displayTimestamp =
+    compact && timestamp && /^\d{2}:\d{2}:\d{2}/.test(timestamp)
+      ? timestamp.slice(0, 5)
+      : timestamp;
 
   return (
     <div
@@ -240,17 +248,17 @@ export const FeedItem = ({
         <Badge intent={SEVERITY_TO_BADGE[severity ?? "info"]} size="xs">
           {(severity ?? "info").toUpperCase()}
         </Badge>
-        {timestamp && (
-          <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim)">
-            {timestamp}
+        {displayTimestamp && (
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-dim)">
+            {displayTimestamp}
           </span>
         )}
       </div>
-      <p className="font-['Barlow',sans-serif] text-[12px] text-(--theme-fg) leading-snug mb-0.75">
+      <p className="font-['Barlow',sans-serif] text-fs-12 text-(--theme-fg) leading-snug mb-0.75">
         {message}
       </p>
-      {meta && (
-        <p className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-dim)">
+      {meta && !compact && (
+        <p className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim)">
           {meta}
         </p>
       )}
@@ -284,7 +292,7 @@ export const CriticalBanner = ({
     role="alert"
     aria-live="assertive"
     className={cn(
-      "flex items-start gap-2.5 px-[14px] py-2.5",
+      "flex items-start gap-2.5 px-rt-pad-sm py-rt-pad-sm",
       "border-b-2 border-b-(--theme-critical)",
       "bg-[color-mix(in_srgb,var(--theme-critical)_12%,var(--theme-base))]",
       "animate-[feed-critical-pulse_2.5s_ease-in-out_infinite]",
@@ -293,17 +301,17 @@ export const CriticalBanner = ({
     {...props}
   >
     <span
-      className="text-(--theme-critical) text-[14px] leading-none mt-px shrink-0"
+      className="text-(--theme-critical) text-fs-14 leading-none mt-px shrink-0"
       aria-hidden="true"
     >
       ⚠
     </span>
     <div className="flex flex-col gap-px">
-      <span className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold uppercase tracking-[0.06em] text-(--theme-critical)">
+      <span className="font-['Barlow_Condensed',sans-serif] text-fs-12 font-bold uppercase tracking-[0.06em] text-(--theme-critical)">
         {title}
       </span>
       {subtitle && (
-        <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-muted)">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-muted)">
           {subtitle}
         </span>
       )}

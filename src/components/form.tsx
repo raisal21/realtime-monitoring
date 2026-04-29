@@ -202,11 +202,11 @@ export const RadioCard = ({
     {/* Text content — hidden in compact mode */}
     {!compact && (
       <div className="flex-1 min-w-0">
-        <div className="font-['Barlow_Condensed',sans-serif] text-[12px] font-bold uppercase tracking-[0.06em] text-(--theme-fg) leading-tight">
+        <div className="font-['Barlow_Condensed',sans-serif] text-fs-12 font-bold uppercase tracking-[0.06em] text-(--theme-fg) leading-tight">
           {title}
         </div>
         {subtitle && (
-          <div className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim) leading-tight mt-px">
+          <div className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-dim) leading-tight mt-px">
             {subtitle}
           </div>
         )}

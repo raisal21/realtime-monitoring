@@ -15,7 +15,7 @@ const connectionStatusVariants = cva(
   [
     "flex items-center gap-[5px]",
     "px-[8px] py-[3px] rounded-(--radius-badge) border",
-    "font-['Share_Tech_Mono',monospace] text-[9px] uppercase tracking-[0.1em]",
+    "font-['Share_Tech_Mono',monospace] text-fs-9 uppercase tracking-[0.1em]",
     "cursor-default select-none transition-all duration-300",
   ].join(" "),
   {
@@ -102,7 +102,7 @@ export const FooterStat = ({
   <div
     className={cn(
       "flex items-center gap-1.25",
-      "font-['Share_Tech_Mono',monospace] text-[10px]",
+      "font-['Share_Tech_Mono',monospace] text-fs-10",
       className,
     )}
     {...props}

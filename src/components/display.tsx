@@ -17,7 +17,7 @@ const liveBadgeVariants = cva(
   [
     "inline-flex items-center gap-1.5 px-2 py-0.5",
     "rounded-(--radius-badge) border",
-    "font-['Share_Tech_Mono',monospace] text-[10px] font-bold uppercase tracking-[0.1em]",
+    "font-['Share_Tech_Mono',monospace] text-fs-10 font-bold uppercase tracking-[0.1em]",
     "transition-colors duration-200 select-none",
   ].join(" "),
   {
@@ -70,7 +70,7 @@ const rangePresetButtonVariants = cva(
   [
     "inline-flex items-center justify-center px-2.5 py-1.5",
     "rounded-(--radius-badge) border cursor-pointer select-none",
-    "font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em]",
+    "font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold uppercase tracking-[0.06em]",
     "transition-all duration-150 outline-none",
     "focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
   ].join(" "),
@@ -188,23 +188,23 @@ export const TrackFooterRow = ({
     </span>
 
     {/* Trace name */}
-    <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-bold uppercase tracking-[0.08em] text-(--theme-fg) min-w-[44px] shrink-0">
+    <span className="font-['Barlow_Condensed',sans-serif] text-fs-10 font-bold uppercase tracking-[0.08em] text-(--theme-fg) min-w-[44px] shrink-0">
       {name}
     </span>
 
     {/* Range: min ─── max with subtle ticks */}
     <span className="flex-1 flex items-center gap-1.5 min-w-0">
-      <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-muted) tabular-nums shrink-0">
+      <span className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-muted) tabular-nums shrink-0">
         {min}
       </span>
       <span className="flex-1 h-px bg-(--theme-border) min-w-3" />
-      <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-muted) tabular-nums shrink-0">
+      <span className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-muted) tabular-nums shrink-0">
         {max}
       </span>
     </span>
 
     {/* Unit */}
-    <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-fg-dim) lowercase shrink-0 min-w-[42px] text-right">
+    <span className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-dim) lowercase shrink-0 min-w-[42px] text-right">
       {unit}
     </span>
   </div>

@@ -47,7 +47,7 @@ export function GaugeCollapsedStrip({ rightPosition }: { rightPosition: number }
         glow
         pulse={worstStatus === "critical"}
       />
-      <span className="text-vertical-rl font-['Barlow_Condensed',sans-serif] text-[10px] font-bold uppercase text-(--theme-fg-muted)">
+      <span className="text-vertical-rl font-['Barlow_Condensed',sans-serif] text-fs-10 font-bold uppercase text-(--theme-fg-muted)">
         Gauges
       </span>
       <div className="flex-1" />

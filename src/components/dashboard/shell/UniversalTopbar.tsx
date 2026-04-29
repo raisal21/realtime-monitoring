@@ -26,23 +26,22 @@ export function UniversalTopbar() {
   return (
     <header
       className={cn(
-        "flex items-center px-4 gap-0 z-50 flex-shrink-0",
+        "flex items-center px-4 gap-0 z-50 flex-shrink-0 h-rt-shell-top",
         "bg-(--theme-elevated) border-b border-(--theme-border)",
       )}
-      style={{ height: 44 }}
     >
       <div className="flex items-center gap-2.5 pr-4 mr-4 border-r border-(--theme-border) flex-shrink-0">
         <div
           className={cn(
             "w-7 h-7 rounded-(--radius-badge)",
             "bg-(--theme-accent) flex items-center justify-center flex-shrink-0",
-            "font-['Share_Tech_Mono',monospace] text-[12px] font-bold text-(--theme-base)",
+            "font-['Share_Tech_Mono',monospace] text-fs-12 font-bold text-(--theme-base)",
           )}
         >
           R
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="brand-title text-[13px] leading-none">RTDC</span>
+          <span className="brand-title text-fs-13 leading-none">RTDC</span>
           <span className="label-mono leading-none mt-0.5">Control Room</span>
         </div>
       </div>

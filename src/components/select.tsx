@@ -30,7 +30,7 @@ export const PresetSelect = ({
         "px-2.5 py-1.5",
         "bg-(--theme-elevated) border border-(--theme-border)",
         "rounded-(--radius-badge)",
-        "font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em]",
+        "font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold uppercase tracking-[0.06em]",
         "text-(--theme-fg-muted) cursor-pointer",
         "hover:border-(--theme-accent) hover:text-(--theme-fg)",
         "data-[state=open]:border-(--theme-accent) data-[state=open]:text-(--theme-fg)",
@@ -72,7 +72,7 @@ export const PresetSelect = ({
               value={opt.value}
               className={cn(
                 "flex items-center gap-2 px-2.5 py-1.75",
-                "font-['Barlow_Condensed',sans-serif] text-[11px] uppercase tracking-[0.06em]",
+                "font-['Barlow_Condensed',sans-serif] text-fs-11 uppercase tracking-[0.06em]",
                 "text-(--theme-fg-muted) cursor-pointer",
                 "hover:bg-(--theme-overlay) hover:text-(--theme-fg)",
                 "data-selected:text-(--theme-accent) data-selected:bg-(--theme-accent-dim)",

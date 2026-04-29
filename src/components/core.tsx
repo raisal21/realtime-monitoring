@@ -62,11 +62,11 @@ const buttonVariants = cva(
       },
 
       size: {
-        sm: "px-[10px] py-1 text-[10px] gap-[5px]",
-        md: "px-[14px] py-[7px] text-[11px] gap-[6px]",
-        lg: "px-[20px] py-2.5 text-[12px] gap-2",
-        xl: "px-[34px] py-[11px] text-[12px] gap-2",
-        icon: "w-[30px] h-[30px] text-[14px] p-0",
+        sm: "px-[10px] py-1 text-fs-10 gap-[5px]",
+        md: "px-[14px] py-[7px] text-fs-11 gap-[6px]",
+        lg: "px-[20px] py-2.5 text-fs-12 gap-2",
+        xl: "px-[34px] py-[11px] text-fs-12 gap-2",
+        icon: "w-[30px] h-[30px] text-fs-14 p-0",
       },
 
       fullWidth: {
@@ -116,7 +116,7 @@ Button.displayName = "Button";
 const inputVariants = cva(
   [
     "w-full bg-transparent border-none outline-none",
-    "text-(--theme-fg) font-['Barlow',sans-serif] text-[13px]",
+    "text-(--theme-fg) font-['Barlow',sans-serif] text-fs-13",
     "placeholder:text-(--theme-fg-dim) placeholder:font-light",
     "py-2.5 pr-3",
     "letter-spacing-[0.02em]",
@@ -154,7 +154,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           aria-hidden="true"
           className={cn(
             "absolute left-2.75 flex items-center justify-center",
-            "text-[12px] text-(--theme-fg-dim) pointer-events-none",
+            "text-fs-12 text-(--theme-fg-dim) pointer-events-none",
             "group-focus-within:text-(--theme-accent) transition-colors duration-150",
           )}
         >
@@ -257,10 +257,10 @@ const badgeVariants = cva(
         ].join(" "),
       },
       size: {
-        xs: "px-[4px] py-[1px] text-[7px]",
-        sm: "px-1 py-[1px] text-[8px]",
-        md: "px-2 py-[3px] text-[9px]",
-        lg: "px-2.5 py-1 text-[10px]",
+        xs: "px-[4px] py-[1px] text-fs-7",
+        sm: "px-1 py-[1px] text-fs-8",
+        md: "px-2 py-[3px] text-fs-9",
+        lg: "px-2.5 py-1 text-fs-10",
       },
     },
     defaultVariants: { intent: "neutral", size: "md" },
@@ -367,11 +367,13 @@ export const ToggleItem = ({
   <BaseToggle
     ref={ref}
     className={cn(
-      "flex-1 px-3 py-1.25 cursor-pointer border-none transition-colors duration-150",
-      "font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold tracking-[0.06em] uppercase",
+      "flex-1 px-rt-pad-sm py-rt-pad-xs cursor-pointer border-none transition-all duration-150",
+      "font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold tracking-[0.06em] uppercase",
       "text-(--theme-fg-dim) bg-(--theme-elevated)",
       "hover:bg-(--theme-overlay) hover:text-(--theme-fg-muted)",
-      "data-[state=on]:bg-(--theme-accent) data-[state=on]:text-[#0c0e10]",
+      "data-[state=on]:bg-(--theme-accent) data-[state=on]:text-[#0c0e10] data-[state=on]:font-bold",
+      "data-[state=on]:shadow-[0_0_12px_color-mix(in_srgb,var(--theme-accent)_40%,transparent)]",
+      "data-[state=on]:brightness-110",
       "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--theme-accent)",
       className,
     )}

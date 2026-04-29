@@ -25,8 +25,8 @@ function SettingRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="font-['Barlow',sans-serif] text-[12px] text-(--theme-fg-muted)">
+    <div className="flex items-center justify-between gap-rt-gap">
+      <span className="font-['Barlow',sans-serif] text-fs-12 text-(--theme-fg-muted)">
         {label}
       </span>
       <div className="flex-shrink-0">{children}</div>
@@ -50,7 +50,7 @@ export function SettingsPopoverContent() {
         </PopoverDescription>
       </PopoverHeader>
 
-      <div className="px-4 py-3 border-b border-(--theme-border)">
+      <div className="px-rt-pad py-rt-pad-sm border-b border-(--theme-border)">
         <div className="flex items-center gap-1.5 mb-2">
           <Monitor
             size={11}
@@ -60,9 +60,9 @@ export function SettingsPopoverContent() {
           <span className="section-heading">Display</span>
         </div>
 
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-rt-gap-sm">
           <div>
-            <span className="font-['Barlow',sans-serif] text-[12px] text-(--theme-fg-muted) block mb-2">
+            <span className="font-['Barlow',sans-serif] text-fs-12 text-(--theme-fg-muted) block mb-2">
               Theme
             </span>
             <RadioCardGroup
@@ -121,7 +121,7 @@ export function SettingsPopoverContent() {
         </div>
       </div>
 
-      <div className="px-4 py-3">
+      <div className="px-rt-pad py-rt-pad-sm">
         <div className="flex items-center gap-1.5 mb-2">
           <BellRing
             size={11}
@@ -131,7 +131,7 @@ export function SettingsPopoverContent() {
           <span className="section-heading">Alerts</span>
         </div>
 
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-rt-gap-sm">
           <SettingRow label="Sound">
             <Switch
               checked={state.soundEnabled}

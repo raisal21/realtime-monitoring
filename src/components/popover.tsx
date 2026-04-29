@@ -100,7 +100,7 @@ export type PopoverHeaderProps = React.HTMLAttributes<HTMLDivElement>;
 export const PopoverHeader = ({ className, ...props }: PopoverHeaderProps) => (
   <div
     className={cn(
-      "flex flex-col gap-0.5 px-4 py-3",
+      "flex flex-col gap-0.5 px-rt-pad py-rt-pad-sm",
       "border-b border-(--theme-border)",
       className,
     )}
@@ -113,7 +113,7 @@ export type PopoverTitleProps = React.ComponentPropsWithoutRef<typeof BasePopove
 export const PopoverTitle = ({ className, ...props }: PopoverTitleProps) => (
   <BasePopover.Title
     className={cn(
-      "font-['Barlow_Condensed',sans-serif] text-[13px] font-bold",
+      "font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold",
       "uppercase tracking-[0.08em] text-(--theme-fg) leading-tight",
       className,
     )}
@@ -131,7 +131,7 @@ export const PopoverDescription = ({
 }: PopoverDescriptionProps) => (
   <BasePopover.Description
     className={cn(
-      "font-['Barlow',sans-serif] text-[11px]",
+      "font-['Barlow',sans-serif] text-fs-11",
       "text-(--theme-fg-muted) leading-snug",
       className,
     )}

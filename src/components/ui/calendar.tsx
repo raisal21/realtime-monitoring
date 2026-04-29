@@ -55,7 +55,7 @@ function Calendar({
           defaultClassNames.month_caption,
         ),
         caption_label: cn(
-          "font-['Barlow_Condensed',sans-serif] text-[13px] font-bold",
+          "font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold",
           "uppercase tracking-[0.12em] text-(--theme-fg)",
           defaultClassNames.caption_label,
         ),
@@ -63,7 +63,7 @@ function Calendar({
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
           "flex-1 h-7 inline-flex items-center justify-center",
-          "font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase",
+          "font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold uppercase",
           "tracking-[0.1em] text-(--theme-fg-dim)",
           defaultClassNames.weekday,
         ),
@@ -74,7 +74,7 @@ function Calendar({
         ),
         day: cn(
           "group relative flex-1 aspect-square h-7 p-0 text-center select-none",
-          "font-['Share_Tech_Mono',monospace] text-[14px] tabular-nums",
+          "font-['Share_Tech_Mono',monospace] text-fs-14 tabular-nums",
           "text-(--theme-fg)",
           "[&>button]:size-full [&>button]:rounded-(--radius-badge)",
           "[&>button]:inline-flex [&>button]:items-center [&>button]:justify-center",

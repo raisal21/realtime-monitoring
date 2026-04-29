@@ -87,7 +87,7 @@ export function ZoomPopoverContent() {
       </PopoverHeader>
 
       {/* Zoom To — quick presets */}
-      <div className="px-3 py-2.5 border-b border-(--theme-border)">
+      <div className="px-rt-pad-sm py-rt-pad-sm border-b border-(--theme-border)">
         <span className="section-heading block mb-2">Zoom To</span>
         <div className="grid grid-cols-3 gap-1.5">
           {RANGE_PRESETS_QUICK.map((p) => (
@@ -105,7 +105,7 @@ export function ZoomPopoverContent() {
       </div>
 
       {/* Date & Time Range — compact side-by-side */}
-      <div className="px-3 py-2.5 border-b border-(--theme-border)">
+      <div className="px-rt-pad-sm py-rt-pad-sm border-b border-(--theme-border)">
         <span className="section-heading block mb-2">Date & Time</span>
 
         {/* From — Date + Time side by side */}
@@ -121,10 +121,10 @@ export function ZoomPopoverContent() {
               )}
             >
               <div className="flex flex-col items-start flex-1 min-w-0 px-2.5 py-1.5">
-                <span className="font-['Barlow_Condensed',sans-serif] text-[9px] font-bold uppercase tracking-[0.14em] text-(--theme-fg-dim) leading-none">
+                <span className="font-['Barlow_Condensed',sans-serif] text-fs-9 font-bold uppercase tracking-[0.14em] text-(--theme-fg-dim) leading-none">
                   From
                 </span>
-                <span className="font-['Share_Tech_Mono',monospace] tabular-nums text-[13px] font-semibold text-(--theme-fg) leading-tight mt-0.5">
+                <span className="font-['Share_Tech_Mono',monospace] tabular-nums text-fs-13 font-semibold text-(--theme-fg) leading-tight mt-0.5">
                   {fromLabel}
                 </span>
               </div>
@@ -161,10 +161,10 @@ export function ZoomPopoverContent() {
               )}
             >
               <div className="flex flex-col items-start flex-1 min-w-0 px-2.5 py-1.5">
-                <span className="font-['Barlow_Condensed',sans-serif] text-[9px] font-bold uppercase tracking-[0.14em] text-(--theme-fg-dim) leading-none">
+                <span className="font-['Barlow_Condensed',sans-serif] text-fs-9 font-bold uppercase tracking-[0.14em] text-(--theme-fg-dim) leading-none">
                   To
                 </span>
-                <span className="font-['Share_Tech_Mono',monospace] tabular-nums text-[13px] font-semibold text-(--theme-fg) leading-tight mt-0.5">
+                <span className="font-['Share_Tech_Mono',monospace] tabular-nums text-fs-13 font-semibold text-(--theme-fg) leading-tight mt-0.5">
                   {toLabel}
                 </span>
               </div>
@@ -204,7 +204,7 @@ export function ZoomPopoverContent() {
       </div>
 
       {/* Following Live */}
-      <div className="px-3 py-2.5 border-b border-(--theme-border)">
+      <div className="px-rt-pad-sm py-rt-pad-sm border-b border-(--theme-border)">
         <span className="section-heading block mb-2">Mode</span>
         <Button
           intent={state.liveMode ? "primary" : "secondary"}
@@ -222,7 +222,7 @@ export function ZoomPopoverContent() {
       </div>
 
       {/* DataZoom Slider toggle */}
-      <div className="px-3 py-2.5">
+      <div className="px-rt-pad-sm py-rt-pad-sm">
         <Button
           intent={state.dataZoomSlider ? "primary" : "secondary"}
           size="md"

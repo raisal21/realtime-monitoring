@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useUi, useSettings } from "@/stores/dashboard-store";
+import { useUi, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { GAUGES } from "@/data/dashboard-static";
 import { IconButton } from "@/components/form";
 import { getChartColors } from "@/lib/echarts-theme";
@@ -43,7 +43,7 @@ function statusBg(status: GaugeConfig["status"]) {
 
 // ─── Radial gauge (ECharts) ──────────────────────────────────────────────────
 
-function RadialGaugeCard({ gauge, theme }: { gauge: GaugeConfig; theme: string }) {
+function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme: string; fsScale: number }) {
   const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
     const numVal = parseFloat(gauge.value.replace(/,/g, ""));
@@ -96,13 +96,13 @@ function RadialGaugeCard({ gauge, theme }: { gauge: GaugeConfig; theme: string }
             formatter: `{value}\n{unit|${gauge.unit}}`,
             rich: {
               unit: {
-                fontSize: 9,
+                fontSize: 9 * fsScale,
                 color: c.fgMuted,
                 fontFamily: "Share Tech Mono, monospace",
                 lineHeight: 14,
               },
             },
-            fontSize: 17,
+            fontSize: 17 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             color: gauge.status === "critical" ? c.critical
                  : gauge.status === "warning"  ? c.warning
@@ -112,7 +112,7 @@ function RadialGaugeCard({ gauge, theme }: { gauge: GaugeConfig; theme: string }
           title: {
             show: true,
             offsetCenter: [0, "-46%"],
-            fontSize: 9,
+            fontSize: 9 * fsScale,
             fontFamily: "Barlow Condensed, sans-serif",
             fontWeight: 700,
             color: c.fgMuted,
@@ -146,7 +146,7 @@ function RadialGaugeCard({ gauge, theme }: { gauge: GaugeConfig; theme: string }
       ],
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gauge, theme]);
+  }, [gauge, theme, fsScale]);
 
   return (
     <div
@@ -198,7 +198,7 @@ function ValueCard({ gauge }: { gauge: GaugeConfig }) {
       <div className="flex items-center justify-between">
         <span className="label-mono">{gauge.label}</span>
         <span
-          className="font-['Share_Tech_Mono',monospace] text-[9px] uppercase tracking-wider"
+          className="font-['Share_Tech_Mono',monospace] text-fs-9 uppercase tracking-wider"
           style={{ color: barColor }}
           aria-hidden="true"
         >
@@ -208,7 +208,7 @@ function ValueCard({ gauge }: { gauge: GaugeConfig }) {
 
       <div className="flex items-baseline gap-1.5">
         <span
-          className="font-['Share_Tech_Mono',monospace] text-[24px] leading-none font-bold tabular-nums"
+          className="font-['Share_Tech_Mono',monospace] text-fs-24 leading-none font-bold tabular-nums"
           style={{ color: valueColor }}
         >
           {gauge.value}
@@ -228,7 +228,7 @@ function ValueCard({ gauge }: { gauge: GaugeConfig }) {
 
 // ─── Compass card (Inc + Azi) ─────────────────────────────────────────────────
 
-function CompassCard({ inc, azi }: { inc: GaugeConfig; azi: GaugeConfig }) {
+function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig; fsScale: number }) {
   const incVal = parseFloat(inc.value);
   const aziVal = parseFloat(azi.value.replace(/,/g, ""));
 
@@ -294,10 +294,10 @@ function CompassCard({ inc, azi }: { inc: GaugeConfig; azi: GaugeConfig }) {
             );
           })}
           {/* Cardinal labels */}
-          <text x={cx} y={cy - r - 7} textAnchor="middle" dominantBaseline="middle" fontSize="7" fontWeight="700" fill="var(--theme-fg)" fontFamily="Share Tech Mono, monospace">N</text>
-          <text x={cx} y={cy + r + 8} textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">S</text>
-          <text x={cx + r + 8} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">E</text>
-          <text x={cx - r - 8} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">W</text>
+          <text x={cx} y={cy - r - 7} textAnchor="middle" dominantBaseline="middle" fontSize={7 * fsScale} fontWeight="700" fill="var(--theme-fg)" fontFamily="Share Tech Mono, monospace">N</text>
+          <text x={cx} y={cy + r + 8} textAnchor="middle" dominantBaseline="middle" fontSize={6 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">S</text>
+          <text x={cx + r + 8} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={6 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">E</text>
+          <text x={cx - r - 8} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={6 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">W</text>
           {/* Tail (opposite direction) */}
           <line x1={cx} y1={cy} x2={pxTail} y2={pyTail} stroke="var(--theme-fg-dim)" strokeWidth="1" strokeLinecap="round" />
           {/* Pointer */}
@@ -305,7 +305,7 @@ function CompassCard({ inc, azi }: { inc: GaugeConfig; azi: GaugeConfig }) {
           {/* Center pivot */}
           <circle cx={cx} cy={cy} r="2.5" fill="var(--theme-accent)" />
         </svg>
-        <span className="font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg) tabular-nums leading-none font-semibold">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-11 text-(--theme-fg) tabular-nums leading-none font-semibold">
           {aziVal.toFixed(0)}°
         </span>
         <span className="label-mono">AZI</span>
@@ -346,10 +346,10 @@ function CompassCard({ inc, azi }: { inc: GaugeConfig; azi: GaugeConfig }) {
             />
           )}
           {/* Scale labels */}
-          <text x="5" y={arcCy + 12} textAnchor="middle" fontSize="7" fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">0</text>
-          <text x="55" y={arcCy + 12} textAnchor="middle" fontSize="7" fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">90</text>
+          <text x="5" y={arcCy + 12} textAnchor="middle" fontSize={7 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">0</text>
+          <text x="55" y={arcCy + 12} textAnchor="middle" fontSize={7 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">90</text>
         </svg>
-        <span className="font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg) tabular-nums leading-none font-semibold">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-11 text-(--theme-fg) tabular-nums leading-none font-semibold">
           {incVal.toFixed(1)}°
         </span>
         <span className="label-mono">INCL</span>
@@ -374,6 +374,7 @@ function SectionLabel({ label }: { label: string }) {
 export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number }) {
   const { dispatch } = useUi();
   const { state: settings } = useSettings();
+  const fsScale = FS_SCALE[settings.fontSize];
 
   const gaugeMap = Object.fromEntries(
     GAUGES.map((g) => [g.id, { ...g, ...GAUGE_RANGES[g.id] ?? { min: 0, max: 100 } }])
@@ -399,7 +400,7 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
       }}
       aria-label="Realtime gauges"
     >
-      <div className="flex items-center px-3 py-2 border-b border-(--theme-border) flex-shrink-0">
+      <div className="flex items-center px-rt-pad-sm py-rt-pad-sm border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading flex-1">Gauges</span>
         <IconButton
           intent="ghost"
@@ -417,7 +418,7 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
         <SectionLabel label="Drill / Hydraulics" />
         <div className="grid grid-cols-2 gap-1.5">
           {radialIds.map((id) => (
-            <RadialGaugeCard key={id} gauge={gaugeMap[id]} theme={settings.theme} />
+            <RadialGaugeCard key={id} gauge={gaugeMap[id]} theme={settings.theme} fsScale={fsScale} />
           ))}
         </div>
 
@@ -430,7 +431,7 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
 
         <SectionLabel label="Directional" />
         {incGauge && aziGauge && (
-          <CompassCard inc={incGauge} azi={aziGauge} />
+          <CompassCard inc={incGauge} azi={aziGauge} fsScale={fsScale} />
         )}
 
       </div>

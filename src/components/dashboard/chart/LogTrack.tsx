@@ -1,7 +1,7 @@
 import { useMemo, useRef, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useChart, useSettings, TRACKS_META } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE, TRACKS_META } from "@/stores/dashboard-store";
 import { TRACK_TRACES, WELL_SESSION, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
@@ -20,9 +20,10 @@ interface TrackHeaderProps {
   traceColors: ReturnType<typeof getTraceColors>;
   traceVisibility: Record<string, boolean>;
   onToggle: (trace: string) => void;
+  compact?: boolean;
 }
 
-function TrackHeader({ traces, traceColors, traceVisibility, onToggle }: TrackHeaderProps) {
+function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact }: TrackHeaderProps) {
   return (
     <div className="flex-shrink-0 min-h-[72px] border-b border-(--theme-border)">
       {traces.map((t) => {
@@ -47,7 +48,7 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle }: TrackHe
               }}
             />
             <span
-              className="font-['Share_Tech_Mono',monospace] text-[10px] uppercase tracking-wider flex-1 truncate text-left transition-opacity"
+              className="font-['Share_Tech_Mono',monospace] text-fs-10 uppercase tracking-wider flex-1 truncate text-left transition-opacity"
               style={{
                 color,
                 opacity: visible ? 1 : 0.35,
@@ -56,24 +57,26 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle }: TrackHe
               {t.name}
             </span>
             <span
-              className="font-['Share_Tech_Mono',monospace] text-[9px] tabular-nums transition-opacity"
+              className="font-['Share_Tech_Mono',monospace] text-fs-9 tabular-nums transition-opacity"
               style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
             >
               {t.min}
             </span>
-            <span className="font-['Share_Tech_Mono',monospace] text-[9px] text-(--theme-border) mx-0.5">──</span>
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-border) mx-0.5">──</span>
             <span
-              className="font-['Share_Tech_Mono',monospace] text-[9px] tabular-nums transition-opacity"
+              className="font-['Share_Tech_Mono',monospace] text-fs-9 tabular-nums transition-opacity"
               style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
             >
               {t.max}
             </span>
-            <span
-              className="font-['Share_Tech_Mono',monospace] text-[9px] ml-0.5 truncate max-w-[32px] transition-opacity"
-              style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
-            >
-              {t.unit}
-            </span>
+            {!compact && (
+              <span
+                className="font-['Share_Tech_Mono',monospace] text-fs-9 ml-0.5 truncate max-w-[32px] transition-opacity"
+                style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
+              >
+                {t.unit}
+              </span>
+            )}
           </button>
         );
       })}
@@ -88,6 +91,7 @@ const presetToMinutes: Record<string, number> = Object.fromEntries(
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
+  const fsScale = FS_SCALE[settings.fontSize];
   const traces = TRACK_TRACES[trackId];
   const tc = getTraceColors();
 
@@ -225,7 +229,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
             backgroundColor: c.accent,
             color: c.fg,
             borderWidth: 0,
-            fontSize: 8,
+            fontSize: 8 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             padding: [3, 6],
             formatter: mode === "depth"
@@ -244,7 +248,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         padding: [6, 10],
         appendToBody: true,
         extraCssText: "z-index: 20",
-        textStyle: { color: c.fg, fontSize: 10, fontFamily: "Share Tech Mono, monospace" },
+        textStyle: { color: c.fg, fontSize: 10 * fsScale, fontFamily: "Share Tech Mono, monospace" },
         formatter: (params: unknown) => {
           const ps = params as Array<{ value: [number, number] }>;
           if (!ps?.length) return "";
@@ -261,7 +265,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       },
       series,
     };
-  }, [traces, chart.traceVisibility, chart.mode, yRange.min, yRange.max, settings.theme]);
+  }, [traces, chart.traceVisibility, chart.mode, yRange.min, yRange.max, settings.theme, fsScale]);
 
   const trackMeta = TRACKS_META.find((t) => t.id === trackId);
   const trackWidth = trackMeta ? (chart.trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;
@@ -288,6 +292,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         traceColors={tc}
         traceVisibility={chart.traceVisibility}
         onToggle={(trace) => dispatch({ type: "TOGGLE_TRACE_VISIBILITY", trace })}
+        compact={settings.density === "compact"}
       />
 
       <div className="relative flex-1 overflow-hidden">

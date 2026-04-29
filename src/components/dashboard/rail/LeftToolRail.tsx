@@ -19,10 +19,10 @@ export function LeftToolRail() {
   return (
     <aside
       className={cn(
-        "flex flex-col gap-3 py-3 flex-shrink-0 relative",
+        "flex flex-col gap-rt-gap py-rt-pad-sm flex-shrink-0 relative",
         "bg-(--theme-surface) border-r border-(--theme-border)",
         "z-10 overflow-hidden",
-        isCollapsed ? "px-1.5" : "px-3",
+        isCollapsed ? "px-1.5" : "px-rt-pad-sm",
       )}
       style={{
         width: isCollapsed ? RAIL_WIDTH_COLLAPSED : RAIL_WIDTH_EXPANDED,
@@ -86,13 +86,13 @@ export function LeftToolRail() {
                 />
                 {!isCollapsed && (
                   <>
-                    <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
+                    <span className="font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
                       Zoom
                     </span>
                     <span className="flex-1" />
                     <LiveBadge
                       state={chart.liveMode ? "live" : "frozen"}
-                      className="text-[8px] px-1 py-0"
+                      className="text-fs-8 px-1 py-0"
                     />
                   </>
                 )}
@@ -132,7 +132,7 @@ export function LeftToolRail() {
                   className="text-(--theme-fg-muted) shrink-0"
                 />
                 {!isCollapsed && (
-                  <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
+                  <span className="font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold uppercase tracking-[0.06em] text-(--theme-fg)">
                     Tracks
                   </span>
                 )}
@@ -162,7 +162,7 @@ export function LeftToolRail() {
         >
           <GaugeIcon size={12} strokeWidth={2} />
           {!isCollapsed && (
-            <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold uppercase tracking-[0.06em]">
+            <span className="font-['Barlow_Condensed',sans-serif] text-fs-10 font-semibold uppercase tracking-[0.06em]">
               Gauges
             </span>
           )}
@@ -183,7 +183,7 @@ export function LeftToolRail() {
         >
           <TriangleAlert size={12} strokeWidth={2} />
           {!isCollapsed && (
-            <span className="font-['Barlow_Condensed',sans-serif] text-[10px] font-semibold uppercase tracking-[0.06em]">
+            <span className="font-['Barlow_Condensed',sans-serif] text-fs-10 font-semibold uppercase tracking-[0.06em]">
               Alarms
             </span>
           )}

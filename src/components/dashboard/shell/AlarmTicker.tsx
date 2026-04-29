@@ -35,7 +35,7 @@ export function AlarmTicker() {
           )}
         >
           <TriangleAlert size={11} strokeWidth={2.25} className="shrink-0" />
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] tracking-[0.04em]">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.04em]">
             {alarm.severity === "critical" ? "CRITICAL" : "WARNING"}:{" "}
             {alarm.message}
           </span>
@@ -48,10 +48,10 @@ export function AlarmTicker() {
     TICKER_NOMINAL_ENTRIES.map((entry, i) => (
       <React.Fragment key={`${keyPrefix}-${entry.label}-${i}`}>
         <span className="inline-flex items-center gap-1.5">
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-dim) uppercase tracking-[0.08em]">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.08em]">
             {entry.label}:
           </span>
-          <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-muted) tracking-[0.04em]">
+          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-muted) tracking-[0.04em]">
             {entry.value}
           </span>
         </span>

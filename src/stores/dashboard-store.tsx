@@ -11,6 +11,14 @@ export { TRACKS_META } from "@/data/dashboard-static";
 type Theme = "gruvbox" | "tomorrow" | "solarized";
 type Density = "compact" | "comfortable";
 type FontSize = "sm" | "md" | "lg";
+
+// Must mirror --fs-scale values in index.css so canvas/SVG renderers
+// (ECharts axisLabel.fontSize, raw <text fontSize=...>) match CSS-driven text.
+export const FS_SCALE: Record<FontSize, number> = {
+  sm: 0.9,
+  md: 1,
+  lg: 1.12,
+};
 type SampleRate = "10hz" | "5hz" | "1hz";
 
 type UiState = {
@@ -317,6 +325,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Directly update HTML attribute before children render - required for ECharts sync theme
   // eslint-disable-next-line
   document && (document.documentElement.dataset.theme = state.theme);
+  // eslint-disable-next-line
+  document && (document.documentElement.dataset.fontSize = state.fontSize);
+  // eslint-disable-next-line
+  document && (document.documentElement.dataset.density = state.density);
 
   return (
     <SettingsContext.Provider value={{ state, dispatch }}>

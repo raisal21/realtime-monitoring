@@ -49,7 +49,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
           className={cn(
             "w-[32px] bg-transparent border-none outline-none text-center",
             "font-['Share_Tech_Mono',monospace] tabular-nums",
-            "text-[13px] font-semibold text-(--theme-fg)",
+            "text-fs-13 font-semibold text-(--theme-fg)",
             "py-1",
           )}
           aria-label="Hour"
@@ -74,7 +74,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         </div>
       </div>
 
-      <span className="text-(--theme-fg-dim) text-[13px] font-semibold select-none px-0.5">
+      <span className="text-(--theme-fg-dim) text-fs-13 font-semibold select-none px-0.5">
         :
       </span>
 
@@ -91,7 +91,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
           className={cn(
             "w-[32px] bg-transparent border-none outline-none text-center",
             "font-['Share_Tech_Mono',monospace] tabular-nums",
-            "text-[13px] font-semibold text-(--theme-fg)",
+            "text-fs-13 font-semibold text-(--theme-fg)",
             "py-1",
           )}
           aria-label="Minute"

@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_SESSION } from "@/data/dashboard-static";
+import { WELL_SESSION, presetToDepthSpanFt } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -19,15 +19,11 @@ function getEffectiveRange(
   if (!isPrimary) return { min: sessionMin, max: sessionMax };
   if (liveMode) {
     const currentDepth = WELL_SESSION.cursor.depthFt;
-    let start: number;
-    if (rangePreset) {
-      const depthSpan = parseInt(rangePreset) * 100;
-      start = Math.max(sessionMin, currentDepth - depthSpan);
-    } else {
-      start = Math.max(sessionMin, currentDepth - DEFAULT_DEPTH_SPAN);
-    }
-    const end = currentDepth;
-    return { min: start, max: end };
+    const depthSpan = rangePreset
+      ? presetToDepthSpanFt(rangePreset)
+      : DEFAULT_DEPTH_SPAN;
+    const start = Math.max(sessionMin, currentDepth - depthSpan);
+    return { min: start, max: currentDepth };
   }
   return rulerRange ?? { min: sessionMin, max: sessionMax };
 }

@@ -2,7 +2,12 @@ import { useMemo, useRef, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { useChart, useSettings, FS_SCALE, TRACKS_META } from "@/stores/dashboard-store";
-import { TRACK_TRACES, WELL_SESSION, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
+import {
+  TRACK_TRACES,
+  WELL_SESSION,
+  PRESET_TO_MINUTES,
+  presetToDepthSpanFt,
+} from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -84,10 +89,6 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact }
   );
 }
 
-const presetToMinutes: Record<string, number> = Object.fromEntries(
-  RANGE_PRESETS_QUICK.map((p) => [p.id, parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60)]),
-);
-
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
@@ -100,9 +101,10 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   if (chart.liveMode) {
     if (chart.mode === "depth") {
       const cur = WELL_SESSION.cursor.depthFt;
-      yRange = { min: Math.max(sessionRange.min, cur - 100), max: cur };
+      const span = chart.rangePreset ? presetToDepthSpanFt(chart.rangePreset) : 100;
+      yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
     } else {
-      const span = chart.rangePreset ? presetToMinutes[chart.rangePreset] ?? 60 : 60;
+      const span = chart.rangePreset ? PRESET_TO_MINUTES[chart.rangePreset] ?? 60 : 60;
       yRange = { min: Math.max(sessionRange.min, sessionRange.max - span), max: sessionRange.max };
     }
   } else {

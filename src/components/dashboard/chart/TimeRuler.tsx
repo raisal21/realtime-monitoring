@@ -1,17 +1,10 @@
 import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_SESSION, RANGE_PRESETS_QUICK, sessionMinuteToDate } from "@/data/dashboard-static";
+import { WELL_SESSION, PRESET_TO_MINUTES, sessionMinuteToDate } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
-
-const presetToMinutes: Record<string, number> = Object.fromEntries(
-  RANGE_PRESETS_QUICK.map((p) => [
-    p.id,
-    parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60),
-  ]),
-);
 
 const minutesToHHMM = (min: number) => {
   const wrapped = ((min % 1440) + 1440) % 1440;
@@ -32,7 +25,7 @@ function getEffectiveRange(
 ) {
   if (!isPrimary) return { min: sessionMin, max: sessionMax };
   if (liveMode) {
-    const spanMinutes = rangePreset ? (presetToMinutes[rangePreset] ?? 60) : 60;
+    const spanMinutes = rangePreset ? (PRESET_TO_MINUTES[rangePreset] ?? 60) : 60;
     const end = sessionMax;
     const start = Math.max(sessionMin, end - spanMinutes);
     return { min: start, max: end };

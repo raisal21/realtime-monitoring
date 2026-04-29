@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { format } from "date-fns";
 import {
   RotateCcw,
@@ -14,7 +14,10 @@ import {
   WELL_SESSION,
   WELL_PROFILE_START_DATE,
   WELL_PROFILE_END_DATE,
+  SESSION_START_DATE,
+  SESSION_END_DATE,
   dateToSessionMinute,
+  sessionMinuteToDate,
   wellProfileDepthAt,
 } from "@/data/dashboard-static";
 import {
@@ -39,6 +42,23 @@ export function ZoomPopoverContent() {
       ? WELL_SESSION.timeAxis.range
       : WELL_SESSION.depthAxis.range;
 
+  // Calendar bounds depend on mode: time mode is constrained by the session
+  // wall-clock window; depth mode is constrained by the well-profile span,
+  // since handleApply maps date → depth via wellProfileDepthAt.
+  const calendarBounds = useMemo(() => {
+    if (state.mode === "time") {
+      return { from: SESSION_START_DATE, to: SESSION_END_DATE };
+    }
+    return { from: WELL_PROFILE_START_DATE, to: WELL_PROFILE_END_DATE };
+  }, [state.mode]);
+
+  const initialFromDate = state.mode === "time"
+    ? SESSION_START_DATE
+    : WELL_PROFILE_START_DATE;
+  const initialToDate = state.mode === "time"
+    ? SESSION_END_DATE
+    : WELL_PROFILE_END_DATE;
+
   // TimePicker holds minutes-of-day (0–1439). Default to the visible window's
   // local time-of-day; in time mode that is rulerRange % 1440, in depth mode
   // we just default to 00:00 / 23:59 since the field is conceptually moot.
@@ -51,20 +71,26 @@ export function ZoomPopoverContent() {
 
   const [draftMin, setDraftMin] = useState(initialDraftMin);
   const [draftMax, setDraftMax] = useState(initialDraftMax);
-  const [fromDate, setFromDate] = useState<Date | undefined>(
-    WELL_PROFILE_START_DATE,
-  );
-  const [toDate, setToDate] = useState<Date | undefined>(
-    WELL_PROFILE_END_DATE,
-  );
+  const [fromDate, setFromDate] = useState<Date | undefined>(initialFromDate);
+  const [toDate, setToDate] = useState<Date | undefined>(initialToDate);
   const [fromOpen, setFromOpen] = useState(false);
   const [toOpen, setToOpen] = useState(false);
 
   useEffect(() => {
     if (state.mode !== "time") return;
     const r = state.rulerRange ?? axisRange;
-    setDraftMin(((r.min % 1440) + 1440) % 1440);
-    setDraftMax(((r.max % 1440) + 1440) % 1440);
+    // Resolve ruler-range minutes to wall-clock so the day component is kept
+    // in sync (otherwise cross-day ranges collapse to the same date).
+    const startWall = sessionMinuteToDate(r.min);
+    const endWall = sessionMinuteToDate(r.max);
+    setFromDate(
+      new Date(startWall.getFullYear(), startWall.getMonth(), startWall.getDate()),
+    );
+    setToDate(
+      new Date(endWall.getFullYear(), endWall.getMonth(), endWall.getDate()),
+    );
+    setDraftMin(startWall.getHours() * 60 + startWall.getMinutes());
+    setDraftMax(endWall.getHours() * 60 + endWall.getMinutes());
   }, [state.rulerRange, state.mode, axisRange]);
 
   const fromLabel = fromDate
@@ -180,6 +206,12 @@ export function ZoomPopoverContent() {
                   setFromDate(date ?? undefined);
                   setFromOpen(false);
                 }}
+                startMonth={calendarBounds.from}
+                endMonth={calendarBounds.to}
+                disabled={{
+                  before: calendarBounds.from,
+                  after: calendarBounds.to,
+                }}
               />
             </PopoverContent>
           </Popover>
@@ -219,6 +251,12 @@ export function ZoomPopoverContent() {
                 onSelect={(date) => {
                   setToDate(date ?? undefined);
                   setToOpen(false);
+                }}
+                startMonth={calendarBounds.from}
+                endMonth={calendarBounds.to}
+                disabled={{
+                  before: calendarBounds.from,
+                  after: calendarBounds.to,
                 }}
               />
             </PopoverContent>

@@ -20,6 +20,9 @@ export function WellProfileTrack() {
   // start/end as category indices. Map indices → wall-clock date via
   // WELL_PROFILE_DATA, then translate to the current chart mode's units
   // and write to the Ruler scope (well-profile slider drives Time/Depth Ruler).
+  // Well profile spans Mar 12 → Apr 28; session covers only the last 7 days
+  // (Apr 22 → Apr 29 / 13900..15200 ft), so clamp dispatched values to the
+  // session window — pre-session entries have no log data to display.
   const handleDataZoom = useCallback(
     (params: unknown) => {
       const p = params as {
@@ -40,19 +43,19 @@ export function WellProfileTrack() {
       const endEntry = WELL_PROFILE_DATA[endIdx];
 
       if (chart.mode === "depth") {
-        dispatch({
-          type: "SET_RULER_RANGE",
-          min: Math.min(startEntry.depth, endEntry.depth),
-          max: Math.max(startEntry.depth, endEntry.depth),
-        });
+        const { min: dMin, max: dMax } = WELL_SESSION.depthAxis.range;
+        const lo = Math.max(dMin, Math.min(dMax, Math.min(startEntry.depth, endEntry.depth)));
+        const hi = Math.max(dMin, Math.min(dMax, Math.max(startEntry.depth, endEntry.depth)));
+        if (hi <= lo) return; // empty overlap with session — keep current range
+        dispatch({ type: "SET_RULER_RANGE", min: lo, max: hi });
       } else {
+        const { min: tMin, max: tMax } = WELL_SESSION.timeAxis.range;
         const startMin = dateToSessionMinute(parseWellProfileDate(startEntry.date));
         const endMin = dateToSessionMinute(parseWellProfileDate(endEntry.date));
-        dispatch({
-          type: "SET_RULER_RANGE",
-          min: Math.min(startMin, endMin),
-          max: Math.max(startMin, endMin),
-        });
+        const lo = Math.max(tMin, Math.min(tMax, Math.min(startMin, endMin)));
+        const hi = Math.max(tMin, Math.min(tMax, Math.max(startMin, endMin)));
+        if (hi <= lo) return;
+        dispatch({ type: "SET_RULER_RANGE", min: lo, max: hi });
       }
     },
     [chart.mode, dispatch],

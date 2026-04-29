@@ -286,6 +286,15 @@ export const RANGE_PRESETS_QUICK = [
   { id: "7d", label: "7d" },
 ] as const;
 
+// Centralised preset → minutes table. "h" = hours, "d" = days. Used by all
+// chart components so the preset semantics stay consistent.
+export const PRESET_TO_MINUTES: Record<string, number> = Object.fromEntries(
+  RANGE_PRESETS_QUICK.map((p) => [
+    p.id,
+    parseInt(p.id) * (p.id.includes("d") ? 24 * 60 : 60),
+  ]),
+);
+
 export const RANGE_PRESETS_DOMAIN = [
   { id: "shift", label: "This Shift" },
   { id: "bit-run", label: "Last Bit Run" },
@@ -525,3 +534,20 @@ export const WELL_SESSION = {
 
 export const WELL_PROFILE_START_DATE = new Date(2026, 2, 12); // Mar 12, 2026
 export const WELL_PROFILE_END_DATE = new Date(2026, 3, 28); // Apr 28, 2026
+
+// Last wall-clock instant covered by the time axis (SESSION_START + max minutes).
+export const SESSION_END_DATE = new Date(
+  SESSION_START_DATE.getTime() + SESSION_TIME_MAX_MIN * 60_000,
+);
+
+// Convert a preset id (e.g. "6h", "3d") to a depth span in feet using the well
+// profile, anchored at WELL_PROFILE_END_DATE = current cursor depth. Monotonic
+// in preset minutes because the well profile is monotonically increasing in
+// depth — replaces the old parseInt(presetId)*100 (non-monotonic across "h"/"d").
+export function presetToDepthSpanFt(presetId: string | null): number {
+  if (!presetId) return 100;
+  const minutes = PRESET_TO_MINUTES[presetId];
+  if (!minutes) return 100;
+  const past = new Date(WELL_PROFILE_END_DATE.getTime() - minutes * 60_000);
+  return Math.max(1, SESSION_DEPTH_END_FT - wellProfileDepthAt(past));
+}

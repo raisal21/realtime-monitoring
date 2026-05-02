@@ -1,7 +1,13 @@
 import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { WELL_SESSION, PRESET_TO_MINUTES, sessionMinuteToDate } from "@/data/dashboard-static";
+import {
+  WELL_SESSION,
+  PRESET_TO_MINUTES,
+  sessionMinuteToDate,
+  depthRangeToTimeRange,
+  presetToDepthSpanFt,
+} from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -23,14 +29,35 @@ function getEffectiveRange(
   sessionMin: number,
   sessionMax: number,
 ) {
-  if (!isPrimary) return { min: sessionMin, max: sessionMax };
-  if (liveMode) {
-    const spanMinutes = rangePreset ? (PRESET_TO_MINUTES[rangePreset] ?? 60) : 60;
-    const end = sessionMax;
-    const start = Math.max(sessionMin, end - spanMinutes);
-    return { min: start, max: end };
+  if (isPrimary) {
+    if (liveMode) {
+      const spanMinutes = rangePreset ? (PRESET_TO_MINUTES[rangePreset] ?? 60) : 60;
+      const end = sessionMax;
+      const start = Math.max(sessionMin, end - spanMinutes);
+      return { min: start, max: end };
+    }
+    return rulerRange ?? { min: sessionMin, max: sessionMax };
   }
-  return rulerRange ?? { min: sessionMin, max: sessionMax };
+  // Non-primary (chart.mode === "depth"): project the active depth window
+  // onto the time axis so the time ruler reflects the same visible span as
+  // the depth ruler, log tracks, and well-profile slider.
+  if (liveMode) {
+    const cur = WELL_SESSION.cursor.depthFt;
+    const span = rangePreset ? presetToDepthSpanFt(rangePreset) : 100;
+    const dStart = Math.max(WELL_SESSION.depthAxis.range.min, cur - span);
+    return (
+      depthRangeToTimeRange(dStart, cur) ?? { min: sessionMin, max: sessionMax }
+    );
+  }
+  if (rulerRange) {
+    return (
+      depthRangeToTimeRange(rulerRange.min, rulerRange.max) ?? {
+        min: sessionMin,
+        max: sessionMax,
+      }
+    );
+  }
+  return { min: sessionMin, max: sessionMax };
 }
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
@@ -93,26 +120,34 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     }
   }, [chart.crosshairValue, yRange.min, yRange.max]);
 
+  const sliderAxisMin = sessionMin;
+  const sliderAxisMax = sessionMax;
   const handleDataZoom = useCallback(
     (params: unknown) => {
-      const p = params as {
-        startValue?: number;
-        endValue?: number;
-        batch?: Array<{ startValue?: number; endValue?: number }>;
+      // Non-primary ruler shows a projected window in the wrong unit for
+      // logTrackRange (which is in chart.mode units), so its dataZoom must
+      // not drive the log track scope.
+      if (!isPrimary) return;
+      type DZ = {
+        start?: number; end?: number;
+        startValue?: number; endValue?: number;
       };
-      const raw = (p.batch?.[0] ?? p) as {
-        startValue?: number;
-        endValue?: number;
-      };
+      const p = params as DZ & { batch?: DZ[] };
+      const raw: DZ = p.batch?.[0] ?? p;
+      let lo: number, hi: number;
       if (raw.startValue !== undefined && raw.endValue !== undefined) {
-        chartDispatch({
-          type: "SET_LOG_TRACK_RANGE",
-          min: Math.min(raw.startValue, raw.endValue),
-          max: Math.max(raw.startValue, raw.endValue),
-        });
+        lo = Math.min(raw.startValue, raw.endValue);
+        hi = Math.max(raw.startValue, raw.endValue);
+      } else if (raw.start !== undefined && raw.end !== undefined) {
+        const span = sliderAxisMax - sliderAxisMin;
+        lo = sliderAxisMin + (Math.min(raw.start, raw.end) / 100) * span;
+        hi = sliderAxisMin + (Math.max(raw.start, raw.end) / 100) * span;
+      } else {
+        return;
       }
+      chartDispatch({ type: "SET_LOG_TRACK_RANGE", min: lo, max: hi });
     },
-    [chartDispatch],
+    [chartDispatch, sliderAxisMin, sliderAxisMax, isPrimary],
   );
 
   const handleMouseMove = isPrimary
@@ -150,6 +185,18 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       ? { tickInterval: 15, labelInterval: 60 }      // > 1h:  15m ticks, hourly labels
       : { tickInterval: 5, labelInterval: 15 };      // ≤ 1h:  5m ticks, 15m labels
 
+  // Snap axis bounds to tickInterval so ticks align with labelInterval grid
+  // (slider/dataZoom can yield float minute values, which would otherwise
+  // make `val % labelInterval === 0` always false → blank labels).
+  const axisMin = Math.floor(yRange.min / tickInterval) * tickInterval;
+  const axisMax = Math.ceil(yRange.max / tickInterval) * tickInterval;
+
+  // Slider operates on full session range; start/end percentages reflect
+  // current visible window position within the session.
+  const sessionSpan = sessionMax - sessionMin || 1;
+  const sliderStartPct = ((yRange.min - sessionMin) / sessionSpan) * 100;
+  const sliderEndPct = ((yRange.max - sessionMin) / sessionSpan) * 100;
+
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
     const tickColor = isPrimary ? c.accent : c.fgDim;
@@ -173,8 +220,8 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       yAxis: [
         {
           type: "value",
-          min: yRange.min,
-          max: yRange.max,
+          min: axisMin,
+          max: axisMax,
           inverse: true,
           position: "left",
           interval: tickInterval,
@@ -213,10 +260,13 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             },
           },
         },
+        // Hidden axis for the slider — spans the FULL session range so the
+        // slider's handles always represent the current zoom *within* the
+        // session (the displayed axis above follows the zoomed range).
         {
           type: "value",
-          min: yRange.min,
-          max: yRange.max,
+          min: sliderAxisMin,
+          max: sliderAxisMax,
           inverse: true,
           show: false,
         },
@@ -228,15 +278,16 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               yAxisIndex: 1,
               filterMode: "none",
               zoomOnMouseWheel: true,
-              moveOnMouseMove: true,
+              moveOnMouseMove: false,
               moveOnMouseWheel: true,
+              start: sliderStartPct,
+              end: sliderEndPct,
             },
             {
               type: "slider",
               yAxisIndex: 1,
               orient: "vertical",
               left: 0,
-              right: 0,
               width: 42,
               handleSize: 30,
               borderColor: "transparent",
@@ -250,6 +301,8 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               filterMode: "none",
               showDataShadow: false,
               showDetail: false,
+              start: sliderStartPct,
+              end: sliderEndPct,
             },
           ]
         : [
@@ -258,18 +311,38 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               yAxisIndex: 1,
               filterMode: "none",
               zoomOnMouseWheel: true,
-              moveOnMouseMove: true,
+              moveOnMouseMove: false,
               moveOnMouseWheel: true,
             },
           ],
-      series: [],
+      // Invisible anchor series so dataZoom on yAxisIndex 1 has data to bind
+      // to; without this the slider may render but not emit zoom events.
+      series: [
+        {
+          type: "line" as const,
+          xAxisIndex: 0,
+          yAxisIndex: 1,
+          data: [
+            [0.5, sliderAxisMin],
+            [0.5, sliderAxisMax],
+          ],
+          showSymbol: false,
+          lineStyle: { opacity: 0 },
+          silent: true,
+          tooltip: { show: false },
+        },
+      ],
     };
   }, [
     settings.theme,
     fsScale,
     isPrimary,
-    yRange.min,
-    yRange.max,
+    axisMin,
+    axisMax,
+    sliderAxisMin,
+    sliderAxisMax,
+    sliderStartPct,
+    sliderEndPct,
     showDataZoomSlider,
     chart.rulerRange,
     tickInterval,

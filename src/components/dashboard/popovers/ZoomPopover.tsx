@@ -129,9 +129,8 @@ export function ZoomPopoverContent() {
 
     if (min === max) return; // ignore empty range
 
+    // Reducer handles cascade: enters slider mode, clears live & preset.
     dispatch({ type: "SET_RULER_RANGE", min, max });
-    dispatch({ type: "SET_WELL_PROFILE_SLIDER", value: true });
-    dispatch({ type: "SET_LIVE", live: false });
   }, [fromDate, toDate, draftMin, draftMax, state.mode, dispatch]);
 
   return (
@@ -158,7 +157,7 @@ export function ZoomPopoverContent() {
           {RANGE_PRESETS_QUICK.map((p) => (
             <RangePresetButton
               key={p.id}
-              active={state.rangePreset === p.id && !state.rulerRange}
+              active={state.liveMode && state.rangePreset === p.id}
               onClick={() =>
                 dispatch({ type: "SET_RANGE_PRESET", preset: p.id })
               }
@@ -288,10 +287,8 @@ export function ZoomPopoverContent() {
           size="md"
           fullWidth
           onClick={() => {
-            const newLiveState = !state.liveMode;
-            dispatch({ type: "SET_LIVE", live: newLiveState });
-            dispatch({ type: "SET_WELL_PROFILE_SLIDER", value: !newLiveState });
-            dispatch({ type: "SET_RULER_SLIDER", value: !newLiveState });
+            // Reducer cascades sliders & rangePreset.
+            dispatch({ type: "SET_LIVE", live: !state.liveMode });
           }}
         >
           <Activity size={12} strokeWidth={2} />
@@ -306,10 +303,11 @@ export function ZoomPopoverContent() {
           size="md"
           fullWidth
           onClick={() => {
-            const newSliderState = !(state.wellProfileSlider || state.rulerSlider);
-            dispatch({ type: "SET_WELL_PROFILE_SLIDER", value: newSliderState });
-            dispatch({ type: "SET_RULER_SLIDER", value: newSliderState });
-            dispatch({ type: "SET_LIVE", live: !newSliderState });
+            // Reducer cascades liveMode & rangePreset.
+            dispatch({
+              type: "SET_SLIDER_MODE",
+              value: !(state.wellProfileSlider || state.rulerSlider),
+            });
           }}
         >
           <BarChart2 size={12} strokeWidth={2} />

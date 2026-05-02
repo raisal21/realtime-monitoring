@@ -158,8 +158,7 @@ type ChartAction =
   | { type: "SET_RANGE_PRESET"; preset: RangePreset }
   | { type: "SET_RULER_RANGE"; min: number; max: number }
   | { type: "SET_LOG_TRACK_RANGE"; min: number; max: number }
-  | { type: "SET_WELL_PROFILE_SLIDER"; value: boolean }
-  | { type: "SET_RULER_SLIDER"; value: boolean }
+  | { type: "SET_SLIDER_MODE"; value: boolean }
   | { type: "ZOOM_IN" }
   | { type: "ZOOM_OUT" }
   | { type: "RESET_ZOOM" }
@@ -199,42 +198,110 @@ const chartInitial: ChartState = {
 
 function chartReducer(s: ChartState, a: ChartAction): ChartState {
   switch (a.type) {
+    // Mode invariant: exactly one of {liveMode + rangePreset} or {sliders} is
+    // active at any time. The reducer is the sole owner — handlers should
+    // never set sliders / liveMode / rangePreset independently.
     case "SET_MODE":
       return { ...s, mode: a.mode, crosshairValue: null, rulerRange: null, logTrackRange: null };
     case "SET_CROSSHAIR_VALUE":
       return { ...s, crosshairValue: a.value };
-    case "TOGGLE_LIVE":
-      return { ...s, liveMode: !s.liveMode };
+    case "TOGGLE_LIVE": {
+      const nextLive = !s.liveMode;
+      return nextLive
+        ? {
+            ...s,
+            liveMode: true,
+            rangePreset: s.rangePreset ?? "1h",
+            rulerRange: null,
+            logTrackRange: null,
+            wellProfileSlider: false,
+            rulerSlider: false,
+          }
+        : {
+            ...s,
+            liveMode: false,
+            rangePreset: null,
+            wellProfileSlider: true,
+            rulerSlider: true,
+          };
+    }
     case "SET_LIVE":
-      // Resuming live drops manual zoom on both scopes.
       return a.live
-        ? { ...s, liveMode: true, rulerRange: null, logTrackRange: null }
-        : { ...s, liveMode: false };
+        ? {
+            ...s,
+            liveMode: true,
+            rangePreset: s.rangePreset ?? "1h",
+            rulerRange: null,
+            logTrackRange: null,
+            wellProfileSlider: false,
+            rulerSlider: false,
+          }
+        : {
+            ...s,
+            liveMode: false,
+            rangePreset: null,
+            wellProfileSlider: true,
+            rulerSlider: true,
+          };
     case "SET_RANGE_PRESET":
-      return { ...s, rangePreset: a.preset, rulerRange: null, logTrackRange: null };
+      return {
+        ...s,
+        rangePreset: a.preset,
+        liveMode: true,
+        rulerRange: null,
+        logTrackRange: null,
+        wellProfileSlider: false,
+        rulerSlider: false,
+      };
     case "SET_RULER_RANGE":
-      // Setting ruler range invalidates the log-track sub-window.
+      // From WellProfile slider drag or Date+Time Apply — implies slider mode.
       return {
         ...s,
         rulerRange: { min: a.min, max: a.max },
         logTrackRange: null,
         liveMode: false,
         rangePreset: null,
+        wellProfileSlider: true,
+        rulerSlider: true,
       };
     case "SET_LOG_TRACK_RANGE":
+      // From ruler slider drag — implies slider mode.
       return {
         ...s,
         logTrackRange: { min: a.min, max: a.max },
         liveMode: false,
+        rangePreset: null,
+        wellProfileSlider: true,
+        rulerSlider: true,
       };
-    case "SET_WELL_PROFILE_SLIDER":
-      return { ...s, wellProfileSlider: a.value };
-    case "SET_RULER_SLIDER":
-      return { ...s, rulerSlider: a.value };
+    case "SET_SLIDER_MODE":
+      return a.value
+        ? {
+            ...s,
+            wellProfileSlider: true,
+            rulerSlider: true,
+            liveMode: false,
+            rangePreset: null,
+          }
+        : {
+            ...s,
+            wellProfileSlider: false,
+            rulerSlider: false,
+            liveMode: true,
+            rangePreset: s.rangePreset ?? "1h",
+            rulerRange: null,
+            logTrackRange: null,
+          };
     case "ZOOM_IN":
-      return { ...s, liveMode: false };
     case "ZOOM_OUT":
-      return { ...s, liveMode: false };
+      // Wheel/keyboard zoom = intent to enter slider mode.
+      return {
+        ...s,
+        liveMode: false,
+        rangePreset: null,
+        wellProfileSlider: true,
+        rulerSlider: true,
+      };
     case "RESET_ZOOM":
       return {
         ...s,

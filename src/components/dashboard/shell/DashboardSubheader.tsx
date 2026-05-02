@@ -1,6 +1,6 @@
 import { Clock } from "lucide-react";
 import { useClock, useResizeObserver } from "@/hooks/dashboard-hooks";
-import { CURRENT_WELL } from "@/data/dashboard-static";
+import { CURRENT_WELL, WELL_SESSION } from "@/data/dashboard-static";
 import { useSettings } from "@/stores/dashboard-store";
 import { ValueReadout } from "@/components/telemetry";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ export function DashboardSubheader() {
 
       <div className="flex items-center gap-1.5 flex-shrink-0 pl-4 border-l border-(--theme-border)">
         <span className="label-mono">Live Depth</span>
-        <ValueReadout value="12,563" unit="ft MD" size="md" status="info" />
+        <ValueReadout value={WELL_SESSION.cursor.depthLabel} unit="ft MD" size="md" status="info" />
       </div>
     </div>
   );

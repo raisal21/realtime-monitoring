@@ -25,20 +25,29 @@ export function WellProfileTrack() {
   // session window — pre-session entries have no log data to display.
   const handleDataZoom = useCallback(
     (params: unknown) => {
-      const p = params as {
-        startValue?: number;
-        endValue?: number;
-        batch?: Array<{ startValue?: number; endValue?: number }>;
+      type DZ = {
+        start?: number; end?: number;
+        startValue?: number; endValue?: number;
       };
-      const raw = (p.batch?.[0] ?? p) as {
-        startValue?: number;
-        endValue?: number;
-      };
-      if (raw.startValue === undefined || raw.endValue === undefined) return;
-
+      const p = params as DZ & { batch?: DZ[] };
+      const raw: DZ = p.batch?.[0] ?? p;
       const lastIdx = WELL_PROFILE_DATA.length - 1;
-      const startIdx = Math.max(0, Math.min(lastIdx, Math.floor(Math.min(raw.startValue, raw.endValue))));
-      const endIdx = Math.max(0, Math.min(lastIdx, Math.ceil(Math.max(raw.startValue, raw.endValue))));
+
+      // Resolve to fractional indices over WELL_PROFILE_DATA — slider may emit
+      // numeric `startValue`/`endValue` OR percentage `start`/`end` (the latter
+      // happens when the dataZoom is configured with controlled start/end).
+      let lo: number, hi: number;
+      if (raw.startValue !== undefined && raw.endValue !== undefined) {
+        lo = Math.min(raw.startValue, raw.endValue);
+        hi = Math.max(raw.startValue, raw.endValue);
+      } else if (raw.start !== undefined && raw.end !== undefined) {
+        lo = (Math.min(raw.start, raw.end) / 100) * lastIdx;
+        hi = (Math.max(raw.start, raw.end) / 100) * lastIdx;
+      } else {
+        return;
+      }
+      const startIdx = Math.max(0, Math.min(lastIdx, Math.floor(lo)));
+      const endIdx = Math.max(0, Math.min(lastIdx, Math.ceil(hi)));
       const startEntry = WELL_PROFILE_DATA[startIdx];
       const endEntry = WELL_PROFILE_DATA[endIdx];
 
@@ -60,6 +69,41 @@ export function WellProfileTrack() {
     },
     [chart.mode, dispatch],
   );
+
+  // Map current rulerRange back to WP_DATA index envelope so the slider
+  // handles stay in the position the user dragged to. Without this, the
+  // option object is rebuilt on each dispatch with `notMerge`, and ECharts
+  // resets the slider to 0..100 because no `start`/`end` is bound.
+  const sliderRange = useMemo(() => {
+    const lastIdx = WELL_PROFILE_DATA.length - 1;
+    const r = chart.rulerRange;
+    if (!r) return { startPct: 0, endPct: 100 };
+    let s = 0;
+    let e = lastIdx;
+    if (chart.mode === "depth") {
+      // WP depths are monotonically increasing — outermost envelope.
+      for (let i = 0; i <= lastIdx; i++) {
+        if (WELL_PROFILE_DATA[i].depth <= r.min) s = i;
+      }
+      for (let i = lastIdx; i >= 0; i--) {
+        if (WELL_PROFILE_DATA[i].depth >= r.max) e = i;
+      }
+    } else {
+      for (let i = 0; i <= lastIdx; i++) {
+        const m = dateToSessionMinute(parseWellProfileDate(WELL_PROFILE_DATA[i].date));
+        if (m <= r.min) s = i;
+      }
+      for (let i = lastIdx; i >= 0; i--) {
+        const m = dateToSessionMinute(parseWellProfileDate(WELL_PROFILE_DATA[i].date));
+        if (m >= r.max) e = i;
+      }
+    }
+    if (e < s) e = s;
+    return {
+      startPct: (s / lastIdx) * 100,
+      endPct: (e / lastIdx) * 100,
+    };
+  }, [chart.rulerRange, chart.mode]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -160,9 +204,14 @@ export function WellProfileTrack() {
             },
           },
         },
+        // Hidden value axis spanning the WP_DATA index range — the slider
+        // operates on this so the visible category axis (yAxisIndex 0) keeps
+        // showing the full well history. Needs a paired anchor series below
+        // (otherwise the slider renders but emits no datazoom events).
         {
-          type: "category",
-          data: dates,
+          type: "value",
+          min: 0,
+          max: dates.length - 1,
           inverse: true,
           show: false,
           axisPointer: { show: false },
@@ -187,6 +236,21 @@ export function WellProfileTrack() {
             padding: [1, 3],
           },
         },
+        // Invisible anchor series so dataZoom on yAxisIndex 1 has data to bind
+        // to; without this the slider renders but never emits zoom events.
+        {
+          type: "line" as const,
+          xAxisIndex: 0,
+          yAxisIndex: 1,
+          data: [
+            [0, 0],
+            [0, dates.length - 1],
+          ],
+          showSymbol: false,
+          lineStyle: { opacity: 0 },
+          silent: true,
+          tooltip: { show: false },
+        },
       ],
       dataZoom:
         chart.wellProfileSlider && !chart.liveMode
@@ -198,6 +262,8 @@ export function WellProfileTrack() {
                 zoomOnMouseWheel: true,
                 moveOnMouseMove: true,
                 moveOnMouseWheel: true,
+                start: sliderRange.startPct,
+                end: sliderRange.endPct,
               },
               {
                 type: "slider" as const,
@@ -218,6 +284,8 @@ export function WellProfileTrack() {
                 filterMode: "none" as const,
                 showDataShadow: false,
                 showDetail: false,
+                start: sliderRange.startPct,
+                end: sliderRange.endPct,
               },
             ]
           : [
@@ -233,7 +301,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.theme, chart.wellProfileSlider, chart.liveMode, chart.rulerRange, fsScale]);
+  }, [settings.theme, chart.wellProfileSlider, chart.liveMode, chart.rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale]);
 
   return (
     <div

@@ -1,7 +1,8 @@
-import { useMemo } from "react";
-import { Bell, Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
+import { Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
+import { useLocation, useParams, Link } from "react-router-dom";
 import { useUi } from "@/stores/dashboard-store";
-import { FEED_ITEMS, CURRENT_WELL } from "@/data/dashboard-static";
+import { CURRENT_WELL } from "@/data/dashboard-static";
+import { getWellName } from "@/data/wells";
 import { Popover, PopoverTrigger } from "@/components/popover";
 import { TopbarButton } from "@/components/navigation";
 import { BreadcrumbItem } from "@/components/navigation";
@@ -9,19 +10,22 @@ import { ConnectionStatus } from "@/components/footer";
 import { cn } from "@/lib/utils";
 import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
 
-export function UniversalTopbar() {
+export function UniversalTopbar({ wellId }: { wellId?: string }) {
   const { state: ui, dispatch } = useUi();
-  const unackedCritical = useMemo(
-    () =>
-      FEED_ITEMS.filter(
-        (f) => f.state === "unacked" && f.severity === "critical",
-      ).length,
-    [],
-  );
-  const totalUnacked = useMemo(
-    () => FEED_ITEMS.filter((f) => f.state === "unacked").length,
-    [],
-  );
+  const location = useLocation();
+  const params = useParams<{ wellId?: string }>();
+
+  // Determine current page context
+  const isWellsPage = location.pathname.startsWith("/wells");
+  const isDashboardPage = location.pathname.startsWith("/dashboard");
+
+  // Get wellId from props, URL params, or fallback to CURRENT_WELL
+  const activeWellId = wellId ?? params.wellId ?? CURRENT_WELL.id;
+  const wellName = getWellName(activeWellId);
+
+  // Build breadcrumb items
+  const showWellInBreadcrumb = isDashboardPage || (isWellsPage && params.wellId);
+  const showDashboardInBreadcrumb = isDashboardPage;
 
   return (
     <header
@@ -47,15 +51,37 @@ export function UniversalTopbar() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        <BreadcrumbItem type="link">Wells</BreadcrumbItem>
-        <BreadcrumbItem type="separator">
-          <ChevronRight size={13} strokeWidth={2} />
+        <BreadcrumbItem type="link">
+          <Link to="/wells" className="hover:inherit">Wells</Link>
         </BreadcrumbItem>
-        <BreadcrumbItem type="link">{CURRENT_WELL.name}</BreadcrumbItem>
-        <BreadcrumbItem type="separator">
-          <ChevronRight size={13} strokeWidth={2} />
-        </BreadcrumbItem>
-        <BreadcrumbItem type="current">Dashboard</BreadcrumbItem>
+
+        {showWellInBreadcrumb && (
+          <>
+            <BreadcrumbItem type="separator">
+              <ChevronRight size={13} strokeWidth={2} />
+            </BreadcrumbItem>
+            <BreadcrumbItem type={showDashboardInBreadcrumb ? "link" : "current"}>
+              {showDashboardInBreadcrumb ? (
+                <Link to={`/wells/${activeWellId}`} className="hover:inherit">{wellName}</Link>
+              ) : (
+                wellName
+              )}
+            </BreadcrumbItem>
+          </>
+        )}
+
+        {showDashboardInBreadcrumb && (
+          <>
+            <BreadcrumbItem type="separator">
+              <ChevronRight size={13} strokeWidth={2} />
+            </BreadcrumbItem>
+            <BreadcrumbItem type="current">Dashboard</BreadcrumbItem>
+          </>
+        )}
+
+        {!showWellInBreadcrumb && !showDashboardInBreadcrumb && (
+          <BreadcrumbItem type="current">Wells</BreadcrumbItem>
+        )}
       </div>
 
       <div className="flex-1" />
@@ -82,16 +108,6 @@ export function UniversalTopbar() {
           />
           <SettingsPopoverContent />
         </Popover>
-
-        <TopbarButton
-          intent={unackedCritical > 0 ? "alarm" : "default"}
-          badgeCount={totalUnacked}
-          title={`${totalUnacked} unacked alarms`}
-          aria-label="Alarms"
-          onClick={() => dispatch({ type: "TOGGLE_ALARM_SIDEBAR" })}
-        >
-          <Bell size={16} strokeWidth={2} />
-        </TopbarButton>
 
         <TopbarButton title="User profile" aria-label="User profile">
           <CircleUser size={16} strokeWidth={2} />

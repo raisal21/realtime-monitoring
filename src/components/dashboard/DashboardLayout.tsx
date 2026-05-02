@@ -22,10 +22,13 @@ import { AckModal } from "@/components/dashboard/modals/AckModal";
 const ALARM_SIDEBAR_WIDTH = 300;
 const STRIP_WIDTH = 32;
 
-export function DashboardLayout() {
+export function DashboardLayout({ wellId }: { wellId?: string }) {
   const { state: ui, dispatch: uiDispatch } = useUi();
   const { state: chart } = useChart();
   useKeyboardShortcuts();
+
+  // Placeholder for dropped frames counter (WebSocket integration pending)
+  const droppedFrames = 0;
 
   useEffect(() => {
     const checkWidth = () => {
@@ -67,9 +70,9 @@ export function DashboardLayout() {
             "var(--spacing-rt-shell-top) var(--spacing-rt-shell-sub) 1fr var(--spacing-rt-shell-foot)",
         }}
       >
-        <UniversalTopbar />
-        <DashboardSubheader />
+        <UniversalTopbar wellId={wellId} />
 
+        <DashboardSubheader wellId={wellId} />
         <main className="flex overflow-hidden relative">
           <LeftToolRail />
 
@@ -119,7 +122,7 @@ export function DashboardLayout() {
           )}
         </main>
 
-        <Footer />
+        <Footer droppedFrames={droppedFrames} />
       </div>
 
       <AckModal />

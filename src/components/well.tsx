@@ -74,12 +74,21 @@ const DRILLING_DOT_STATUS: Record<
   offline: "inactive",
 };
 
+export type WellType = "production" | "injection" | "delineation";
+
+const WELL_TYPE_BADGE: Record<WellType, { intent: "ok" | "info" | "warning"; label: string }> = {
+  production: { intent: "ok", label: "PROD" },
+  injection: { intent: "info", label: "INJ" },
+  delineation: { intent: "warning", label: "DEL" },
+};
+
 export interface WellListItemProps
   extends
     React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof wellListItemVariants> {
   name: string;
   block?: string;
+  wellType?: WellType;
   metrics?: Array<{ key: string; value: string | number; unit?: string }>;
   onEnter?: () => void;
 }
@@ -87,6 +96,7 @@ export interface WellListItemProps
 export const WellListItem = ({
   name,
   block,
+  wellType,
   metrics,
   drillingStatus,
   selected,
@@ -113,9 +123,20 @@ export const WellListItem = ({
     </div>
 
     <div className="flex-1 min-w-0">
-      <p className="font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold tracking-[0.04em] truncate mb-0.5">
-        {name}
-      </p>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <p className="font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold tracking-[0.04em] truncate">
+          {name}
+        </p>
+        {wellType && (
+          <Badge
+            intent={WELL_TYPE_BADGE[wellType].intent}
+            size="xs"
+            className="flex-shrink-0"
+          >
+            {WELL_TYPE_BADGE[wellType].label}
+          </Badge>
+        )}
+      </div>
       {block && (
         <p className="text-fs-10 text-(--theme-fg-muted) tracking-[0.04em] mb-1.25">
           {block}
@@ -192,6 +213,7 @@ const sidebarStatVariants = cva("flex flex-col gap-px", {
       ok: "[&_.stat-val]:text-[var(--theme-ok)]",
       warning: "[&_.stat-val]:text-[var(--theme-warning)]",
       critical: "[&_.stat-val]:text-[var(--theme-critical)]",
+      info: "[&_.stat-val]:text-[var(--theme-info)]",
       inactive: "[&_.stat-val]:text-[var(--theme-fg-dim)]",
       default: "[&_.stat-val]:text-[var(--theme-fg)]",
     },

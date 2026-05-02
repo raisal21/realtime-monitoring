@@ -3,7 +3,7 @@ import { CURRENT_WELL } from "@/data/dashboard-static";
 import { FooterStat } from "@/components/footer";
 import { cn } from "@/lib/utils";
 
-export function Footer() {
+export function Footer({ droppedFrames = 0 }: { droppedFrames?: number }) {
   return (
     <footer
       className={cn(
@@ -25,10 +25,9 @@ export function Footer() {
 
       <div className="flex items-center gap-3 shrink-0 ml-auto">
         <FooterStat value="48 ms" label="Ping" />
-        <FooterStat value="0 frames" label="Dropped" />
+        <FooterStat value={`${droppedFrames} frames`} label="Dropped" />
         <FooterStat value="—" label="Retry" />
       </div>
     </footer>
   );
 }
-

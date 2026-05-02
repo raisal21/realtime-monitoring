@@ -7,333 +7,199 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import maplibregl from "maplibre-gl";
+import type { StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { Button, Input, Surface, StatusDot } from "@/components/core";
+import { UniversalTopbar } from "@/components/dashboard/shell/UniversalTopbar";
+import { Footer } from "@/components/dashboard/shell/Footer";
+import { Input, Surface, StatusDot, Button } from "@/components/core";
 import { ValueReadout } from "@/components/telemetry";
 import { SidebarStat, WellListItem } from "@/components/well";
-import { BreadcrumbItem } from "@/components/navigation";
+import { WELLS, type Well } from "@/data/wells";
 import { cn } from "@/lib/utils";
 
-/* ─────────────────────────────────────────────────────────────
-   MapLibre GL JS tidak memerlukan access token.
-   Style map menggunakan CARTO Dark Matter (gratis, tanpa API key).
-   Anda bisa mengganti dengan style MapTiler/Stadia jika perlu:
-     MapTiler  → "https://api.maptiler.com/maps/backdrop-dark/style.json?key=YOUR_KEY"
-     Stadia    → "https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json"
-───────────────────────────────────────────────────────────── */
-const MAP_STYLE =
-  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const MAP_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "© OpenStreetMap Contributors",
+      maxzoom: 19,
+    },
+    terrainSource: {
+      type: "raster-dem",
+      url: "https://tiles.mapterhorn.com/tilejson.json",
+    },
+    hillshadeSource: {
+      type: "raster-dem",
+      url: "https://tiles.mapterhorn.com/tilejson.json",
+    },
+  },
+  layers: [
+    { id: "osm", type: "raster", source: "osm" },
+    {
+      id: "hills",
+      type: "hillshade",
+      source: "hillshadeSource",
+      layout: { visibility: "visible" },
+      paint: { "hillshade-shadow-color": "#473B24" },
+    },
+  ],
+  terrain: { source: "terrainSource", exaggeration: 1 },
+  sky: {},
+};
 
-/* ═══════════════════════════════════════════════════════════
-   WELL DATA
-═══════════════════════════════════════════════════════════ */
-export type WellStatus = "drilling" | "standby" | "offline";
+const BLOCK_BOUNDARY: GeoJSON.FeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: { name: "Block 7G" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [107.670, -7.270], [107.675, -7.272], [107.685, -7.274],
+          [107.698, -7.278], [107.710, -7.284], [107.712, -7.295],
+          [107.708, -7.305], [107.695, -7.312], [107.680, -7.310],
+          [107.668, -7.300], [107.665, -7.285], [107.670, -7.270],
+        ]],
+      },
+    },
+  ],
+};
 
-export interface Well {
-  id: string;
-  name: string;
-  block: string;
-  status: WellStatus;
-  lat: number;
-  lon: number;
-  depth: string;
-  rop: string;
-  rpm: string;
-  operator: string;
-  spud: string;
-  target: string;
+const PAD_BOUNDARIES: GeoJSON.FeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: { name: "PAD A · Guntur" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [107.6938, -7.2938], [107.6968, -7.2940], [107.6970, -7.2968],
+          [107.6935, -7.2970], [107.6938, -7.2938],
+        ]],
+      },
+    },
+    {
+      type: "Feature",
+      properties: { name: "PAD B · Talpad" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [107.6862, -7.2868], [107.6895, -7.2870], [107.6898, -7.2898],
+          [107.6860, -7.2896], [107.6862, -7.2868],
+        ]],
+      },
+    },
+    {
+      type: "Feature",
+      properties: { name: "PAD C · North Ridge" },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [107.6785, -7.2785], [107.6815, -7.2788], [107.6818, -7.2810],
+          [107.6782, -7.2808], [107.6785, -7.2785],
+        ]],
+      },
+    },
+  ],
+};
+
+function haversineMeters(a: [number, number], b: [number, number]): number {
+  const R = 6371000;
+  const dLat = ((b[1] - a[1]) * Math.PI) / 180;
+  const dLon = ((b[0] - a[0]) * Math.PI) / 180;
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a[1] * Math.PI) / 180) *
+      Math.cos((b[1] * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-const WELLS: Well[] = [
-  {
-    id: "alpha-1",
-    name: "Alpha-1",
-    block: "Block 7G · Makassar Strait",
-    status: "drilling",
-    lat: -1.28,
-    lon: 117.45,
-    depth: "15,200 ft",
-    rop: "21.8 ft/hr",
-    rpm: "120 rpm",
-    operator: "Ahmad R.",
-    spud: "Mar 12, 2025",
-    target: "15,200 ft",
-  },
-  {
-    id: "bravo-3",
-    name: "Bravo-3",
-    block: "Block 12A · Java Sea",
-    status: "drilling",
-    lat: -5.82,
-    lon: 112.6,
-    depth: "9,881 ft",
-    rop: "31.2 ft/hr",
-    rpm: "105 rpm",
-    operator: "Dwi S.",
-    spud: "Jan 28, 2025",
-    target: "12,000 ft",
-  },
-  {
-    id: "charlie-2",
-    name: "Charlie-2",
-    block: "Block 3F · Natuna Sea",
-    status: "drilling",
-    lat: 3.9,
-    lon: 108.22,
-    depth: "7,240 ft",
-    rop: "18.5 ft/hr",
-    rpm: "90 rpm",
-    operator: "Budi H.",
-    spud: "Apr 2, 2025",
-    target: "10,500 ft",
-  },
-  {
-    id: "delta-5",
-    name: "Delta-5",
-    block: "Block 9B · Barito Basin",
-    status: "standby",
-    lat: -1.9,
-    lon: 114.8,
-    depth: "—",
-    rop: "—",
-    rpm: "—",
-    operator: "—",
-    spud: "TBD",
-    target: "11,800 ft",
-  },
-  {
-    id: "echo-1",
-    name: "Echo-1",
-    block: "Block 2C · Kutei Basin",
-    status: "standby",
-    lat: 0.5,
-    lon: 116.9,
-    depth: "—",
-    rop: "—",
-    rpm: "—",
-    operator: "—",
-    spud: "TBD",
-    target: "13,000 ft",
-  },
-  {
-    id: "foxtrot-4",
-    name: "Foxtrot-4",
-    block: "Block 6D · Sumatra Shelf",
-    status: "offline",
-    lat: 1.2,
-    lon: 102.8,
-    depth: "14,200 ft",
-    rop: "—",
-    rpm: "—",
-    operator: "—",
-    spud: "Nov 5, 2024",
-    target: "14,200 ft",
-  },
-  {
-    id: "gulf-7",
-    name: "Gulf-7",
-    block: "Block 11E · Banda Sea",
-    status: "offline",
-    lat: -5.5,
-    lon: 128.4,
-    depth: "8,900 ft",
-    rop: "—",
-    rpm: "—",
-    operator: "—",
-    spud: "Sep 18, 2024",
-    target: "8,900 ft",
-  },
-  {
-    id: "hotel-2",
-    name: "Hotel-2",
-    block: "Block 4A · Mahakam Delta",
-    status: "offline",
-    lat: -0.5,
-    lon: 117.0,
-    depth: "11,400 ft",
-    rop: "—",
-    rpm: "—",
-    operator: "—",
-    spud: "Dec 2, 2024",
-    target: "11,400 ft",
-  },
-  {
-    id: "india-3",
-    name: "India-3",
-    block: "Block 8H · Timor Sea",
-    status: "offline",
-    lat: -9.8,
-    lon: 126.1,
-    depth: "6,200 ft",
-    rop: "—",
-    rpm: "—",
-    operator: "—",
-    spud: "Oct 30, 2024",
-    target: "6,200 ft",
-  },
-];
+function buildCollisionLines(): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (let i = 0; i < WELLS.length; i++) {
+    for (let j = i + 1; j < WELLS.length; j++) {
+      if (WELLS[i].padId !== WELLS[j].padId) continue;
+      const dist = haversineMeters(
+        [WELLS[i].lon, WELLS[i].lat],
+        [WELLS[j].lon, WELLS[j].lat],
+      );
+      if (dist < 150) {
+        features.push({
+          type: "Feature",
+          properties: { distance: dist.toFixed(0) },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [WELLS[i].lon, WELLS[i].lat],
+              [WELLS[j].lon, WELLS[j].lat],
+            ],
+          },
+        });
+      }
+    }
+  }
+  return { type: "FeatureCollection", features };
+}
 
-/* ─── Status helpers ─── */
-const STATUS_COLOR: Record<WellStatus, string> = {
-  drilling: "var(--theme-ok)",
-  standby: "var(--theme-warning)",
-  offline: "var(--theme-fg-dim)",
+function buildWellsGeoJSON(wells: Well[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: wells.map((w) => ({
+      type: "Feature",
+      properties: { id: w.id, name: w.name, wellType: w.wellType, status: w.status, padId: w.padId },
+      geometry: { type: "Point", coordinates: [w.lon, w.lat] },
+    })),
+  };
+}
+
+const WELL_TYPE_COLOR: Record<Well["wellType"], string> = {
+  production: "#b8bb26",
+  injection: "#83a598",
+  delineation: "#fabd2f",
 };
 
-const STATUS_HEX: Record<WellStatus, string> = {
-  drilling: "#b8bb26",
-  standby: "#fabd2f",
-  offline: "#5a524a",
+const WELL_TYPE_LABEL: Record<Well["wellType"], string> = {
+  production: "Production",
+  injection: "Injection",
+  delineation: "Delineation",
 };
 
-const STATUS_LABEL: Record<WellStatus, string> = {
+const STATUS_LABEL: Record<Well["status"], string> = {
   drilling: "Drilling",
   standby: "Standby",
   offline: "Offline",
 };
 
-const STATUS_DOT: Record<
-  WellStatus,
-  React.ComponentProps<typeof StatusDot>["status"]
-> = {
+const STATUS_DOT: Record<Well["status"], React.ComponentProps<typeof StatusDot>["status"]> = {
   drilling: "ok",
   standby: "warning",
   offline: "inactive",
 };
 
-/* ═══════════════════════════════════════════════════════════
-   MAPLIBRE — custom SVG marker element builder
-   Returns a raw HTMLElement that MapLibre attaches to the map.
-═══════════════════════════════════════════════════════════ */
-function buildMarkerEl(well: Well): HTMLDivElement {
-  const col = STATUS_HEX[well.status];
-  const isDrill = well.status === "drilling";
-  const opacity = well.status === "offline" ? "0.5" : "1";
-
-  const wrap = document.createElement("div");
-  wrap.style.cssText = "width:28px;height:28px;cursor:pointer;";
-
-  wrap.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" overflow="visible">
-      ${
-        isDrill
-          ? `
-        <circle cx="14" cy="14" r="10" fill="${col}" opacity="0">
-          <animate attributeName="r"       values="9;17;9"      dur="2.4s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.14;0;0.14" dur="2.4s" repeatCount="indefinite"/>
-        </circle>`
-          : ""
-      }
-      <circle cx="14" cy="14" r="7"   fill="${col}" opacity="${opacity}"/>
-      <circle cx="14" cy="14" r="4"   fill="#0f1214" opacity="0.75"/>
-      <circle cx="14" cy="14" r="2.4" fill="${col}" opacity="${isDrill ? "0.9" : "0.4"}"/>
-    </svg>`;
-
-  return wrap;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MAPLIBRE POPUP — React-rendered content injected as HTML string
-═══════════════════════════════════════════════════════════ */
-function buildPopupHTML(well: Well): string {
-  const isDrill = well.status === "drilling";
-  const col = STATUS_HEX[well.status];
-  const depthCol = isDrill ? "#d3869b" : "#5a524a";
-  const ropCol = isDrill ? "#83a598" : "#5a524a";
-
-  return /* html */ `
-    <div style="
-      width:240px;
-      font-family:'Barlow Condensed',sans-serif;
-      color:#ebdbb2;
-    ">
-      <!-- Head -->
-      <div style="
-        padding:12px 14px 10px;
-        border-bottom:1px solid #3c3836;
-        display:flex;align-items:flex-start;gap:8px;
-      ">
-        <div style="
-          width:8px;height:8px;border-radius:50%;
-          background:${col};margin-top:5px;flex-shrink:0;
-          ${isDrill ? `box-shadow:0 0 7px ${col};` : ""}
-        "></div>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:700;letter-spacing:.04em;">${well.name}</div>
-          <div style="font-size:10px;color:#a89984;margin-top:1px;">${well.block}</div>
-        </div>
-        <div style="
-          font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-          padding:2px 7px;border-radius:2px;flex-shrink:0;
-          ${
-            isDrill
-              ? "background:rgba(184,187,38,.15);color:#b8bb26;border:1px solid rgba(184,187,38,.3);"
-              : well.status === "standby"
-                ? "background:rgba(250,189,47,.12);color:#fabd2f;border:1px solid rgba(250,189,47,.25);"
-                : "background:#32302f;color:#5a524a;border:1px solid #3c3836;"
-          }
-        ">${STATUS_LABEL[well.status]}</div>
-      </div>
-
-      <!-- Body: KPIs -->
-      <div style="
-        padding:10px 14px;
-        border-bottom:1px solid #3c3836;
-        display:grid;grid-template-columns:1fr 1fr;gap:8px;
-      ">
-        <div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:${depthCol};">${well.depth}</div>
-          <div style="font-size:8px;color:#5a524a;text-transform:uppercase;letter-spacing:.08em;">Curr. Depth</div>
-        </div>
-        <div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:${ropCol};">${well.rop}</div>
-          <div style="font-size:8px;color:#5a524a;text-transform:uppercase;letter-spacing:.08em;">ROP</div>
-        </div>
-        <div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:#ebdbb2;">${well.target}</div>
-          <div style="font-size:8px;color:#5a524a;text-transform:uppercase;letter-spacing:.08em;">TD Target</div>
-        </div>
-        <div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:#a89984;">${well.spud}</div>
-          <div style="font-size:8px;color:#5a524a;text-transform:uppercase;letter-spacing:.08em;">Spud Date</div>
-        </div>
-      </div>
-
-      <!-- Footer: CTA -->
-      <div style="padding:10px 14px;">
-        <button
-          onclick="window.__rtdc_enter('${well.id}')"
-          ${!isDrill ? "disabled" : ""}
-          style="
-            width:100%;padding:8px;border:none;border-radius:3px;cursor:${isDrill ? "pointer" : "not-allowed"};
-            font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
-            text-transform:uppercase;letter-spacing:.12em;
-            background:${isDrill ? "#83a598" : "#32302f"};
-            color:${isDrill ? "#0c0e10" : "#5a524a"};
-            display:flex;align-items:center;justify-content:center;gap:6px;
-            transition:all .15s;
-          "
-        >${isDrill ? "Enter Dashboard →" : "Unavailable"}</button>
-      </div>
-    </div>`;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   DETAIL PANEL — floats over the map (top-left)
-═══════════════════════════════════════════════════════════ */
 function DetailPanel({
   well,
   onClose,
-  onEnter,
 }: {
   well: Well;
   onClose: () => void;
-  onEnter: (id: string) => void;
 }) {
-  const isDrill = well.status === "drilling";
-  const barColor = STATUS_COLOR[well.status];
+  const navigate = useNavigate();
+  const isActive = well.status === "drilling";
+  const barColor =
+    well.wellType === "production"
+      ? "#b8bb26"
+      : well.wellType === "injection"
+        ? "#83a598"
+        : "#fabd2f";
 
   return (
     <div
@@ -344,27 +210,25 @@ function DetailPanel({
       )}
     >
       <Surface elevation="glass" outline="all">
-        {/* Status bar accent — 3px top line */}
         <div className="h-[3px] w-full" style={{ background: barColor }} />
 
-        {/* Head */}
-        <div className="flex items-center gap-[8px] px-[14px] py-[12px] border-b border-(--theme-border)">
+        <div className="flex items-center gap-[8px] px-[10px] py-[8px] border-b border-(--theme-border)">
           <StatusDot
             status={STATUS_DOT[well.status]}
             size="md"
-            glow={isDrill}
-            pulse={isDrill}
+            glow={isActive}
+            pulse={isActive}
             className="flex-shrink-0"
           />
           <span
             className={cn(
               "flex-1 font-['Barlow_Condensed',sans-serif]",
-              "text-[15px] font-bold tracking-[0.03em] text-(--theme-fg)",
+              "text-fs-15 leading-none font-bold tracking-[0.03em] text-(--theme-fg)",
             )}
           >
             {well.name}
-            <span className="text-(--theme-fg-dim) font-normal ml-[6px] text-[11px]">
-              · {STATUS_LABEL[well.status]}
+            <span className="text-(--theme-fg-dim) font-normal ml-[6px] text-fs-11 leading-none inline-block">
+              · {WELL_TYPE_LABEL[well.wellType]}
             </span>
           </span>
           <button
@@ -372,7 +236,7 @@ function DetailPanel({
             onClick={onClose}
             className={cn(
               "w-[20px] h-[20px] flex items-center justify-center rounded-[2px]",
-              "text-[13px] text-(--theme-fg-dim)",
+              "text-fs-13 leading-none inline-block text-(--theme-fg-dim)",
               "hover:bg-(--theme-overlay) hover:text-(--theme-fg)",
               "transition-colors duration-120",
             )}
@@ -381,43 +245,36 @@ function DetailPanel({
           </button>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-[8px] px-[14px] py-[10px] border-b border-(--theme-border)">
+        <div className="grid grid-cols-3 gap-[8px] px-[10px] py-[6px] border-b border-(--theme-border)">
           <div className="flex flex-col gap-[1px]">
             <ValueReadout
-              value={well.depth}
+              value={well.temperature}
               size="md"
-              status={isDrill ? "info" : "inactive"}
+              status={isActive ? "ok" : "inactive"}
             />
-            <span className="label-mono">Depth</span>
+            <span className="label-mono">Temp</span>
           </div>
           <div className="flex flex-col gap-[1px]">
             <ValueReadout
-              value={well.rop}
+              value={well.flowRate}
               size="md"
-              status={isDrill ? "ok" : "inactive"}
+              status={isActive ? "info" : "inactive"}
             />
-            <span className="label-mono">ROP</span>
+            <span className="label-mono">Flow</span>
           </div>
           <div className="flex flex-col gap-[1px]">
             <ValueReadout
-              value={well.rpm}
+              value={well.pressure}
               size="md"
-              status={isDrill ? "ok" : "inactive"}
+              status={isActive ? "ok" : "inactive"}
             />
-            <span className="label-mono">RPM</span>
+            <span className="label-mono">Pressure</span>
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="px-[14px] py-[10px]">
-          {isDrill ? (
-            <Button
-              intent="primary"
-              size="lg"
-              fullWidth
-              onClick={() => onEnter(well.id)}
-            >
+        <div className="px-[10px] py-[8px]">
+          {isActive ? (
+            <Button intent="primary" size="lg" fullWidth onClick={() => navigate(`/dashboard/${well.id}`)}>
               Enter Control Room →
             </Button>
           ) : (
@@ -431,48 +288,34 @@ function DetailPanel({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   MAP LEGEND + COORD DISPLAY — bottom-left overlay
-═══════════════════════════════════════════════════════════ */
 function MapOverlay({ coords }: { coords: string }) {
   return (
     <div className="absolute bottom-[20px] left-[20px] z-40 flex flex-col gap-[8px]">
-      {/* Legend */}
       <Surface
         elevation="glass"
         outline="all"
-        className="px-[14px] py-[10px] animate-fade-up"
+        className="px-[10px] py-[6px] animate-fade-up"
       >
-        <span className="section-heading block mb-[7px]">Well Status</span>
-        {(["drilling", "standby", "offline"] as WellStatus[]).map((s) => (
-          <div
-            key={s}
-            className="flex items-center gap-[7px] mb-[4px] last:mb-0"
-          >
-            <StatusDot
-              status={STATUS_DOT[s]}
-              size="sm"
-              glow={s === "drilling"}
-              pulse={s === "drilling"}
+        <span className="section-heading block leading-none mb-[6px]">Well Types</span>
+        {(Object.keys(WELL_TYPE_COLOR) as Well["wellType"][]).map((t) => (
+          <div key={t} className="flex items-center gap-[7px] mb-[3px] last:mb-0">
+            <div
+              className="w-[8px] h-[8px] rounded-full"
+              style={{ background: WELL_TYPE_COLOR[t] }}
             />
-            <span className="font-['Barlow_Condensed',sans-serif] text-[10px] text-(--theme-fg-muted)">
-              {s === "drilling"
-                ? "Active — Drilling"
-                : s === "standby"
-                  ? "Standby / Ready"
-                  : "Offline / P&A"}
+            <span className="font-['Barlow_Condensed',sans-serif] text-fs-10 leading-none inline-block text-(--theme-fg-muted)">
+              {WELL_TYPE_LABEL[t]}
             </span>
           </div>
         ))}
       </Surface>
 
-      {/* Coord display */}
       <Surface
         elevation="glass"
         outline="all"
-        className="px-[10px] py-[5px] animate-fade-up [animation-delay:100ms]"
+        className="px-[8px] py-[4px] animate-fade-up [animation-delay:100ms]"
       >
-        <span className="font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-fg-dim)">
+        <span className="font-['Share_Tech_Mono',monospace] text-fs-10 leading-none inline-block text-(--theme-fg-dim)">
           {coords}
         </span>
       </Surface>
@@ -480,41 +323,29 @@ function MapOverlay({ coords }: { coords: string }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   SIDEBAR — right panel: stats + search + well list
-═══════════════════════════════════════════════════════════ */
 function Sidebar({
   wells,
   selectedId,
   onSelectWell,
-  onEnter,
 }: {
   wells: Well[];
   selectedId: string | null;
   onSelectWell: (well: Well) => void;
-  onEnter: (id: string) => void;
 }) {
-  const [query, setQuery] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return q
-      ? wells.filter(
-          (w) =>
-            w.name.toLowerCase().includes(q) ||
-            w.block.toLowerCase().includes(q),
-        )
-      : wells;
-  }, [wells, query]);
-
   const counts = useMemo(
     () => ({
-      drilling: wells.filter((w) => w.status === "drilling").length,
-      standby: wells.filter((w) => w.status === "standby").length,
-      offline: wells.filter((w) => w.status === "offline").length,
+      production: wells.filter((w) => w.wellType === "production").length,
+      injection: wells.filter((w) => w.wellType === "injection").length,
+      delineation: wells.filter((w) => w.wellType === "delineation").length,
     }),
     [wells],
   );
+
+  const padNames: Record<string, string> = {
+    "pad-a": "Guntur",
+    "pad-b": "Talpad",
+    "pad-c": "North Ridge",
+  };
 
   return (
     <aside
@@ -525,68 +356,41 @@ function Sidebar({
       )}
       style={{ width: 320 }}
     >
-      {/* Head: fleet stats */}
       <div className="px-[16px] py-[14px] border-b border-(--theme-border) flex-shrink-0">
-        <span className="section-heading block mb-[10px]">Fleet Overview</span>
+        <span className="section-heading block mb-[10px]">Field Overview</span>
         <div className="grid grid-cols-3 gap-[8px]">
-          <SidebarStat
-            value={counts.drilling}
-            label="Drilling"
-            colorScheme="ok"
-          />
-          <SidebarStat
-            value={counts.standby}
-            label="Standby"
-            colorScheme="warning"
-          />
-          <SidebarStat
-            value={counts.offline}
-            label="Offline"
-            colorScheme="inactive"
-          />
+          <SidebarStat value={counts.production} label="Production" colorScheme="ok" />
+          <SidebarStat value={counts.injection} label="Injection" colorScheme="info" />
+          <SidebarStat value={counts.delineation} label="Delineation" colorScheme="warning" />
         </div>
       </div>
 
-      {/* Search */}
-      <div className="px-[12px] py-[10px] border-b border-(--theme-border) flex-shrink-0">
-        <Input
-          placeholder="Search well name or block…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          icon={
-            <span className="text-(--theme-fg-dim)" style={{ fontSize: 13 }}>
-              ⌕
-            </span>
-          }
-        />
-      </div>
-
-      {/* Well list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        {filtered.map((w) => (
+        {wells.map((w) => (
           <WellListItem
             key={w.id}
             name={w.name}
-            block={w.block}
+            block={padNames[w.padId] ?? w.padId}
             drillingStatus={w.status}
             selected={selectedId === w.id}
             onClick={() => onSelectWell(w)}
-            onEnter={w.status === "drilling" ? () => onEnter(w.id) : undefined}
+            onEnter={w.status === "drilling" ? () => {} : undefined}
+            wellType={w.wellType}
             metrics={
               w.status === "drilling"
                 ? [
-                    { key: "Depth", value: w.depth },
-                    { key: "ROP", value: w.rop },
-                    { key: "RPM", value: w.rpm },
+                    { key: "Temp", value: w.temperature },
+                    { key: "Flow", value: w.flowRate },
+                    { key: "Press", value: w.pressure },
                   ]
-                : [{ key: "TD Target", value: w.target }]
+                : [{ key: "TD Target", value: w.targetDepth }]
             }
           />
         ))}
-        {filtered.length === 0 && (
+        {wells.length === 0 && (
           <div className="px-[16px] py-[24px] text-center">
             <span className="font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-fg-dim)">
-              No wells match "{query}"
+              No wells match your filters
             </span>
           </div>
         )}
@@ -595,156 +399,126 @@ function Sidebar({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   TOPBAR
-═══════════════════════════════════════════════════════════ */
-function Topbar({ wells }: { wells: Well[] }) {
-  const counts = useMemo(
-    () => ({
-      drilling: wells.filter((w) => w.status === "drilling").length,
-      standby: wells.filter((w) => w.status === "standby").length,
-      offline: wells.filter((w) => w.status === "offline").length,
-    }),
-    [wells],
-  );
+function Subheader({
+  query,
+  onQueryChange,
+  activeType,
+  onTypeChange,
+  total,
+  filtered,
+}: {
+  query: string;
+  onQueryChange: (v: string) => void;
+  activeType: Well["wellType"] | "all";
+  onTypeChange: (f: Well["wellType"] | "all") => void;
+  total: number;
+  filtered: number;
+}) {
+  const types: { key: Well["wellType"] | "all"; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "production", label: "Production" },
+    { key: "injection", label: "Injection" },
+    { key: "delineation", label: "Delineation" },
+  ];
 
   return (
-    <header
+    <div
       className={cn(
-        "flex items-center px-[16px] gap-0 z-50 flex-shrink-0",
+        "flex items-center px-4 gap-3 flex-shrink-0",
         "bg-(--theme-surface) border-b border-(--theme-border)",
       )}
-      style={{ height: 44 }}
+      style={{ height: "var(--spacing-rt-shell-sub)" }}
     >
-      {/* Brand */}
-      <div className="flex items-center gap-[8px] pr-[16px] border-r border-(--theme-border) mr-[16px] flex-shrink-0">
-        <div
-          className={cn(
-            "w-[24px] h-[24px] rounded-[3px] flex items-center justify-center flex-shrink-0",
-            "border border-(--theme-accent)",
-            "font-['Share_Tech_Mono',monospace] text-[11px] text-(--theme-accent)",
-          )}
-        >
-          R
-        </div>
-        <span className="brand-title text-[13px]">RTDC</span>
-        <div className="w-px h-[14px] bg-(--theme-border)" />
-        <span className="label-mono">Control Room</span>
-      </div>
+      <span className="font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold tracking-[0.04em] text-(--theme-fg) flex items-center gap-2">
+        <span className="text-(--theme-orange)">▴</span>
+        Block 7G · Guntur Geothermal
+      </span>
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-[6px]">
-        <BreadcrumbItem type="link">Home</BreadcrumbItem>
-        <BreadcrumbItem type="separator">›</BreadcrumbItem>
-        <BreadcrumbItem type="current">Well Explorer</BreadcrumbItem>
+      <div className="w-px h-5 bg-(--theme-border)" />
+
+      <div className="flex items-center gap-1">
+        {types.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => onTypeChange(t.key)}
+            className={cn(
+              "px-2.5 py-1 rounded-(--radius-badge)",
+              "font-['Barlow_Condensed',sans-serif] text-fs-11 font-semibold tracking-wider",
+              "transition-colors duration-150",
+              activeType === t.key
+                ? "bg-(--theme-accent-dim) text-(--theme-accent)"
+                : "text-(--theme-fg-dim) hover:text-(--theme-fg-muted)",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex-1" />
 
-      {/* Fleet meta */}
-      <div className="flex items-center gap-[16px] mr-[16px]">
-        {[
-          { label: "Active", value: counts.drilling, status: "ok" as const },
-          {
-            label: "Standby",
-            value: counts.standby,
-            status: "warning" as const,
-          },
-          {
-            label: "Offline",
-            value: counts.offline,
-            status: "inactive" as const,
-          },
-        ].map((m) => (
-          <div key={m.label} className="flex items-center gap-[5px]">
-            <span className="label-mono">{m.label}</span>
-            <ValueReadout value={m.value} size="sm" status={m.status} />
-          </div>
-        ))}
+      <div className="w-[200px]">
+        <Input
+          placeholder="Search well…"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          icon={
+            <span className="text-(--theme-fg-dim)" style={{ fontSize: 13 }}>
+              ⌕
+            </span>
+          }
+          wrapperClassName="h-[26px]"
+          className="py-0 pr-2 text-fs-11"
+        />
       </div>
 
-      {/* User chip */}
-      <div
-        className={cn(
-          "flex items-center gap-[8px] px-[10px] py-[4px]",
-          "border border-(--theme-border) rounded-(--radius-panel)",
-          "hover:border-(--theme-accent) hover:bg-(--theme-elevated)",
-          "transition-all duration-150 cursor-pointer",
-        )}
-      >
-        <div
-          className={cn(
-            "w-[20px] h-[20px] rounded-full",
-            "bg-(--theme-elevated) border border-(--theme-accent)",
-            "flex items-center justify-center",
-            "font-['Share_Tech_Mono',monospace] text-[10px] text-(--theme-accent)",
-          )}
-        >
-          A
-        </div>
-        <div className="flex flex-col">
-          <span className="font-['Barlow_Condensed',sans-serif] text-[11px] font-semibold text-(--theme-fg)">
-            Ahmad R.
-          </span>
-          <span className="label-mono">Driller</span>
-        </div>
-      </div>
-    </header>
+      <span className="label-mono text-(--theme-fg-dim)">
+        {filtered}/{total} wells
+      </span>
+    </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   MAPLIBRE HOOK
-   Handles: init, markers, popups, flyTo, coord tracking.
-═══════════════════════════════════════════════════════════ */
 function useMaplibre({
   containerRef,
   wells,
   onSelectWell,
-  onEnterDashboard,
 }: {
   containerRef: React.RefObject<HTMLDivElement>;
   wells: Well[];
   onSelectWell: (well: Well) => void;
-  onEnterDashboard: (id: string) => void;
 }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<Record<string, maplibregl.Marker>>({});
-  const popupsRef = useRef<Record<string, maplibregl.Popup>>({});
+  const activePopupRef = useRef<maplibregl.Popup | null>(null);
   const [coords, setCoords] = useState("LAT — · LON —");
 
-  // Expose enter callback to popup HTML buttons
-  useEffect(() => {
-    (window as unknown as Record<string, unknown>)["__rtdc_enter"] = (id: string) => {
-      onEnterDashboard(id);
-    };
-    return () => {
-      delete (window as unknown as Record<string, unknown>)["__rtdc_enter"];
-    };
-  }, [onEnterDashboard]);
-
-  // Init map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: [115.0, -2.5],
-      zoom: 4.8,
-      attributionControl: false,
+      center: [107.69, -7.29],
+      zoom: 13,
+      pitch: 70,
+      maxZoom: 18,
+      maxPitch: 85,
     });
 
     map.addControl(
-      new maplibregl.AttributionControl({ compact: true }),
-      "bottom-right",
+      new maplibregl.NavigationControl({
+        visualizePitch: true,
+        showZoom: true,
+        showCompass: true,
+      }),
+      "top-right",
     );
     map.addControl(
-      new maplibregl.NavigationControl({ showCompass: false }),
+      new maplibregl.TerrainControl({ source: "terrainSource", exaggeration: 1 }),
       "top-right",
     );
 
-    // Coord tracker
     map.on("mousemove", (e) => {
       setCoords(
         `LAT ${e.lngLat.lat.toFixed(4)} · LON ${e.lngLat.lng.toFixed(4)}`,
@@ -754,30 +528,187 @@ function useMaplibre({
 
     mapRef.current = map;
 
-    // Add markers after style loads
     map.on("load", () => {
-      wells.forEach((w) => {
-        const el = buildMarkerEl(w);
+      // Block boundary
+      map.addSource("block-boundary", {
+        type: "geojson",
+        data: BLOCK_BOUNDARY,
+      });
+      map.addLayer({
+        id: "block-fill",
+        type: "fill",
+        source: "block-boundary",
+        paint: { "fill-color": "#83a598", "fill-opacity": 0.12 },
+      });
+      // Block outline (halo for contrast on OSM)
+      map.addLayer({
+        id: "block-outline",
+        type: "line",
+        source: "block-boundary",
+        paint: {
+          "line-color": "#0f1214",
+          "line-width": 6,
+          "line-dasharray": [4, 3],
+        },
+      });
+      map.addLayer({
+        id: "block-line",
+        type: "line",
+        source: "block-boundary",
+        paint: {
+          "line-color": "#83a598",
+          "line-width": 3,
+          "line-dasharray": [4, 3],
+        },
+      });
 
+      // Pad boundary outlines (halo)
+      map.addSource("pad-boundaries", {
+        type: "geojson",
+        data: PAD_BOUNDARIES,
+      });
+      map.addLayer({
+        id: "pad-outline",
+        type: "line",
+        source: "pad-boundaries",
+        paint: {
+          "line-color": "#0f1214",
+          "line-width": 5,
+          "line-dasharray": [3, 2],
+        },
+      });
+      map.addLayer({
+        id: "pad-line",
+        type: "line",
+        source: "pad-boundaries",
+        paint: {
+          "line-color": "#d79921",
+          "line-width": 2.5,
+          "line-dasharray": [3, 2],
+          "line-opacity": 0.9,
+        },
+      });
+
+      // Pad labels
+      map.addLayer({
+        id: "pad-labels",
+        type: "symbol",
+        source: "pad-boundaries",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-size": 10,
+          "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+          "text-offset": [0, -1.8],
+          "text-anchor": "center",
+        },
+        paint: {
+          "text-color": "#a89984",
+          "text-halo-color": "#0f1214",
+          "text-halo-width": 2,
+        },
+      });
+
+      // Wells
+      map.addSource("wells", {
+        type: "geojson",
+        data: buildWellsGeoJSON(wells),
+      });
+      map.addLayer({
+        id: "well-circles",
+        type: "circle",
+        source: "wells",
+        paint: {
+          "circle-radius": [
+            "match",
+            ["get", "wellType"],
+            "production", 8,
+            "injection", 7,
+            "delineation", 6,
+            6,
+          ],
+          "circle-color": [
+            "match",
+            ["get", "wellType"],
+            "production", "#b8bb26",
+            "injection", "#83a598",
+            "delineation", "#fabd2f",
+            "#5a524a",
+          ],
+          "circle-opacity": ["case", ["==", ["get", "status"], "offline"], 0.4, 0.9],
+          "circle-stroke-color": "#0f1214",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
+      // Well labels
+      map.addLayer({
+        id: "well-labels",
+        type: "symbol",
+        source: "wells",
+        layout: {
+          "text-field": ["get", "name"],
+          "text-size": 9,
+          "text-font": ["Share Tech Mono", "monospace"],
+          "text-offset": [0, 1.4],
+          "text-anchor": "top",
+        },
+        paint: {
+          "text-color": "#a89984",
+          "text-halo-color": "#0f1214",
+          "text-halo-width": 2,
+        },
+      });
+
+      // Anti-collision lines
+      map.addSource("collision-lines", {
+        type: "geojson",
+        data: buildCollisionLines(),
+      });
+      map.addLayer({
+        id: "collision-line",
+        type: "line",
+        source: "collision-lines",
+        paint: {
+          "line-color": "#fb4934",
+          "line-width": 1.5,
+          "line-dasharray": [2, 2],
+          "line-opacity": 0.6,
+        },
+      });
+
+      // Click on wells
+      map.on("click", "well-circles", (e) => {
+        const feature = e.features?.[0];
+        if (!feature?.properties) return;
+        const wellId = feature.properties.id as string;
+        const well = WELLS.find((w) => w.id === wellId);
+        if (!well) return;
+
+        onSelectWell(well);
+
+        if (activePopupRef.current) activePopupRef.current.remove();
+
+        const isActive = well.status === "drilling";
+        const col = WELL_TYPE_COLOR[well.wellType];
         const popup = new maplibregl.Popup({
           closeButton: true,
           closeOnClick: false,
-          offset: 18,
+          offset: 12,
           className: "rtdc-popup",
           maxWidth: "260px",
-        }).setHTML(buildPopupHTML(w));
-
-        const marker = new maplibregl.Marker({ element: el, anchor: "center" })
-          .setLngLat([w.lon, w.lat])
-          .setPopup(popup)
+        })
+          .setLngLat(e.lngLat)
+          .setHTML(buildPopupHTML(well, col, isActive))
           .addTo(map);
 
-        el.addEventListener("click", () => {
-          onSelectWell(w);
-        });
+        activePopupRef.current = popup;
+      });
 
-        markersRef.current[w.id] = marker;
-        popupsRef.current[w.id] = popup;
+      map.on("mouseenter", "well-circles", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "well-circles", () => {
+        map.getCanvas().style.cursor = "";
       });
     });
 
@@ -785,10 +716,18 @@ function useMaplibre({
       map.remove();
       mapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // flyTo + open popup when a well is selected
+  // Update wells data when filter changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource("wells") as maplibregl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(buildWellsGeoJSON(wells));
+    }
+  }, [wells]);
+
   const flyToWell = useCallback(
     (id: string) => {
       const map = mapRef.current;
@@ -798,15 +737,28 @@ function useMaplibre({
 
       map.flyTo({
         center: [well.lon, well.lat],
-        zoom: 7,
+        zoom: 15,
         duration: 1400,
-        easing: (t) => t * (2 - t), // ease-out quad
+        easing: (t) => t * (2 - t),
       });
 
+      if (activePopupRef.current) activePopupRef.current.remove();
+
       setTimeout(() => {
-        // Close all popups first
-        Object.values(popupsRef.current).forEach((p) => p.remove());
-        markersRef.current[id]?.togglePopup();
+        const col = WELL_TYPE_COLOR[well.wellType];
+        const isActive = well.status === "drilling";
+        const popup = new maplibregl.Popup({
+          closeButton: true,
+          closeOnClick: false,
+          offset: 12,
+          className: "rtdc-popup",
+          maxWidth: "260px",
+        })
+          .setLngLat([well.lon, well.lat])
+          .setHTML(buildPopupHTML(well, col, isActive))
+          .addTo(map);
+
+        activePopupRef.current = popup;
       }, 1450);
     },
     [wells],
@@ -815,11 +767,55 @@ function useMaplibre({
   return { coords, flyToWell };
 }
 
-/* ═══════════════════════════════════════════════════════════
-   MAPLIBRE POPUP DARK STYLE — injected once into <head>
-   NOTE: MapLibre uses "maplibregl-" prefix (bukan "mapboxgl-").
-═══════════════════════════════════════════════════════════ */
+function buildPopupHTML(well: Well, col: string, isActive: boolean): string {
+  const tempCol = isActive ? "#b8bb26" : "#5a524a";
+  const flowCol = isActive ? "#83a598" : "#5a524a";
+  const activeBtnStyle = isActive
+    ? "background:#83a598;color:#0c0e10;"
+    : "background:#32302f;color:#5a524a;";
+
+  return /* html */ `
+    <div>
+      <div class="pop-header">
+        <div class="pop-dot" style="background:${col};${isActive ? `box-shadow:0 0 7px ${col};` : ""}"></div>
+        <div style="flex:1;">
+          <div class="pop-name">${well.name}</div>
+          <div class="pop-sub">${WELL_TYPE_LABEL[well.wellType]} · ${STATUS_LABEL[well.status]}</div>
+        </div>
+      </div>
+
+      <div class="pop-body">
+        <div>
+          <div class="pop-val" style="color:${tempCol};">${well.temperature}</div>
+          <div class="pop-label">Temperature</div>
+        </div>
+        <div>
+          <div class="pop-val" style="color:${flowCol};">${well.flowRate}</div>
+          <div class="pop-label">Flow Rate</div>
+        </div>
+        <div>
+          <div class="pop-val" style="color:#ebdbb2;">${well.pressure}</div>
+          <div class="pop-label">Pressure</div>
+        </div>
+        <div>
+          <div class="pop-val" style="color:#a89984;">${well.targetDepth}</div>
+          <div class="pop-label">TD Target</div>
+        </div>
+      </div>
+
+      <div class="pop-btn-wrap">
+        <button
+          class="pop-btn"
+          onclick="window.__rtdc_enter('${well.id}')"
+          style="${activeBtnStyle}"
+          ${!isActive ? "disabled" : ""}
+        >${isActive ? "Enter Control Room →" : "Unavailable"}</button>
+      </div>
+    </div>`;
+}
+
 const POPUP_STYLES = `
+  /* Density-aware popup — all sizes scale with --fs-scale */
   .rtdc-popup .maplibregl-popup-content {
     background: rgba(34,38,42,0.96);
     backdrop-filter: blur(12px);
@@ -827,6 +823,10 @@ const POPUP_STYLES = `
     border-radius: 4px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.7);
     padding: 0;
+    font-size: calc(0.75rem * var(--fs-scale, 1));
+    font-family: 'Barlow Condensed', sans-serif;
+    color: #ebdbb2;
+    line-height: 1.3;
   }
   .rtdc-popup .maplibregl-popup-tip {
     border-top-color: #3c3836;
@@ -834,7 +834,7 @@ const POPUP_STYLES = `
   }
   .rtdc-popup .maplibregl-popup-close-button {
     color: #5a524a;
-    font-size: 16px;
+    font-size: calc(1rem * var(--fs-scale, 1));
     top: 6px;
     right: 8px;
     background: none;
@@ -846,7 +846,74 @@ const POPUP_STYLES = `
     background: rgba(60,56,54,0.5);
     border-radius: 2px;
   }
-  /* MapLibre nav control overrides */
+
+  /* Popup internal sections */
+  .pop-header {
+    padding: calc(12px * var(--fs-scale, 1)) calc(14px * var(--fs-scale, 1)) calc(10px * var(--fs-scale, 1));
+    border-bottom: 1px solid #3c3836;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pop-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-top: 5px; flex-shrink: 0;
+  }
+  .pop-name {
+    font-size: calc(0.875rem * var(--fs-scale, 1));
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+  }
+  .pop-sub {
+    font-size: calc(0.625rem * var(--fs-scale, 1));
+    color: #a89984;
+    margin-top: 2px;
+    line-height: 1.2;
+  }
+  .pop-body {
+    padding: calc(10px * var(--fs-scale, 1)) calc(14px * var(--fs-scale, 1));
+    border-bottom: 1px solid #3c3836;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .pop-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: calc(0.8125rem * var(--fs-scale, 1));
+    line-height: 1.2;
+  }
+  .pop-label {
+    font-size: calc(0.5rem * var(--fs-scale, 1));
+    color: #5a524a;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .pop-btn-wrap {
+    padding: calc(10px * var(--fs-scale, 1)) calc(14px * var(--fs-scale, 1));
+  }
+  .pop-btn {
+    width: 100%;
+    padding: calc(8px * var(--fs-scale, 1));
+    border: none;
+    border-radius: 3px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: calc(0.6875rem * var(--fs-scale, 1));
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .pop-btn[disabled] {
+    cursor: not-allowed;
+  }
+
   .maplibregl-ctrl-group {
     background: var(--theme-surface) !important;
     border: 1px solid var(--theme-border) !important;
@@ -866,44 +933,34 @@ const POPUP_STYLES = `
   .maplibregl-ctrl-group button span {
     filter: invert(1) brightness(0.6);
   }
-  .maplibregl-ctrl-attrib {
-    background: rgba(25,27,30,0.85) !important;
-    color: #44535f !important;
-    font-size: 8px !important;
-    backdrop-filter: blur(4px);
-  }
-  .maplibregl-ctrl-attrib a { color: #44535f !important; }
-  /* slide-in-right keyframe for sidebar */
   @keyframes slide-in-right {
     from { transform: translateX(100%); opacity: 0; }
     to   { transform: none; opacity: 1; }
   }
 `;
 
-/* ═══════════════════════════════════════════════════════════
-   WELL EXPLORER PAGE
-═══════════════════════════════════════════════════════════ */
 export default function WellExplorer() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [selectedWell, setSelectedWell] = useState<Well | null>(null);
+  const [query, setQuery] = useState("");
+  const [activeType, setActiveType] = useState<Well["wellType"] | "all">("all");
 
-  const handleEnterDashboard = useCallback((id: string) => {
-    // In real app: router.push(`/rig/${id}`)
-    console.log(`→ Navigating to dashboard for well: ${id}`);
-  }, []);
-
-  const handleSelectWell = useCallback((well: Well) => {
-    setSelectedWell(well);
-  }, []);
+  const filteredWells = useMemo(() => {
+    const q = query.toLowerCase();
+    return WELLS.filter((w) => {
+      const matchesQuery =
+        !q || w.name.toLowerCase().includes(q) || w.padId.toLowerCase().includes(q);
+      const matchesType = activeType === "all" || w.wellType === activeType;
+      return matchesQuery && matchesType;
+    });
+  }, [query, activeType]);
 
   const { coords, flyToWell } = useMaplibre({
     containerRef: mapContainerRef as React.RefObject<HTMLDivElement>,
-    wells: WELLS,
-    onSelectWell: handleSelectWell,
-    onEnterDashboard: handleEnterDashboard,
+    wells: filteredWells,
+    onSelectWell: setSelectedWell,
   });
 
-  // When sidebar item clicked → flyTo + show detail
   const handleSidebarSelect = useCallback(
     (well: Well) => {
       setSelectedWell(well);
@@ -914,10 +971,8 @@ export default function WellExplorer() {
 
   return (
     <>
-      {/* Inject popup + control styles once */}
       <style>{POPUP_STYLES}</style>
 
-      {/* Screen guard */}
       <div className="screen-guard">
         <span className="text-[34px] opacity-40">🖥</span>
         <span className="section-heading text-[16px]">
@@ -928,43 +983,48 @@ export default function WellExplorer() {
         </span>
       </div>
 
-      {/* App shell */}
       <div
         className="grid h-screen w-screen overflow-hidden"
-        style={{ gridTemplateRows: "44px 1fr" }}
+        style={{
+          gridTemplateRows:
+            "var(--spacing-rt-shell-top) var(--spacing-rt-shell-sub) 1fr auto",
+        }}
       >
-        {/* Topbar */}
-        <Topbar wells={WELLS} />
+        <UniversalTopbar />
 
-        {/* Main area: map + overlays + sidebar */}
+        <Subheader
+          query={query}
+          onQueryChange={setQuery}
+          activeType={activeType}
+          onTypeChange={setActiveType}
+          total={WELLS.length}
+          filtered={filteredWells.length}
+        />
+
         <div className="relative flex overflow-hidden">
-          {/* ── MapLibre container ── */}
           <div
             ref={mapContainerRef}
             className="flex-1 h-full"
             style={{ background: "#0f1214" }}
           />
 
-          {/* ── Detail panel (top-left over map) ── */}
           {selectedWell && (
             <DetailPanel
               well={selectedWell}
               onClose={() => setSelectedWell(null)}
-              onEnter={handleEnterDashboard}
             />
           )}
 
-          {/* ── Legend + coords (bottom-left over map) ── */}
           <MapOverlay coords={coords} />
 
-          {/* ── Sidebar (right) ── */}
           <Sidebar
-            wells={WELLS}
+            wells={filteredWells}
             selectedId={selectedWell?.id ?? null}
             onSelectWell={handleSidebarSelect}
-            onEnter={handleEnterDashboard}
           />
         </div>
+
+        <Footer />
       </div>
     </>
   );

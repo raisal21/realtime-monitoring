@@ -11,6 +11,42 @@ import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
+// Pre-resolve session-minute for each WP_DATA entry — used by the inverse
+// lookup below; avoids re-parsing date strings on every drag tick.
+const WP_LAST_IDX = WELL_PROFILE_DATA.length - 1;
+const WP_DEPTHS = WELL_PROFILE_DATA.map((d) => d.depth);
+const WP_SESSION_MIN = WELL_PROFILE_DATA.map((d) =>
+  dateToSessionMinute(parseWellProfileDate(d.date)),
+);
+
+// Linear interpolation between successive WP entries. The slider position is
+// a fractional index in [0, WP_LAST_IDX], so depth/time at that position is a
+// continuous quantity — gives smooth handle motion instead of snapping to one
+// of 14 discrete entries.
+function lerpAtIdx(values: readonly number[], idx: number): number {
+  if (idx <= 0) return values[0];
+  if (idx >= WP_LAST_IDX) return values[WP_LAST_IDX];
+  const lo = Math.floor(idx);
+  const t = idx - lo;
+  return values[lo] * (1 - t) + values[lo + 1] * t;
+}
+
+// Inverse of lerpAtIdx for monotonically-increasing series (both depth and
+// session-minute over WP entries are monotonic). Returns fractional WP index
+// matching `value`.
+function idxAt(values: readonly number[], value: number): number {
+  if (value <= values[0]) return 0;
+  if (value >= values[WP_LAST_IDX]) return WP_LAST_IDX;
+  for (let i = 0; i < WP_LAST_IDX; i++) {
+    const a = values[i];
+    const b = values[i + 1];
+    if (value >= a && value <= b) {
+      return b === a ? i : i + (value - a) / (b - a);
+    }
+  }
+  return WP_LAST_IDX;
+}
+
 export function WellProfileTrack() {
   const { state: chart, dispatch } = useChart();
   const { state: settings } = useSettings();
@@ -31,38 +67,39 @@ export function WellProfileTrack() {
       };
       const p = params as DZ & { batch?: DZ[] };
       const raw: DZ = p.batch?.[0] ?? p;
-      const lastIdx = WELL_PROFILE_DATA.length - 1;
 
       // Resolve to fractional indices over WELL_PROFILE_DATA — slider may emit
       // numeric `startValue`/`endValue` OR percentage `start`/`end` (the latter
       // happens when the dataZoom is configured with controlled start/end).
-      let lo: number, hi: number;
+      let loIdx: number, hiIdx: number;
       if (raw.startValue !== undefined && raw.endValue !== undefined) {
-        lo = Math.min(raw.startValue, raw.endValue);
-        hi = Math.max(raw.startValue, raw.endValue);
+        loIdx = Math.min(raw.startValue, raw.endValue);
+        hiIdx = Math.max(raw.startValue, raw.endValue);
       } else if (raw.start !== undefined && raw.end !== undefined) {
-        lo = (Math.min(raw.start, raw.end) / 100) * lastIdx;
-        hi = (Math.max(raw.start, raw.end) / 100) * lastIdx;
+        loIdx = (Math.min(raw.start, raw.end) / 100) * WP_LAST_IDX;
+        hiIdx = (Math.max(raw.start, raw.end) / 100) * WP_LAST_IDX;
       } else {
         return;
       }
-      const startIdx = Math.max(0, Math.min(lastIdx, Math.floor(lo)));
-      const endIdx = Math.max(0, Math.min(lastIdx, Math.ceil(hi)));
-      const startEntry = WELL_PROFILE_DATA[startIdx];
-      const endEntry = WELL_PROFILE_DATA[endIdx];
+      loIdx = Math.max(0, Math.min(WP_LAST_IDX, loIdx));
+      hiIdx = Math.max(0, Math.min(WP_LAST_IDX, hiIdx));
 
+      // Interpolate continuous depth/time at the fractional index, then clamp
+      // to the session window — pre-session entries have no log data.
       if (chart.mode === "depth") {
         const { min: dMin, max: dMax } = WELL_SESSION.depthAxis.range;
-        const lo = Math.max(dMin, Math.min(dMax, Math.min(startEntry.depth, endEntry.depth)));
-        const hi = Math.max(dMin, Math.min(dMax, Math.max(startEntry.depth, endEntry.depth)));
+        const a = lerpAtIdx(WP_DEPTHS, loIdx);
+        const b = lerpAtIdx(WP_DEPTHS, hiIdx);
+        const lo = Math.max(dMin, Math.min(dMax, Math.min(a, b)));
+        const hi = Math.max(dMin, Math.min(dMax, Math.max(a, b)));
         if (hi <= lo) return; // empty overlap with session — keep current range
         dispatch({ type: "SET_RULER_RANGE", min: lo, max: hi });
       } else {
         const { min: tMin, max: tMax } = WELL_SESSION.timeAxis.range;
-        const startMin = dateToSessionMinute(parseWellProfileDate(startEntry.date));
-        const endMin = dateToSessionMinute(parseWellProfileDate(endEntry.date));
-        const lo = Math.max(tMin, Math.min(tMax, Math.min(startMin, endMin)));
-        const hi = Math.max(tMin, Math.min(tMax, Math.max(startMin, endMin)));
+        const a = lerpAtIdx(WP_SESSION_MIN, loIdx);
+        const b = lerpAtIdx(WP_SESSION_MIN, hiIdx);
+        const lo = Math.max(tMin, Math.min(tMax, Math.min(a, b)));
+        const hi = Math.max(tMin, Math.min(tMax, Math.max(a, b)));
         if (hi <= lo) return;
         dispatch({ type: "SET_RULER_RANGE", min: lo, max: hi });
       }
@@ -70,38 +107,20 @@ export function WellProfileTrack() {
     [chart.mode, dispatch],
   );
 
-  // Map current rulerRange back to WP_DATA index envelope so the slider
-  // handles stay in the position the user dragged to. Without this, the
-  // option object is rebuilt on each dispatch with `notMerge`, and ECharts
-  // resets the slider to 0..100 because no `start`/`end` is bound.
+  // Map current rulerRange back to a fractional WP index so the slider handles
+  // stay exactly where the user dragged to. Inverse-interpolation against the
+  // monotonic depth/time series gives sub-entry precision (no snapping to the
+  // nearest of 14 entries). Required because the option object is rebuilt on
+  // each dispatch with `notMerge` and would otherwise reset start/end.
   const sliderRange = useMemo(() => {
-    const lastIdx = WELL_PROFILE_DATA.length - 1;
     const r = chart.rulerRange;
     if (!r) return { startPct: 0, endPct: 100 };
-    let s = 0;
-    let e = lastIdx;
-    if (chart.mode === "depth") {
-      // WP depths are monotonically increasing — outermost envelope.
-      for (let i = 0; i <= lastIdx; i++) {
-        if (WELL_PROFILE_DATA[i].depth <= r.min) s = i;
-      }
-      for (let i = lastIdx; i >= 0; i--) {
-        if (WELL_PROFILE_DATA[i].depth >= r.max) e = i;
-      }
-    } else {
-      for (let i = 0; i <= lastIdx; i++) {
-        const m = dateToSessionMinute(parseWellProfileDate(WELL_PROFILE_DATA[i].date));
-        if (m <= r.min) s = i;
-      }
-      for (let i = lastIdx; i >= 0; i--) {
-        const m = dateToSessionMinute(parseWellProfileDate(WELL_PROFILE_DATA[i].date));
-        if (m >= r.max) e = i;
-      }
-    }
-    if (e < s) e = s;
+    const series = chart.mode === "depth" ? WP_DEPTHS : WP_SESSION_MIN;
+    const s = idxAt(series, r.min);
+    const e = idxAt(series, r.max);
     return {
-      startPct: (s / lastIdx) * 100,
-      endPct: (e / lastIdx) * 100,
+      startPct: (Math.min(s, e) / WP_LAST_IDX) * 100,
+      endPct: (Math.max(s, e) / WP_LAST_IDX) * 100,
     };
   }, [chart.rulerRange, chart.mode]);
 

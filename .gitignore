@@ -25,4 +25,6 @@ dist-ssr
 
 env
 .env
-
+AGENTS.md
+CLAUDE.md
+notes.md

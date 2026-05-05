@@ -34,7 +34,7 @@ function SettingRow({
   );
 }
 
-export function SettingsPopoverContent() {
+export function SettingsPopoverContent({ hideAlarmSound }: { hideAlarmSound?: boolean }) {
   const { state, dispatch } = useSettings();
 
   return (
@@ -121,25 +121,27 @@ export function SettingsPopoverContent() {
         </div>
       </div>
 
-      <div className="px-rt-pad py-rt-pad-sm">
-        <div className="flex items-center gap-1.5 mb-2">
-          <BellRing
-            size={11}
-            strokeWidth={2}
-            className="text-(--theme-fg-dim)"
-          />
-          <span className="section-heading">Alerts</span>
-        </div>
-
-        <div className="flex flex-col gap-rt-gap-sm">
-          <SettingRow label="Sound">
-            <Switch
-              checked={state.soundEnabled}
-              onCheckedChange={() => dispatch({ type: "TOGGLE_SOUND" })}
+      {!hideAlarmSound && (
+        <div className="px-rt-pad py-rt-pad-sm">
+          <div className="flex items-center gap-1.5 mb-2">
+            <BellRing
+              size={11}
+              strokeWidth={2}
+              className="text-(--theme-fg-dim)"
             />
-          </SettingRow>
+            <span className="section-heading">Alerts</span>
+          </div>
+
+          <div className="flex flex-col gap-rt-gap-sm">
+            <SettingRow label="Sound">
+              <Switch
+                checked={state.soundEnabled}
+                onCheckedChange={() => dispatch({ type: "TOGGLE_SOUND" })}
+              />
+            </SettingRow>
+          </div>
         </div>
-      </div>
+      )}
     </PopoverContent>
   );
 }

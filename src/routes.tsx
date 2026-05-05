@@ -7,7 +7,6 @@ import {
 import Dashboard from "@/pages/Dashboard";
 import WellExplorer from "@/pages/WellExplorer";
 import Auth from "@/pages/Auth";
-import AuthPage from "./pages/Auth02";
 
 // Wrapper component to inject wellId into Dashboard
 function DashboardWithWellId() {
@@ -39,7 +38,6 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/wells" replace />} />
       <Route path="/auth" element={<Auth />} />
-      <Route path="/auth2" element={<AuthPage />} />
       <Route path="/wells" element={<WellExplorerWithProviders />} />
       <Route path="/wells/:wellId" element={<WellExplorerWithProviders />} />
       <Route path="/dashboard" element={<DashboardWithWellId />} />

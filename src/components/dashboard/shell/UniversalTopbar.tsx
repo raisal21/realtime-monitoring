@@ -1,6 +1,7 @@
+import * as React from "react";
 import { Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
 import { useLocation, useParams, Link } from "react-router-dom";
-import { useUi } from "@/stores/dashboard-store";
+import { UiContext } from "@/stores/dashboard-store";
 import { CURRENT_WELL } from "@/data/dashboard-static";
 import { getWellName } from "@/data/wells";
 import { Popover, PopoverTrigger } from "@/components/popover";
@@ -10,20 +11,25 @@ import { ConnectionStatus } from "@/components/footer";
 import { cn } from "@/lib/utils";
 import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
 
-export function UniversalTopbar({ wellId }: { wellId?: string }) {
-  const { state: ui, dispatch } = useUi();
+interface UniversalTopbarProps {
+  wellId?: string;
+  /** Replace the default settings + user buttons with custom content */
+  rightContent?: React.ReactNode;
+  /** Hide the breadcrumb section entirely */
+  hideBreadcrumbs?: boolean;
+}
+
+export function UniversalTopbar({ wellId, rightContent, hideBreadcrumbs }: UniversalTopbarProps) {
+  const uiCtx = React.useContext(UiContext);
   const location = useLocation();
   const params = useParams<{ wellId?: string }>();
 
-  // Determine current page context
   const isWellsPage = location.pathname.startsWith("/wells");
   const isDashboardPage = location.pathname.startsWith("/dashboard");
 
-  // Get wellId from props, URL params, or fallback to CURRENT_WELL
   const activeWellId = wellId ?? params.wellId ?? CURRENT_WELL.id;
   const wellName = getWellName(activeWellId);
 
-  // Build breadcrumb items
   const showWellInBreadcrumb = isDashboardPage || (isWellsPage && params.wellId);
   const showDashboardInBreadcrumb = isDashboardPage;
 
@@ -50,68 +56,74 @@ export function UniversalTopbar({ wellId }: { wellId?: string }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <BreadcrumbItem type="link">
-          <Link to="/wells" className="hover:inherit">Wells</Link>
-        </BreadcrumbItem>
+      {!hideBreadcrumbs && (
+        <div className="flex items-center gap-1.5">
+          <BreadcrumbItem type="link">
+            <Link to="/wells" className="hover:inherit">Wells</Link>
+          </BreadcrumbItem>
 
-        {showWellInBreadcrumb && (
-          <>
-            <BreadcrumbItem type="separator">
-              <ChevronRight size={13} strokeWidth={2} />
-            </BreadcrumbItem>
-            <BreadcrumbItem type={showDashboardInBreadcrumb ? "link" : "current"}>
-              {showDashboardInBreadcrumb ? (
-                <Link to={`/wells/${activeWellId}`} className="hover:inherit">{wellName}</Link>
-              ) : (
-                wellName
-              )}
-            </BreadcrumbItem>
-          </>
-        )}
+          {showWellInBreadcrumb && (
+            <>
+              <BreadcrumbItem type="separator">
+                <ChevronRight size={13} strokeWidth={2} />
+              </BreadcrumbItem>
+              <BreadcrumbItem type={showDashboardInBreadcrumb ? "link" : "current"}>
+                {showDashboardInBreadcrumb ? (
+                  <Link to={`/wells/${activeWellId}`} className="hover:inherit">{wellName}</Link>
+                ) : (
+                  wellName
+                )}
+              </BreadcrumbItem>
+            </>
+          )}
 
-        {showDashboardInBreadcrumb && (
-          <>
-            <BreadcrumbItem type="separator">
-              <ChevronRight size={13} strokeWidth={2} />
-            </BreadcrumbItem>
-            <BreadcrumbItem type="current">Dashboard</BreadcrumbItem>
-          </>
-        )}
+          {showDashboardInBreadcrumb && (
+            <>
+              <BreadcrumbItem type="separator">
+                <ChevronRight size={13} strokeWidth={2} />
+              </BreadcrumbItem>
+              <BreadcrumbItem type="current">Dashboard</BreadcrumbItem>
+            </>
+          )}
 
-        {!showWellInBreadcrumb && !showDashboardInBreadcrumb && (
-          <BreadcrumbItem type="current">Wells</BreadcrumbItem>
-        )}
-      </div>
+          {!showWellInBreadcrumb && !showDashboardInBreadcrumb && (
+            <BreadcrumbItem type="current">Wells</BreadcrumbItem>
+          )}
+        </div>
+      )}
 
       <div className="flex-1" />
 
       <ConnectionStatus status="online" className="mr-3" />
 
       <div className="flex items-center gap-1 pl-3 border-l border-(--theme-border)">
-        <Popover
-          open={ui.settingsPopover}
-          onOpenChange={(open) =>
-            dispatch({ type: "SET_SETTINGS_POPOVER", open })
-          }
-        >
-          <PopoverTrigger
-            render={
-              <TopbarButton
-                title="Settings (Cmd+K)"
-                aria-label="Open settings"
-                data-settings-trigger
-              >
-                <SettingsIcon size={16} strokeWidth={2} />
-              </TopbarButton>
-            }
-          />
-          <SettingsPopoverContent />
-        </Popover>
+        {rightContent ?? (
+          <>
+            <Popover
+              open={uiCtx?.state.settingsPopover ?? false}
+              onOpenChange={(open) =>
+                uiCtx?.dispatch({ type: "SET_SETTINGS_POPOVER", open })
+              }
+            >
+              <PopoverTrigger
+                render={
+                  <TopbarButton
+                    title="Settings (Cmd+K)"
+                    aria-label="Open settings"
+                    data-settings-trigger
+                  >
+                    <SettingsIcon size={16} strokeWidth={2} />
+                  </TopbarButton>
+                }
+              />
+              <SettingsPopoverContent hideAlarmSound />
+            </Popover>
 
-        <TopbarButton title="User profile" aria-label="User profile">
-          <CircleUser size={16} strokeWidth={2} />
-        </TopbarButton>
+            <TopbarButton title="User profile" aria-label="User profile">
+              <CircleUser size={16} strokeWidth={2} />
+            </TopbarButton>
+          </>
+        )}
       </div>
     </header>
   );

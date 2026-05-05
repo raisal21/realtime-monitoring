@@ -105,7 +105,7 @@ function uiReducer(s: UiState, a: UiAction): UiState {
   }
 }
 
-const UiContext = createContext<{
+export const UiContext = createContext<{
   state: UiState;
   dispatch: React.Dispatch<UiAction>;
 } | null>(null);

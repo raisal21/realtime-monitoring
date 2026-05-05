@@ -6,10 +6,11 @@ import {
   TRACK_TRACES,
   WELL_SESSION,
   PRESET_TO_MINUTES,
-  presetToDepthSpanFt,
+  presetToDepthSpanM,
 } from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
+import { formatDepth } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 interface LogTrackProps {
@@ -100,8 +101,8 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   let yRange: { min: number; max: number };
   if (chart.liveMode) {
     if (chart.mode === "depth") {
-      const cur = WELL_SESSION.cursor.depthFt;
-      const span = chart.rangePreset ? presetToDepthSpanFt(chart.rangePreset) : 100;
+      const cur = WELL_SESSION.cursor.depthM;
+      const span = chart.rangePreset ? presetToDepthSpanM(chart.rangePreset) : 30;
       yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
     } else {
       const span = chart.rangePreset ? PRESET_TO_MINUTES[chart.rangePreset] ?? 60 : 60;
@@ -237,7 +238,10 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
             fontFamily: "Share Tech Mono, monospace",
             padding: [3, 6],
             formatter: mode === "depth"
-              ? (params: { value: number | string | Date }) => `${Math.round(Number(params.value))} ft`
+              ? (params: { value: number | string | Date }) => {
+                  const d = formatDepth(Number(params.value), settings.unitSystem);
+                  return `${d.value} ${d.unit}`;
+                }
               : (params: { value: number | string | Date }) => {
                   const min = ((Number(params.value) % 1440) + 1440) % 1440;
                   const h = Math.floor(min / 60);

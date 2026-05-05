@@ -32,7 +32,7 @@ export function getTraceColors() {
     hkld:   getCssVar("--trace-hkld"),
     gamma:  getCssVar("--trace-gamma"),
     rop:    getCssVar("--trace-rop"),
-    gas:    getCssVar("--trace-gas"),
+    h2s:    getCssVar("--trace-h2s"),
     inc:    getCssVar("--trace-inc"),
     azi:    getCssVar("--trace-azi"),
   };

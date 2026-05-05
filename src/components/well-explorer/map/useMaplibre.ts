@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import maplibregl from "maplibre-gl";
 import type { Well } from "@/data/wells";
 import { WELLS } from "@/data/wells";
-import { MAP_STYLE, BLOCK_BOUNDARY, PAD_BOUNDARIES, WELL_TYPE_COLOR } from "../lib/constants";
+import { MAP_STYLE, FIELD_BOUNDARY, PAD_BOUNDARIES, WELL_TYPE_COLOR } from "../lib/constants";
 import { buildCollisionLines, buildWellsGeoJSON, buildPopupHTML } from "../lib/utils";
 
 interface UseMaplibreParams {
@@ -52,20 +52,20 @@ export function useMaplibre({ containerRef, wells, onSelectWell }: UseMaplibrePa
     mapRef.current = map;
 
     map.on("load", () => {
-      map.addSource("block-boundary", {
+      map.addSource("field-boundary", {
         type: "geojson",
-        data: BLOCK_BOUNDARY,
+        data: FIELD_BOUNDARY,
       });
       map.addLayer({
-        id: "block-fill",
+        id: "field-fill",
         type: "fill",
-        source: "block-boundary",
+        source: "field-boundary",
         paint: { "fill-color": "#83a598", "fill-opacity": 0.12 },
       });
       map.addLayer({
-        id: "block-outline",
+        id: "field-outline",
         type: "line",
-        source: "block-boundary",
+        source: "field-boundary",
         paint: {
           "line-color": "#0f1214",
           "line-width": 6,
@@ -73,9 +73,9 @@ export function useMaplibre({ containerRef, wells, onSelectWell }: UseMaplibrePa
         },
       });
       map.addLayer({
-        id: "block-line",
+        id: "field-line",
         type: "line",
-        source: "block-boundary",
+        source: "field-boundary",
         paint: {
           "line-color": "#83a598",
           "line-width": 3,

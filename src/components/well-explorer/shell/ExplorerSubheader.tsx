@@ -36,7 +36,7 @@ export function ExplorerSubheader({
     >
       <span className="font-['Barlow_Condensed',sans-serif] text-fs-13 font-bold tracking-[0.04em] text-(--theme-fg) flex items-center gap-2">
         <span className="text-(--theme-orange)">▴</span>
-        Block 7G · Guntur Geothermal
+        Guntur Geothermal Field
       </span>
 
       <div className="w-px h-5 bg-(--theme-border)" />

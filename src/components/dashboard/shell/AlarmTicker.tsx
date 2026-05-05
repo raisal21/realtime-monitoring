@@ -1,5 +1,4 @@
 import React, { useMemo, useEffect, useRef } from "react";
-import { TriangleAlert } from "lucide-react";
 import { useUi, useSettings } from "@/stores/dashboard-store";
 import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
 import { cn } from "@/lib/utils";
@@ -72,25 +71,22 @@ export function AlarmTicker() {
   const renderAlarmEntries = (keyPrefix: string) =>
     unackedAlarms.map((alarm, i) => (
       <React.Fragment key={`${keyPrefix}-${alarm.id}-${i}`}>
-        <button
-          type="button"
-          onClick={() => {
-            dispatch({ type: "TOGGLE_ALARM_SIDEBAR" });
-          }}
+        <span
           className={cn(
-            "inline-flex items-center gap-1.5 cursor-pointer outline-none",
-            "hover:brightness-125 transition-[filter] duration-150",
+            "inline-flex items-center gap-1.5",
             alarm.severity === "critical"
               ? "text-(--theme-critical)"
               : "text-(--theme-warning)",
           )}
         >
-          <TriangleAlert size={11} strokeWidth={2.25} className="shrink-0" />
-          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.04em]">
+          <span className={cn(
+            "font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.04em]",
+            alarm.severity === "critical" ? "crit" : "warn"
+          )}>
             {alarm.severity === "critical" ? "CRITICAL" : "WARNING"}:{" "}
             {alarm.message}
           </span>
-        </button>
+        </span>
         <span className="text-(--theme-fg-dim) shrink-0">·</span>
       </React.Fragment>
     ));
@@ -113,31 +109,49 @@ export function AlarmTicker() {
   return (
     <div
       className={cn(
-        "ticker-strip relative overflow-hidden w-full",
-        "[&:hover_.animate-ticker]:[animation-play-state:paused]",
+        "flex items-center h-[26px] w-full",
+        "bg-(--theme-surface) border-t border-b border-(--theme-border)",
+        "font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.06em]",
+        "overflow-hidden",
+        hasAlarms ? "ticker crit" : "ticker ok",
       )}
     >
+      <div className="flex-1 overflow-hidden relative h-full flex items-center">
+        <div
+          className={cn(
+            "animate-ticker inline-flex gap-8 whitespace-nowrap",
+            "hover:[animation-play-state:paused]",
+            hasAlarms ? "[animation-duration:32s]" : "[animation-duration:60s]",
+          )}
+        >
+          {hasAlarms ? (
+            <>
+              {renderAlarmEntries("a")}
+              {renderAlarmEntries("b")}
+              {renderAlarmEntries("c")}
+              {renderAlarmEntries("d")}
+            </>
+          ) : (
+            <>
+              {renderNominalEntries("a")}
+              {renderNominalEntries("b")}
+              {renderNominalEntries("c")}
+              {renderNominalEntries("d")}
+            </>
+          )}
+        </div>
+      </div>
+
       <div
         className={cn(
-          "animate-ticker inline-flex gap-8 whitespace-nowrap",
-          !hasAlarms && "[animation-duration:60s]",
+          "flex-shrink-0 h-full flex items-center px-3",
+          "text-[10px] uppercase tracking-[0.18em] border-l border-(--theme-border)",
+          hasAlarms
+            ? "bg-[color-mix(in_srgb,var(--theme-critical)_18%,var(--theme-surface))] text-(--theme-critical) border-[color-mix(in_srgb,var(--theme-critical)_60%,transparent)]"
+            : "bg-[color-mix(in_srgb,var(--theme-ok)_14%,var(--theme-surface))] text-(--theme-ok) border-[color-mix(in_srgb,var(--theme-ok)_50%,transparent)]",
         )}
       >
-        {hasAlarms ? (
-          <>
-            {renderAlarmEntries("a")}
-            {renderAlarmEntries("b")}
-            {renderAlarmEntries("c")}
-            {renderAlarmEntries("d")}
-          </>
-        ) : (
-          <>
-            {renderNominalEntries("a")}
-            {renderNominalEntries("b")}
-            {renderNominalEntries("c")}
-            {renderNominalEntries("d")}
-          </>
-        )}
+        {hasAlarms ? `Critical · ${unackedAlarms.length}` : "All Clear"}
       </div>
     </div>
   );

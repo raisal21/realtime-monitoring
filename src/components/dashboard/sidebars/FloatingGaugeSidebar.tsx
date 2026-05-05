@@ -28,7 +28,7 @@ const GAUGE_RANGES: Record<string, { min: number; max: number }> = {
   hkld:   { min: 0, max: 300  },
   gamma:  { min: 0, max: 150  },
   rop:    { min: 0, max: 60   },
-  gas:    { min: 0, max: 50   },
+  h2s:    { min: 0, max: 50   },
   inc:    { min: 0, max: 90   },
   azi:    { min: 0, max: 360  },
 };
@@ -168,7 +168,7 @@ function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme:
   );
 }
 
-// ─── Flat value card (ROP, Gas, Gamma) ───────────────────────────────────────
+// ─── Flat value card (ROP, H2S, Gamma) ───────────────────────────────────────
 
 function ValueCard({ gauge }: { gauge: GaugeConfig }) {
   const numVal = parseFloat(gauge.value.replace(/,/g, ""));
@@ -381,7 +381,7 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
   ) as Record<string, GaugeConfig>;
 
   const radialIds = ["rpm", "wob", "spp", "hkld", "torque"] as const;
-  const valueIds  = ["rop", "gas", "gamma"] as const;
+  const valueIds  = ["rop", "h2s", "gamma"] as const;
   const incGauge  = gaugeMap["inc"];
   const aziGauge  = gaugeMap["azi"];
 

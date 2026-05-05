@@ -5,6 +5,7 @@ import {
   type Density,
   type FontSize,
 } from "@/stores/dashboard-store";
+import type { UnitSystem } from "@/lib/units";
 import { THEMES } from "@/data/dashboard-static";
 import {
   PopoverContent,
@@ -93,11 +94,10 @@ export function SettingsPopoverContent({ hideAlarmSound }: { hideAlarmSound?: bo
           <SettingRow label="Density">
             <ToggleGroup
               value={[state.density] as readonly string[]}
-              onValueChange={(v: readonly string[]) =>
-                v &&
-                v[0] &&
-                dispatch({ type: "SET_DENSITY", density: v[0] as Density })
-              }
+              onValueChange={(v: readonly string[]) => {
+                const next = v?.[0];
+                if (next) dispatch({ type: "SET_DENSITY", density: next as Density });
+              }}
             >
               <ToggleItem value="compact">Compact</ToggleItem>
               <ToggleItem value="comfortable">Comfort</ToggleItem>
@@ -107,15 +107,28 @@ export function SettingsPopoverContent({ hideAlarmSound }: { hideAlarmSound?: bo
           <SettingRow label="Font Size">
             <ToggleGroup
               value={[state.fontSize] as readonly string[]}
-              onValueChange={(v: readonly string[]) =>
-                v &&
-                v[0] &&
-                dispatch({ type: "SET_FONT_SIZE", size: v[0] as FontSize })
-              }
+              onValueChange={(v: readonly string[]) => {
+                const next = v?.[0];
+                if (next) dispatch({ type: "SET_FONT_SIZE", size: next as FontSize });
+              }}
             >
               <ToggleItem value="sm">SM</ToggleItem>
               <ToggleItem value="md">MD</ToggleItem>
               <ToggleItem value="lg">LG</ToggleItem>
+            </ToggleGroup>
+          </SettingRow>
+
+          <SettingRow label="Units">
+            <ToggleGroup
+              value={[state.unitSystem] as readonly string[]}
+              onValueChange={(v: readonly string[]) => {
+                const next = v?.[0];
+                if (next)
+                  dispatch({ type: "SET_UNIT_SYSTEM", system: next as UnitSystem });
+              }}
+            >
+              <ToggleItem value="metric">Metric</ToggleItem>
+              <ToggleItem value="imperial">Imperial</ToggleItem>
             </ToggleGroup>
           </SettingRow>
         </div>

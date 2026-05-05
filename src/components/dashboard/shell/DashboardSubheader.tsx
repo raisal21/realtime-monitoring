@@ -1,34 +1,24 @@
 import { Clock, Bell } from "lucide-react";
 import { useClock, useResizeObserver } from "@/hooks/dashboard-hooks";
-import { CURRENT_WELL, WELL_SESSION, FEED_ITEMS } from "@/data/dashboard-static";
-import { getWellById } from "@/data/wells";
+import { WELL_SESSION, FEED_ITEMS, FIELD_INFO } from "@/data/dashboard-static";
+import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import { PAD_NAMES } from "@/components/well-explorer/sidebar/PadMap";
 import { useSettings, useUi } from "@/stores/dashboard-store";
+import { formatDepth } from "@/lib/units";
 import { ValueReadout } from "@/components/telemetry";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 
-const padNames: Record<string, string> = {
-  "pad-a": "Guntur",
-  "pad-b": "Talpad",
-  "pad-c": "North Ridge",
-};
-
-export function DashboardSubheader({ wellId }: { wellId?: string }) {
+export function DashboardSubheader() {
   const time = useClock();
   const { state: settings } = useSettings();
   const { dispatch } = useUi();
   const [ref, width] = useResizeObserver<HTMLDivElement>();
+  const { well } = useCurrentWell();
 
-  // Resolve the active well
-  const well = wellId ? getWellById(wellId) : undefined;
-  const displayWell = well ?? CURRENT_WELL;
-
-  // Build the label parts
-  const wellLabel = well ? well.name : displayWell.name;
-  const blockLabel = well
-    ? (padNames[well.padId] ?? well.padId)
-    : displayWell.block;
-  const regionLabel = well?.region ?? displayWell.region;
+  const wellLabel = well.name;
+  const padLabel = PAD_NAMES[well.padId] ?? well.padId;
+  const regionLabel = well.region ?? FIELD_INFO.region;
 
   const unackedCritical = useMemo(
     () =>
@@ -63,7 +53,7 @@ export function DashboardSubheader({ wellId }: { wellId?: string }) {
             <>
               {wellLabel}
               <span className="text-(--theme-fg-muted) font-normal mx-2">·</span>
-              {blockLabel}
+              Pad {padLabel}
               <span className="text-(--theme-fg-dim) font-normal mx-2">·</span>
               <span className="text-(--theme-fg-muted) font-normal">
                 {regionLabel}
@@ -73,7 +63,7 @@ export function DashboardSubheader({ wellId }: { wellId?: string }) {
             <>
               {wellLabel}
               <span className="text-(--theme-fg-muted) font-normal mx-2">·</span>
-              {blockLabel}
+              Pad {padLabel}
             </>
           )}
         </span>
@@ -87,7 +77,10 @@ export function DashboardSubheader({ wellId }: { wellId?: string }) {
 
       <div className="flex items-center gap-1.5 flex-shrink-0 pl-4 border-l border-(--theme-border)">
         <span className="label-mono">Live Depth</span>
-        <ValueReadout value={WELL_SESSION.cursor.depthLabel} unit="ft MD" size="md" status="info" />
+        {(() => {
+          const d = formatDepth(WELL_SESSION.cursor.depthM, settings.unitSystem);
+          return <ValueReadout value={d.value} unit={`${d.unit} MD`} size="md" status="info" />;
+        })()}
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0 pl-3 border-l border-(--theme-border)">

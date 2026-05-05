@@ -34,12 +34,12 @@ export const MAP_STYLE: StyleSpecification = {
   sky: {},
 };
 
-export const BLOCK_BOUNDARY: GeoJSON.FeatureCollection = {
+export const FIELD_BOUNDARY: GeoJSON.FeatureCollection = {
   type: "FeatureCollection",
   features: [
     {
       type: "Feature",
-      properties: { name: "Block 7G" },
+      properties: { name: "Guntur Geothermal Field" },
       geometry: {
         type: "Polygon",
         coordinates: [[

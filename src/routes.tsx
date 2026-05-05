@@ -4,32 +4,39 @@ import {
   ChartProvider,
   SettingsProvider,
 } from "@/stores/dashboard-store";
+import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
 import Dashboard from "@/pages/Dashboard";
 import WellExplorer from "@/pages/WellExplorer";
 import Auth from "@/pages/Auth";
+import NotFoundPage from "@/pages/404";
 
 // Wrapper component to inject wellId into Dashboard
 function DashboardWithWellId() {
   const { wellId } = useParams<{ wellId?: string }>();
   return (
-    <UiProvider>
-      <ChartProvider>
-        <SettingsProvider>
-          <Dashboard wellId={wellId} />
-        </SettingsProvider>
-      </ChartProvider>
-    </UiProvider>
+    <CurrentWellProvider wellId={wellId}>
+      <UiProvider>
+        <ChartProvider>
+          <SettingsProvider>
+            <Dashboard />
+          </SettingsProvider>
+        </ChartProvider>
+      </UiProvider>
+    </CurrentWellProvider>
   );
 }
 
 // Wrapper component to inject well selection into WellExplorer
 function WellExplorerWithProviders() {
+  const { wellId } = useParams<{ wellId?: string }>();
   return (
-    <UiProvider>
-      <SettingsProvider>
-        <WellExplorer />
-      </SettingsProvider>
-    </UiProvider>
+    <CurrentWellProvider wellId={wellId}>
+      <UiProvider>
+        <SettingsProvider>
+          <WellExplorer />
+        </SettingsProvider>
+      </UiProvider>
+    </CurrentWellProvider>
   );
 }
 
@@ -42,6 +49,7 @@ export function AppRoutes() {
       <Route path="/wells/:wellId" element={<WellExplorerWithProviders />} />
       <Route path="/dashboard" element={<DashboardWithWellId />} />
       <Route path="/dashboard/:wellId" element={<DashboardWithWellId />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

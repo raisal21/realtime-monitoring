@@ -193,7 +193,7 @@
   --trace-hkld:   #c48eaa;
   --trace-gamma:  #90ba84;
   --trace-rop:    #d4786a;
-  --trace-gas:    #c86868;
+  --trace-h2s:    #c86868;
   --trace-inc:    #6aaec4;
   --trace-azi:    #86b88e;
 }
@@ -236,7 +236,7 @@
   --trace-hkld:   #ac90b4;
   --trace-gamma:  #5eb4bc;
   --trace-rop:    #c47070;
-  --trace-gas:    #be6262;
+  --trace-h2s:    #be6262;
   --trace-inc:    #80b0c8;
   --trace-azi:    #94a4b4;
 }
@@ -279,7 +279,7 @@
   --trace-hkld:   #b83878;
   --trace-gamma:  #2898c8;
   --trace-rop:    #c03838;
-  --trace-gas:    #b04060;
+  --trace-h2s:    #b04060;
   --trace-inc:    #6070c0;
   --trace-azi:    #6a9090;
 }

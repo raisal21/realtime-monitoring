@@ -3,6 +3,8 @@
 import { cn } from "@/lib/utils";
 import RigIllustration from "@/components/illustrations/RigIllustration";
 import LoginForm from "@/components/auth/LoginForm";
+import PulseRLockup from "@/components/brand/PulseRLockup";
+import PulseR from "@/components/brand/PulseR";
 
 export interface AuthCardProps {
   onSignIn?: () => void;
@@ -23,17 +25,7 @@ export default function AuthCard({ onSignIn }: AuthCardProps) {
       <div className="px-rt-pad py-rt-pad">
         {/* Brand row */}
         <div className="flex items-center gap-rt-gap-sm mb-rt-gap-sm">
-          <div
-            className={cn(
-              "w-[25px] h-[25px] rounded-[3px]",
-              "border border-(--theme-accent)",
-              "flex items-center justify-center flex-shrink-0",
-              "font-['Share_Tech_Mono',monospace] text-fs-11 text-(--theme-accent)",
-            )}
-          >
-            R
-          </div>
-          <span className="brand-title">RTDC</span>
+          <PulseRLockup size={25} showTagline={false} />
           <div className="w-px h-[14px] bg-(--theme-border)" />
           <span className="label-mono">Control Room</span>
         </div>
@@ -68,9 +60,12 @@ export default function AuthCard({ onSignIn }: AuthCardProps) {
             "text-(--theme-fg-dim) tracking-[0.08em]",
           )}
         >
-          <span>RTDC v0.2.0-alpha</span>
+          <span className="inline-flex items-center gap-1">
+            <PulseR size={12} />
+            RTDC v0.2.0-alpha
+          </span>
           <span className="text-(--theme-border)">·</span>
-          <span>Alpha-1 · Pad Guntur</span>
+          <span>Guntur Geothermal Field · Garut, West Java</span>
         </div>
       </div>
     </div>

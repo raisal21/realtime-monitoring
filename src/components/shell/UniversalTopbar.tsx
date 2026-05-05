@@ -2,7 +2,7 @@ import * as React from "react";
 import { Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
 import { useLocation, useParams, Link } from "react-router-dom";
 import { UiContext } from "@/stores/dashboard-store";
-import { CURRENT_WELL } from "@/data/dashboard-static";
+import { useOptionalCurrentWell } from "@/contexts/CurrentWellContext";
 import { getWellName } from "@/data/wells";
 import { Popover, PopoverTrigger } from "@/components/popover";
 import { TopbarButton } from "@/components/navigation";
@@ -10,16 +10,14 @@ import { BreadcrumbItem } from "@/components/navigation";
 import { ConnectionStatus } from "@/components/footer";
 import { cn } from "@/lib/utils";
 import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
+import PulseRLockup from "@/components/brand/PulseRLockup";
 
 interface UniversalTopbarProps {
-  wellId?: string;
-  /** Replace the default settings + user buttons with custom content */
   rightContent?: React.ReactNode;
-  /** Hide the breadcrumb section entirely */
   hideBreadcrumbs?: boolean;
 }
 
-export function UniversalTopbar({ wellId, rightContent, hideBreadcrumbs }: UniversalTopbarProps) {
+export function UniversalTopbar({ rightContent, hideBreadcrumbs }: UniversalTopbarProps) {
   const uiCtx = React.useContext(UiContext);
   const location = useLocation();
   const params = useParams<{ wellId?: string }>();
@@ -27,10 +25,11 @@ export function UniversalTopbar({ wellId, rightContent, hideBreadcrumbs }: Unive
   const isWellsPage = location.pathname.startsWith("/wells");
   const isDashboardPage = location.pathname.startsWith("/dashboard");
 
-  const activeWellId = wellId ?? params.wellId ?? CURRENT_WELL.id;
-  const wellName = getWellName(activeWellId);
+  const ctx = useOptionalCurrentWell();
+  const activeWellId = ctx?.wellId ?? params.wellId;
+  const wellName = activeWellId ? getWellName(activeWellId) : "";
 
-  const showWellInBreadcrumb = isDashboardPage || (isWellsPage && params.wellId);
+  const showWellInBreadcrumb = isDashboardPage || (isWellsPage && !!ctx?.wellId);
   const showDashboardInBreadcrumb = isDashboardPage;
 
   return (
@@ -41,15 +40,7 @@ export function UniversalTopbar({ wellId, rightContent, hideBreadcrumbs }: Unive
       )}
     >
       <div className="flex items-center gap-2.5 pr-4 mr-4 border-r border-(--theme-border) flex-shrink-0">
-        <div
-          className={cn(
-            "w-7 h-7 rounded-(--radius-badge)",
-            "bg-(--theme-accent) flex items-center justify-center flex-shrink-0",
-            "font-['Share_Tech_Mono',monospace] text-fs-12 font-bold text-(--theme-base)",
-          )}
-        >
-          R
-        </div>
+        <PulseRLockup size={28} showTagline={false} />
         <div className="flex flex-col leading-tight">
           <span className="brand-title text-fs-13 leading-none">RTDC</span>
           <span className="label-mono leading-none mt-0.5">Control Room</span>

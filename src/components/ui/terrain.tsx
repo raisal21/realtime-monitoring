@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSettings } from "@/stores/dashboard-store";
+import { SettingsContext } from "@/stores/dashboard-store";
 
 export type TerrainPreset = "gruvbox" | "tomorrow" | "solarized";
 
@@ -371,10 +371,10 @@ export default function Terrain({
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rafRef = React.useRef(0);
   const startRef = React.useRef<number>(0);
-  const settings = useSettings();
+  const settings = React.useContext(SettingsContext);
 
-  const theme = settings.state.theme as TerrainPreset;
-  const tweaks = PRESETS[theme] ?? PRESETS[preset];
+  const theme = settings?.state?.theme as TerrainPreset | undefined;
+  const tweaks = PRESETS[theme ?? preset] ?? PRESETS[preset];
 
   React.useEffect(() => {
     const canvas = canvasRef.current;

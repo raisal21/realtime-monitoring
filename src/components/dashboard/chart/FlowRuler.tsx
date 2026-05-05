@@ -4,10 +4,11 @@ import type { EChartsOption } from "echarts";
 import {
   WELL_SESSION,
   PRESET_TO_MINUTES,
-  presetToDepthSpanFt,
+  presetToDepthSpanM,
 } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
+import { formatDepth } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 const minutesToHHMM = (min: number) => {
@@ -36,10 +37,10 @@ export function FlowRuler() {
   let yRange: { min: number; max: number };
   if (chart.liveMode) {
     if (chart.mode === "depth") {
-      const cur = WELL_SESSION.cursor.depthFt;
+      const cur = WELL_SESSION.cursor.depthM;
       const span = chart.rangePreset
-        ? presetToDepthSpanFt(chart.rangePreset)
-        : 100;
+        ? presetToDepthSpanM(chart.rangePreset)
+        : 30;
       yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
     } else {
       const span = chart.rangePreset
@@ -147,10 +148,8 @@ export function FlowRuler() {
           const isIn = flow >= 0;
           const direction = isIn ? "◀ In" : "▶ Out";
           const color = isIn ? c.info : c.critical;
-          const label =
-            mode === "depth"
-              ? `${Math.round(yVal).toLocaleString()} ft`
-              : minutesToHHMM(yVal);
+          const d = formatDepth(yVal, settings.unitSystem);
+          const label = mode === "depth" ? `${d.value} ${d.unit}` : minutesToHHMM(yVal);
           return [
             `<span style="color:${c.fgDim}">${label}</span>`,
             `<span style="color:${color}">${direction}: ${Math.abs(flow).toFixed(1)} gpm</span>`,

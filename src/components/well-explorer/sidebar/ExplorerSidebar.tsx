@@ -50,13 +50,19 @@ export function ExplorerSidebar({ wells, selectedId, onSelectWell }: ExplorerSid
             onEnter={w.status === "drilling" ? () => {} : undefined}
             wellType={w.wellType}
             metrics={
-              w.status === "drilling"
+              w.phase === "drilling"
                 ? [
+                    { key: "Depth", value: w.currentDepth ?? "—" },
+                    { key: "ROP", value: w.rop ?? "—" },
+                    { key: "Days", value: w.daysOnWell != null ? String(w.daysOnWell) : "—" },
+                  ]
+                : w.phase === "completion" || w.phase === "shut-in"
+                ? [{ key: "TD Target", value: w.targetDepth }]
+                : [
                     { key: "Temp", value: w.temperature },
                     { key: "Flow", value: w.flowRate },
                     { key: "Press", value: w.pressure },
                   ]
-                : [{ key: "TD Target", value: w.targetDepth }]
             }
           />
         ))}

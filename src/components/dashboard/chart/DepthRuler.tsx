@@ -3,15 +3,16 @@ import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import {
   WELL_SESSION,
-  presetToDepthSpanFt,
+  presetToDepthSpanM,
   PRESET_TO_MINUTES,
   timeRangeToDepthRange,
 } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
+import { formatDepth, mToFt } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_DEPTH_SPAN = 100;
+const DEFAULT_DEPTH_SPAN = 30;
 
 function getEffectiveRange(
   isPrimary: boolean,
@@ -23,9 +24,9 @@ function getEffectiveRange(
 ) {
   if (isPrimary) {
     if (liveMode) {
-      const currentDepth = WELL_SESSION.cursor.depthFt;
+      const currentDepth = WELL_SESSION.cursor.depthM;
       const depthSpan = rangePreset
-        ? presetToDepthSpanFt(rangePreset)
+        ? presetToDepthSpanM(rangePreset)
         : DEFAULT_DEPTH_SPAN;
       const start = Math.max(sessionMin, currentDepth - depthSpan);
       return { min: start, max: currentDepth };
@@ -170,17 +171,17 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
 
   const fsScale = FS_SCALE[settings.fontSize];
 
-  // Adaptive tick density — depth range can span up to ~1300 ft, but zoom can
-  // narrow it well below 100 ft, so we step from 100→25→10→2 ft.
+  // Adaptive tick density (canonical: meters). Depth range can span up to
+  // ~400 m; zoom can narrow well below 30 m. Steps: 15→8→3→1 m.
   const span = yRange.max - yRange.min;
   const { tickInterval, labelInterval } =
-    span > 800
-      ? { tickInterval: 50, labelInterval: 200 }
-      : span > 200
-      ? { tickInterval: 25, labelInterval: 100 }
-      : span > 50
-      ? { tickInterval: 10, labelInterval: 25 }
-      : { tickInterval: 2, labelInterval: 10 };
+    span > 240
+      ? { tickInterval: 15, labelInterval: 60 }
+      : span > 60
+      ? { tickInterval: 8, labelInterval: 30 }
+      : span > 15
+      ? { tickInterval: 3, labelInterval: 8 }
+      : { tickInterval: 1, labelInterval: 3 };
 
   // Snap axis bounds to tickInterval so generated ticks land on round numbers
   // (formatter relies on `val % labelInterval === 0`). Without snapping, float
@@ -236,8 +237,11 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
             fontSize: 9 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
-            formatter: (val: number) =>
-              val % labelInterval === 0 ? Math.round(val).toLocaleString() : "",
+            formatter: (val: number) => {
+              if (val % labelInterval !== 0) return "";
+              const out = settings.unitSystem === "imperial" ? mToFt(val) : val;
+              return Math.round(out).toLocaleString();
+            },
           },
           splitLine: { show: false },
           axisPointer: {
@@ -361,7 +365,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
         >
           Depth
         </span>
-        <div className="label-mono mt-0.5">ft MD</div>
+        <div className="label-mono mt-0.5">{formatDepth(0, settings.unitSystem).unit} MD</div>
       </div>
 
       <div className="h-[72px] flex-shrink-0 border-b border-(--theme-border) flex flex-col">
@@ -378,7 +382,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
-            {yRange.min.toLocaleString()}
+            {formatDepth(yRange.min, settings.unitSystem).value}
           </span>
         </div>
         <div className="flex flex-1">
@@ -403,7 +407,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
-            {yRange.max.toLocaleString()}
+            {formatDepth(yRange.max, settings.unitSystem).value}
           </span>
         </div>
       </div>

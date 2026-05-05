@@ -8,6 +8,7 @@ import {
   dateToSessionMinute,
 } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
+import { formatDepth } from "@/lib/units";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
@@ -126,8 +127,8 @@ export function WellProfileTrack() {
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
-    const { data, maxDepthFt } = WELL_SESSION.wellProfile;
-    const { depthFt: currentDepthFt } = WELL_SESSION.cursor;
+    const { data, maxDepthM } = WELL_SESSION.wellProfile;
+    const { depthM: currentDepthM } = WELL_SESSION.cursor;
 
     const dates = data.map((d) => d.date) as string[];
     const depths = data.map((d) => d.depth);
@@ -164,13 +165,14 @@ export function WellProfileTrack() {
           const ps = params as Array<{ axisValue: string; value: number }>;
           if (!ps?.[0]) return "";
           const { axisValue, value } = ps[0];
-          return `<span style="color:${c.fgMuted}">${axisValue}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${value.toLocaleString()} ft</span>`;
+          const d = formatDepth(value, settings.unitSystem);
+          return `<span style="color:${c.fgMuted}">${axisValue}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${d.value} ${d.unit}</span>`;
         },
       },
       xAxis: {
         type: "value",
         min: 0,
-        max: maxDepthFt,
+        max: maxDepthM,
         inverse: false,
         axisLine: { show: false },
         axisTick: { show: false },
@@ -185,8 +187,10 @@ export function WellProfileTrack() {
             fontSize: 8 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             padding: [3, 6],
-            formatter: (params: { value: number | string | Date }) =>
-              `${Math.round(Number(params.value))} ft`,
+            formatter: (params: { value: number | string | Date }) => {
+              const d = formatDepth(Number(params.value), settings.unitSystem);
+              return `${d.value} ${d.unit}`;
+            },
           },
         },
         splitLine: {
@@ -247,7 +251,7 @@ export function WellProfileTrack() {
           lineStyle: { color: c.accent, width: 1.5, opacity: 0.95 },
           endLabel: {
             show: true,
-            formatter: `${currentDepthFt.toLocaleString()}`,
+            formatter: formatDepth(currentDepthM, settings.unitSystem).value,
             color: c.accent,
             fontSize: 8 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
@@ -353,7 +357,10 @@ export function WellProfileTrack() {
           TD
         </span>
         <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-fg-muted) tabular">
-          {WELL_SESSION.wellProfile.maxDepthFt.toLocaleString()} ft
+          {(() => {
+            const d = formatDepth(WELL_SESSION.wellProfile.maxDepthM, settings.unitSystem);
+            return `${d.value} ${d.unit}`;
+          })()}
         </span>
       </div>
     </div>

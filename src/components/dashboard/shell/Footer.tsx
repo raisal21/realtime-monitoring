@@ -1,9 +1,12 @@
 import { AlarmTicker } from "@/components/dashboard/shell/AlarmTicker";
-import { CURRENT_WELL } from "@/data/dashboard-static";
-import { FooterStat } from "@/components/footer";
+import { FIELD_INFO } from "@/data/dashboard-static";
+import { useCurrentWell } from "@/contexts/CurrentWellContext";
 import { cn } from "@/lib/utils";
+import PulseR from "@/components/brand/PulseR";
 
-export function Footer({ droppedFrames = 0 }: { droppedFrames?: number }) {
+export function Footer(_props: { droppedFrames?: number } = {}) {
+  const { well } = useCurrentWell();
+
   return (
     <footer
       className={cn(
@@ -14,20 +17,16 @@ export function Footer({ droppedFrames = 0 }: { droppedFrames?: number }) {
     >
       <span
         className={cn(
+          "inline-flex items-center gap-1",
           "font-['Share_Tech_Mono',monospace] text-fs-9 tracking-[0.06em]",
           "text-(--theme-fg-dim) shrink-0",
         )}
       >
-        RTDC v0.2.0-alpha · {CURRENT_WELL.name} · © 2025
+        <PulseR size={10} />
+        RTDC v0.2.0-alpha · {well.name} · {FIELD_INFO.field} · © 2026
       </span>
 
       <AlarmTicker />
-
-      <div className="flex items-center gap-3 shrink-0 ml-auto">
-        <FooterStat value="48 ms" label="Ping" />
-        <FooterStat value={`${droppedFrames} frames`} label="Dropped" />
-        <FooterStat value="—" label="Retry" />
-      </div>
     </footer>
   );
 }

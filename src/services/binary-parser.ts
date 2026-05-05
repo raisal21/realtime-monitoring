@@ -64,7 +64,7 @@ export const readGeoBuff = (buffer: ArrayBuffer): GeoUpdate | null => {
     depth: view.getFloat32(16),
     gamma: view.getFloat32(20),
     rop: view.getFloat32(24),
-    gas: view.getFloat32(28),
+    h2s: view.getFloat32(28),
     inc: view.getFloat32(32),
     azi: view.getFloat32(36),
   };

@@ -1,10 +1,12 @@
 import React, {
   useReducer,
   useContext,
+  useEffect,
   createContext,
   type ReactNode,
 } from "react";
 import { TRACKS_META, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
+import type { UnitSystem } from "@/lib/units";
 
 export { TRACKS_META } from "@/data/dashboard-static";
 
@@ -185,7 +187,7 @@ const chartInitial: ChartState = {
     hkld: true,
     gamma: true,
     rop: true,
-    gas: true,
+    h2s: true,
     inc: true,
     azi: true,
   },
@@ -375,6 +377,7 @@ type SettingsState = {
   smoothing: boolean;
   soundEnabled: boolean;
   notificationsEnabled: boolean;
+  unitSystem: UnitSystem;
 };
 
 type SettingsAction =
@@ -384,7 +387,16 @@ type SettingsAction =
   | { type: "SET_SAMPLE_RATE"; rate: SampleRate }
   | { type: "TOGGLE_SMOOTHING" }
   | { type: "TOGGLE_SOUND" }
-  | { type: "TOGGLE_NOTIFICATIONS" };
+  | { type: "TOGGLE_NOTIFICATIONS" }
+  | { type: "SET_UNIT_SYSTEM"; system: UnitSystem };
+
+const UNIT_SYSTEM_KEY = "rtdc.unitSystem";
+
+function readUnitSystem(): UnitSystem {
+  if (typeof localStorage === "undefined") return "metric";
+  const v = localStorage.getItem(UNIT_SYSTEM_KEY);
+  return v === "imperial" || v === "metric" ? v : "metric";
+}
 
 const settingsInitial: SettingsState = {
   theme: "gruvbox",
@@ -394,6 +406,7 @@ const settingsInitial: SettingsState = {
   smoothing: false,
   soundEnabled: true,
   notificationsEnabled: true,
+  unitSystem: readUnitSystem(),
 };
 
 function settingsReducer(s: SettingsState, a: SettingsAction): SettingsState {
@@ -412,12 +425,14 @@ function settingsReducer(s: SettingsState, a: SettingsAction): SettingsState {
       return { ...s, soundEnabled: !s.soundEnabled };
     case "TOGGLE_NOTIFICATIONS":
       return { ...s, notificationsEnabled: !s.notificationsEnabled };
+    case "SET_UNIT_SYSTEM":
+      return { ...s, unitSystem: a.system };
     default:
       return s;
   }
 }
 
-const SettingsContext = createContext<{
+export const SettingsContext = createContext<{
   state: SettingsState;
   dispatch: React.Dispatch<SettingsAction>;
 } | null>(null);
@@ -432,6 +447,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   document && (document.documentElement.dataset.fontSize = state.fontSize);
   // eslint-disable-next-line
   document && (document.documentElement.dataset.density = state.density);
+
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(UNIT_SYSTEM_KEY, state.unitSystem);
+    }
+  }, [state.unitSystem]);
 
   return (
     <SettingsContext.Provider value={{ state, dispatch }}>

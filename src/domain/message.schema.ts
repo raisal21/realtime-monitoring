@@ -112,7 +112,7 @@ export const GeoSchema = z.strictObject({
   sequence: z.number(),
   gamma: z.number(),
   rop: z.number(),
-  gas: z.number(),
+  h2s: z.number(),
   inc: z.number(),
   azi: z.number(),
 });

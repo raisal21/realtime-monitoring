@@ -6,7 +6,7 @@ import {
   PRESET_TO_MINUTES,
   sessionMinuteToDate,
   depthRangeToTimeRange,
-  presetToDepthSpanFt,
+  presetToDepthSpanM,
 } from "@/data/dashboard-static";
 import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
 import { getChartColors } from "@/lib/echarts-theme";
@@ -42,8 +42,8 @@ function getEffectiveRange(
   // onto the time axis so the time ruler reflects the same visible span as
   // the depth ruler, log tracks, and well-profile slider.
   if (liveMode) {
-    const cur = WELL_SESSION.cursor.depthFt;
-    const span = rangePreset ? presetToDepthSpanFt(rangePreset) : 100;
+    const cur = WELL_SESSION.cursor.depthM;
+    const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
     const dStart = Math.max(WELL_SESSION.depthAxis.range.min, cur - span);
     return (
       depthRangeToTimeRange(dStart, cur) ?? { min: sessionMin, max: sessionMax }

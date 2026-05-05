@@ -1,8 +1,6 @@
-export const CURRENT_WELL = {
-  id: "alpha-1",
-  name: "Alpha-1",
-  block: "Block 7G",
-  region: "Makassar Strait",
+export const FIELD_INFO = {
+  field: "Guntur Geothermal Field",
+  region: "Garut, West Java",
 } as const;
 
 export const THEMES = [
@@ -102,10 +100,10 @@ export const GAUGES = [
     status: "ok" as "ok" | "warning" | "critical",
   },
   {
-    id: "gas",
-    label: "Gas",
+    id: "h2s",
+    label: "H2S",
     value: "5.1",
-    unit: "%",
+    unit: "ppm",
     status: "ok" as "ok" | "warning" | "critical",
   },
   { id: "inc", label: "Inc", value: "22.2", unit: "°", status: "ok" as "ok" | "warning" | "critical" },
@@ -131,7 +129,7 @@ export const TRACK_TRACES = {
   geo: [
     { trace: "gamma" as const, name: "GR", min: 0, max: 150, unit: "gAPI" },
     { trace: "rop" as const, name: "ROP", min: 0, max: 60, unit: "ft/hr" },
-    { trace: "gas" as const, name: "GAS", min: 0, max: 50, unit: "%" },
+    { trace: "h2s" as const, name: "H2S", min: 0, max: 50, unit: "ppm" },
   ],
   directional: [
     { trace: "inc" as const, name: "INC", min: 0, max: 90, unit: "°" },
@@ -144,8 +142,8 @@ export const FEED_ITEMS = [
     id: "f1",
     severity: "critical" as const,
     state: "unacked" as const,
-    message: "High Gas — 42.3% threshold exceeded",
-    meta: "Stream: GEO · Sensor: Gas Total",
+    message: "High H2S — 42.3 ppm threshold exceeded",
+    meta: "Stream: GEO · Sensor: H2S",
     timestamp: "14:31:52",
   },
   {
@@ -182,21 +180,22 @@ export const FEED_ITEMS = [
   },
 ] as const;
 
+// Depths in meters MD (canonical). Render boundary converts to ft when imperial.
 export const WELL_PROFILE_DATA = [
   { date: "Mar 12", depth: 0 },
-  { date: "Mar 14", depth: 1500 },
-  { date: "Mar 17", depth: 3200 },
-  { date: "Mar 20", depth: 4800 },
-  { date: "Mar 24", depth: 6400 },
-  { date: "Mar 28", depth: 7900 },
-  { date: "Apr 01", depth: 9100 },
-  { date: "Apr 05", depth: 10300 },
-  { date: "Apr 09", depth: 11400 },
-  { date: "Apr 13", depth: 12100 },
-  { date: "Apr 17", depth: 12563 },
-  { date: "Apr 20", depth: 13500 },
-  { date: "Apr 24", depth: 14300 },
-  { date: "Apr 28", depth: 15200 },
+  { date: "Mar 14", depth: 457 },
+  { date: "Mar 17", depth: 975 },
+  { date: "Mar 20", depth: 1463 },
+  { date: "Mar 24", depth: 1951 },
+  { date: "Mar 28", depth: 2408 },
+  { date: "Apr 01", depth: 2774 },
+  { date: "Apr 05", depth: 3139 },
+  { date: "Apr 09", depth: 3475 },
+  { date: "Apr 13", depth: 3688 },
+  { date: "Apr 17", depth: 3829 },
+  { date: "Apr 20", depth: 4115 },
+  { date: "Apr 24", depth: 4359 },
+  { date: "Apr 28", depth: 4633 },
 ] as const;
 
 export const RANGE_PRESETS_QUICK = [
@@ -225,10 +224,11 @@ export const RANGE_PRESETS_DOMAIN = [
 ] as const;
 
 export const TICKER_NOMINAL_ENTRIES = [
-  { label: "Depth", value: "15,200 ft MD" },
-  { label: "ROP", value: "21.8 ft/hr" },
+  { label: "Well", value: "PROD-GA-01 · Pad Guntur" },
+  { label: "Depth", value: "4,630 m MD" },
+  { label: "ROP", value: "6.6 m/hr" },
+  { label: "WHT", value: "220°C" },
   { label: "RPM", value: "120" },
-  { label: "Well", value: "Alpha-1 · Block 7G" },
   { label: "Status", value: "All systems nominal" },
 ] as const;
 
@@ -242,16 +242,16 @@ export const SESSION_START_DATE = new Date(2026, 3, 22, 0, 0, 0); // Apr 22, 202
 const POINT_COUNT = 336; // 7 days × 48 samples/day at 30-min step
 const TIME_STEP_MIN = 30;
 const SESSION_TIME_MAX_MIN = (POINT_COUNT - 1) * TIME_STEP_MIN; // 10050 min ≈ 7d
-const SESSION_DEPTH_START_FT = 13900;
-const SESSION_DEPTH_END_FT = 15200;
+const SESSION_DEPTH_START_M = 4237;
+const SESSION_DEPTH_END_M = 4633;
 
 export const SESSION_RANGE = {
   startDate: SESSION_START_DATE,
   pointCount: POINT_COUNT,
   timeStepMin: TIME_STEP_MIN,
   timeMaxMin: SESSION_TIME_MAX_MIN,
-  depthStartFt: SESSION_DEPTH_START_FT,
-  depthEndFt: SESSION_DEPTH_END_FT,
+  depthStartM: SESSION_DEPTH_START_M,
+  depthEndM: SESSION_DEPTH_END_M,
 };
 
 // Stateful generator: produces depth + traces + flow per sample, modeling
@@ -316,7 +316,7 @@ interface SessionData {
   depth: number[];
   rpm: number[]; wob: number[]; torque: number[];
   spp: number[]; hkld: number[];
-  gamma: number[]; rop: number[]; gas: number[];
+  gamma: number[]; rop: number[]; h2s: number[];
   inc: number[]; azi: number[];
   flow: number[];  // gpm differential (flow-out − flow-in), ± around 0
 }
@@ -327,28 +327,28 @@ function generateSession(): SessionData {
   const r1 = (n: number) => Math.round(n * 10) / 10;
 
   // Calibrate per-sample drill step so cumulative drilling depth gain
-  // ≈ SESSION_DEPTH_END − SESSION_DEPTH_START. Trip out/in cancel out.
+  // ≈ SESSION_DEPTH_END_M − SESSION_DEPTH_START_M. Trip out/in cancel out.
   const drillSamples = PHASES.filter((p) => p === "drill").length;
-  const targetGain = SESSION_DEPTH_END_FT - SESSION_DEPTH_START_FT;
-  const avgDrillStepFt = targetGain / drillSamples;
+  const targetGain = SESSION_DEPTH_END_M - SESSION_DEPTH_START_M;
+  const avgDrillStepM = targetGain / drillSamples;
 
-  // Trip excursion: bit pulled ~350 ft for change-out, then run back.
-  const tripExcursionFt = 350;
+  // Trip excursion: bit pulled ~107 m (~350 ft) for change-out, then run back.
+  const tripExcursionM = 107;
   const tripOutCount = PHASES.filter((p) => p === "trip_out").length;
   const tripInCount = PHASES.filter((p) => p === "trip_in").length;
-  const tripOutStep = tripExcursionFt / tripOutCount;
-  const tripInStep = tripExcursionFt / tripInCount;
+  const tripOutStep = tripExcursionM / tripOutCount;
+  const tripInStep = tripExcursionM / tripInCount;
 
   const out: SessionData = {
     depth: new Array(POINT_COUNT),
     rpm: new Array(POINT_COUNT), wob: new Array(POINT_COUNT), torque: new Array(POINT_COUNT),
     spp: new Array(POINT_COUNT), hkld: new Array(POINT_COUNT),
-    gamma: new Array(POINT_COUNT), rop: new Array(POINT_COUNT), gas: new Array(POINT_COUNT),
+    gamma: new Array(POINT_COUNT), rop: new Array(POINT_COUNT), h2s: new Array(POINT_COUNT),
     inc: new Array(POINT_COUNT), azi: new Array(POINT_COUNT),
     flow: new Array(POINT_COUNT),
   };
 
-  let curDepth = SESSION_DEPTH_START_FT;
+  let curDepth = SESSION_DEPTH_START_M;
   // Survey state: INC/AZI are discrete MWD measurements taken while drilling.
   // During non-drill phases they hold the last surveyed value (no jitter).
   let lastSurveyInc = 3.0;
@@ -360,33 +360,33 @@ function generateSession(): SessionData {
     // ── Depth evolution by phase ──
     if (phase === "drill") {
       // Vary per-sample ROP 60-140% of avg → chunky build, not linear.
-      curDepth += avgDrillStepFt * (0.6 + rng() * 0.8);
+      curDepth += avgDrillStepM * (0.6 + rng() * 0.8);
       // Clamp at TD: drilling stops once total depth is reached.
-      if (curDepth > SESSION_DEPTH_END_FT) curDepth = SESSION_DEPTH_END_FT;
+      if (curDepth > SESSION_DEPTH_END_M) curDepth = SESSION_DEPTH_END_M;
     } else if (phase === "trip_out") {
-      curDepth -= tripOutStep + j(0.5);
+      curDepth -= tripOutStep + j(0.15);
     } else if (phase === "trip_in") {
-      curDepth += tripInStep + j(0.5);
+      curDepth += tripInStep + j(0.15);
     }
     // connect / idle: depth flat
     out.depth[i] = r1(curDepth);
 
-    // ── Directional profile based on current depth ──
-    // Build (start → 14150 ft):  inc 3°→28°, azi 141°→145°
-    // Tangent (14150-15050):     inc ~28-30° steady, azi ~145° (slight drift)
-    // Drop/land (15050 → end):   inc 29°→22°, azi steady
+    // ── Directional profile based on current depth (m) ──
+    // Build (start → 4313 m):    inc 3°→28°, azi 141°→145°
+    // Tangent (4313-4587 m):     inc ~28-30° steady, azi ~145° (slight drift)
+    // Drop/land (4587 → end):    inc 29°→22°, azi steady
     if (phase === "drill") {
       let incV: number, aziV: number;
-      if (curDepth < 14150) {
-        const t = Math.max(0, (curDepth - SESSION_DEPTH_START_FT) / (14150 - SESSION_DEPTH_START_FT));
+      if (curDepth < 4313) {
+        const t = Math.max(0, (curDepth - SESSION_DEPTH_START_M) / (4313 - SESSION_DEPTH_START_M));
         incV = 3 + t * 25 + j(0.3);
         aziV = 141 + t * 4 + j(0.2);
-      } else if (curDepth < 15050) {
-        const t = (curDepth - 14150) / (15050 - 14150);
+      } else if (curDepth < 4587) {
+        const t = (curDepth - 4313) / (4587 - 4313);
         incV = 28.5 + Math.sin(t * Math.PI * 2) * 0.8 + j(0.4);
         aziV = 145 + Math.sin(t * Math.PI * 1.5) * 1.2 + j(0.3);
       } else {
-        const t = Math.min(1, (curDepth - 15050) / (SESSION_DEPTH_END_FT - 15050));
+        const t = Math.min(1, (curDepth - 4587) / (SESSION_DEPTH_END_M - 4587));
         incV = 29 - t * 7 + j(0.3);
         aziV = 145 + j(0.3);
       }
@@ -397,21 +397,20 @@ function generateSession(): SessionData {
     out.inc[i] = r1(lastSurveyInc);
     out.azi[i] = r1(lastSurveyAzi);
 
-    // ── Formation gamma (depth-driven, not phase-driven) ──
-    // Two-frequency oscillation + bed-boundary step at major formation tops
-    // simulates sand/shale alternation with sharper transitions.
+    // ── Formation gamma (depth-driven, m) ──
+    // Two-frequency oscillation + bed-boundary step at major formation tops.
     const gammaBase = 60
-      + Math.sin(curDepth * 0.011) * 28
-      + Math.sin(curDepth * 0.034) * 14
-      + (curDepth > 14600 && curDepth < 14750 ? 22 : 0)   // hot shale layer
-      + (curDepth > 15000 ? -12 : 0);                     // clean sand below
+      + Math.sin(curDepth * 0.036) * 28
+      + Math.sin(curDepth * 0.112) * 14
+      + (curDepth > 4450 && curDepth < 4496 ? 22 : 0)     // hot shale layer
+      + (curDepth > 4572 ? -12 : 0);                      // clean sand below
 
-    // Depth-aware hydraulic baselines:
+    // Depth-aware hydraulic baselines (canonical metric):
     //  SPP grows with hole depth (longer mud column → more friction loss).
     //  HKLD grows with depth too (more drillpipe weight in tension).
-    const depthDelta = curDepth - SESSION_DEPTH_START_FT;
-    const sppDrillBase = 2497 + depthDelta * 0.15;        // ~2497 → ~2692 psi
-    const hkldDrillBase = 185 + depthDelta * 0.013;       // ~185 → ~202 klbs
+    const depthDelta = curDepth - SESSION_DEPTH_START_M;
+    const sppDrillBase = 2497 + depthDelta * 0.49;        // ~2497 → ~2692 psi
+    const hkldDrillBase = 185 + depthDelta * 0.043;       // ~185 → ~202 klbs
 
     // ── Phase-dependent surface measurements & flow ──
     if (phase === "drill") {
@@ -426,11 +425,11 @@ function generateSession(): SessionData {
       const ropPenalty = Math.max(0, gammaBase - 60) * 0.15;
       out.rop[i] = r1(Math.max(2, 24 - ropPenalty + j(6)));
       out.gamma[i] = Math.round(gammaBase + j(4));
-      // Drilling gas: elevated when drilling through gassy zone (depth band)
-      // with low-probability spike for transient kicks.
-      const gassyZone = curDepth > 14400 && curDepth < 14750 ? 4 : 0;
+      // Drilling H2S (ppm): elevated when penetrating sulfide-bearing zone
+      // (depth band, m) with low-probability spike for transient gas kicks.
+      const h2sZone = curDepth > 4389 && curDepth < 4496 ? 4 : 0;
       const drillSpike = rng() < 0.03 ? 8 + rng() * 14 : 0;
-      out.gas[i] = r1(7 + gassyZone + drillSpike + j(2));
+      out.h2s[i] = r1(7 + h2sZone + drillSpike + j(2));
       // Flow-out − flow-in ≈ small positive (cuttings displacement, gain small).
       out.flow[i] = r1(6 + j(4));
     } else if (phase === "connect") {
@@ -439,7 +438,7 @@ function generateSession(): SessionData {
       out.hkld[i] = r1(hkldDrillBase + 17 + j(1.5));
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(3));
-      out.gas[i] = r1(6 + j(1.5));         // residual gas
+      out.h2s[i] = r1(6 + j(1.5));         // residual H2S
       out.flow[i] = 0;                      // pumps off
     } else if (phase === "trip_out") {
       out.rpm[i] = 0; out.wob[i] = 0; out.torque[i] = 0; out.spp[i] = 0;
@@ -449,9 +448,9 @@ function generateSession(): SessionData {
       out.hkld[i] = r1(hkldDrillBase + 35 + j(3));
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(3));
-      // Possible swab-induced gas influx mid-trip.
-      const gasSpike = i % 13 === 5 ? 18 + rng() * 22 : 0;
-      out.gas[i] = r1(7 + j(2) + gasSpike);
+      // Possible swab-induced H2S influx mid-trip.
+      const h2sSpike = i % 13 === 5 ? 18 + rng() * 22 : 0;
+      out.h2s[i] = r1(7 + j(2) + h2sSpike);
       // Negative differential: bit pulling = swab effect, mud level dropping faster than fill.
       out.flow[i] = r1(-22 + j(8));
     } else if (phase === "trip_in") {
@@ -461,7 +460,7 @@ function generateSession(): SessionData {
       out.hkld[i] = r1(hkldDrillBase - 6 + j(3)); // lighter (fluid lubrication)
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(3));
-      out.gas[i] = r1(6 + j(1.5));
+      out.h2s[i] = r1(6 + j(1.5));
       // Positive differential: surge/displacement as pipe enters mud column.
       out.flow[i] = r1(16 + j(6));
     } else { // idle
@@ -469,7 +468,7 @@ function generateSession(): SessionData {
       out.hkld[i] = r1(hkldDrillBase + j(1));
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(2));
-      out.gas[i] = r1(5 + j(1));
+      out.h2s[i] = r1(5 + j(1));
       out.flow[i] = r1(j(3));               // tiny noise around 0
     }
   }
@@ -532,13 +531,13 @@ const CURSOR_DEPTH = SESSION_DEPTH_POINTS[POINT_COUNT - 1];
 
 export const WELL_SESSION = {
   cursor: {
-    depthFt: CURSOR_DEPTH,
+    depthM: CURSOR_DEPTH,
     depthLabel: CURSOR_DEPTH.toLocaleString(undefined, { maximumFractionDigits: 0 }),
     time: sessionEndTimeOfDay,
   },
 
   depthAxis: {
-    range: { min: SESSION_DEPTH_START_FT, max: SESSION_DEPTH_END_FT },
+    range: { min: SESSION_DEPTH_START_M, max: SESSION_DEPTH_END_M },
   },
 
   timeAxis: {
@@ -548,7 +547,7 @@ export const WELL_SESSION = {
 
   wellProfile: {
     data: WELL_PROFILE_DATA,
-    maxDepthFt: 15200,
+    maxDepthM: 4633,
   },
 
   // Per-sample flow paired with depth/time via index (length = POINT_COUNT).
@@ -575,7 +574,7 @@ export const WELL_SESSION = {
     geo: {
       gamma: SESSION_DATA.gamma,
       rop: SESSION_DATA.rop,
-      gas: SESSION_DATA.gas,
+      h2s: SESSION_DATA.h2s,
     },
     directional: {
       inc: SESSION_DATA.inc,
@@ -638,14 +637,14 @@ export function timeRangeToDepthRange(
     : null;
 }
 
-// Convert a preset id (e.g. "6h", "3d") to a depth span in feet using the well
+// Convert a preset id (e.g. "6h", "3d") to a depth span in meters using the well
 // profile, anchored at WELL_PROFILE_END_DATE = current cursor depth. Monotonic
 // in preset minutes because the well profile is monotonically increasing in
-// depth — replaces the old parseInt(presetId)*100 (non-monotonic across "h"/"d").
-export function presetToDepthSpanFt(presetId: string | null): number {
-  if (!presetId) return 100;
+// depth.
+export function presetToDepthSpanM(presetId: string | null): number {
+  if (!presetId) return 30;
   const minutes = PRESET_TO_MINUTES[presetId];
-  if (!minutes) return 100;
+  if (!minutes) return 30;
   const past = new Date(WELL_PROFILE_END_DATE.getTime() - minutes * 60_000);
-  return Math.max(1, SESSION_DEPTH_END_FT - wellProfileDepthAt(past));
+  return Math.max(1, SESSION_DEPTH_END_M - wellProfileDepthAt(past));
 }

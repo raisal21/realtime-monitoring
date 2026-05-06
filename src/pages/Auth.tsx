@@ -1,14 +1,11 @@
 "use client";
 
-import * as React from "react";
-import { Lock, Settings as SettingsIcon } from "lucide-react";
+import { Lock } from "lucide-react";
 import Terrain from "@/components/ui/terrain";
 import type { TerrainPreset } from "@/components/ui/terrain";
 import { TopbarButton } from "@/components/navigation";
 import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
-import { Popover, PopoverTrigger } from "@/components/popover";
-import { SettingsProvider } from "@/stores/dashboard-store";
-import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
+import { SettingsProvider, UiProvider } from "@/stores/app-store";
 import AuthCard from "@/components/auth/AuthCard";
 
 interface AuthProps {
@@ -20,8 +17,6 @@ export default function Auth({
   onSignIn,
   defaultPreset = "gruvbox",
 }: AuthProps) {
-  const [settingsOpen, setSettingsOpen] = React.useState(false);
-
   const handleLoginClick = () => {
     const form = document.getElementById("login-form");
     form?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -30,25 +25,12 @@ export default function Auth({
 
   return (
     <SettingsProvider>
-      <div className="flex flex-col h-screen overflow-hidden">
-        <UniversalTopbar
-          hideBreadcrumbs
-          rightContent={
-            <>
-              <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-                <PopoverTrigger
-                  render={
-                    <TopbarButton
-                      title="Settings"
-                      aria-label="Open settings"
-                    >
-                      <SettingsIcon size={16} strokeWidth={2} />
-                    </TopbarButton>
-                  }
-                />
-                <SettingsPopoverContent hideAlarmSound />
-              </Popover>
-
+      <UiProvider>
+        <div className="flex flex-col h-screen overflow-hidden">
+          <UniversalTopbar
+            hideBreadcrumbs
+            hideConnectionStatus
+            profileSlot={
               <TopbarButton
                 onClick={handleLoginClick}
                 title="Login"
@@ -57,18 +39,18 @@ export default function Auth({
                 <Lock size={16} strokeWidth={2} />
                 <span className="ml-1">Login</span>
               </TopbarButton>
-            </>
-          }
-        />
+            }
+          />
 
-        <div className="flex-1 relative overflow-hidden">
-          <Terrain preset={defaultPreset} className="absolute inset-0" />
+          <div className="flex-1 relative overflow-hidden">
+            <Terrain preset={defaultPreset} className="absolute inset-0" />
 
-          <div className="absolute inset-0 flex items-center justify-center p-rt-pad-lg z-10">
-            <AuthCard onSignIn={onSignIn} />
+            <div className="absolute inset-0 flex items-center justify-center p-rt-pad-lg z-10">
+              <AuthCard onSignIn={onSignIn} />
+            </div>
           </div>
         </div>
-      </div>
+      </UiProvider>
     </SettingsProvider>
   );
 }

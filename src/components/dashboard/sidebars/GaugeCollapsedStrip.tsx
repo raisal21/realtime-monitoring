@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
-import { useUi } from "@/stores/dashboard-store";
+import { useUi } from "@/stores/app-store";
 import { GAUGES } from "@/data/dashboard-static";
 import { StatusDot } from "@/components/core";
 import { cn } from "@/lib/utils";

@@ -1,5 +1,5 @@
 import { GripVertical, RotateCcw } from "lucide-react";
-import { useChart } from "@/stores/dashboard-store";
+import { useChart } from "@/stores/app-store";
 import { TRACKS_META } from "@/data/dashboard-static";
 import {
   DndContext,

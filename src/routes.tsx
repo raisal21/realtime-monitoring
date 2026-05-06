@@ -1,54 +1,46 @@
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
-import {
-  UiProvider,
-  ChartProvider,
-  SettingsProvider,
-} from "@/stores/dashboard-store";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { ChartProvider } from "@/stores/app-store";
 import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
+import { AuthenticatedLayout } from "@/layouts/AuthenticatedLayout";
 import Dashboard from "@/pages/Dashboard";
 import WellExplorer from "@/pages/WellExplorer";
 import Auth from "@/pages/Auth";
 import NotFoundPage from "@/pages/404";
 
-// Wrapper component to inject wellId into Dashboard
-function DashboardWithWellId() {
-  const { wellId } = useParams<{ wellId?: string }>();
-  return (
-    <CurrentWellProvider wellId={wellId}>
-      <UiProvider>
-        <ChartProvider>
-          <SettingsProvider>
-            <Dashboard />
-          </SettingsProvider>
-        </ChartProvider>
-      </UiProvider>
-    </CurrentWellProvider>
-  );
-}
-
-// Wrapper component to inject well selection into WellExplorer
-function WellExplorerWithProviders() {
-  const { wellId } = useParams<{ wellId?: string }>();
-  return (
-    <CurrentWellProvider wellId={wellId}>
-      <UiProvider>
-        <SettingsProvider>
-          <WellExplorer />
-        </SettingsProvider>
-      </UiProvider>
-    </CurrentWellProvider>
-  );
-}
-
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Public Routes */}
       <Route path="/" element={<Navigate to="/wells" replace />} />
       <Route path="/auth" element={<Auth />} />
-      <Route path="/wells" element={<WellExplorerWithProviders />} />
-      <Route path="/wells/:wellId" element={<WellExplorerWithProviders />} />
-      <Route path="/dashboard" element={<DashboardWithWellId />} />
-      <Route path="/dashboard/:wellId" element={<DashboardWithWellId />} />
+
+      {/* Authenticated Routes wrapped in a single Layout */}
+      <Route element={<AuthenticatedLayout />}>
+        {/* Wells Routes */}
+        <Route path="/wells" element={<WellExplorer />} />
+        <Route
+          path="/wells/:wellId"
+          element={
+            <CurrentWellProvider>
+              <WellExplorer />
+            </CurrentWellProvider>
+          }
+        />
+
+        {/* Dashboard Routes (optional wellId param) */}
+        <Route
+          path="/dashboard/:wellId?"
+          element={
+            <CurrentWellProvider>
+              <ChartProvider>
+                <Dashboard />
+              </ChartProvider>
+            </CurrentWellProvider>
+          }
+        />
+      </Route>
+
+      {/* Fallback Route */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

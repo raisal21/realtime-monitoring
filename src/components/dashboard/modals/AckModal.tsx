@@ -1,5 +1,5 @@
 import { TriangleAlert, X } from "lucide-react";
-import { useUi } from "@/stores/dashboard-store";
+import { useUi } from "@/stores/app-store";
 import { FEED_ITEMS } from "@/data/dashboard-static";
 import { Surface } from "@/components/core";
 import { Button } from "@/components/core";

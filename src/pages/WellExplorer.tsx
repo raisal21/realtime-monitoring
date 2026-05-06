@@ -1,8 +1,4 @@
-"use client";
-
 import { useRef, useState, useCallback, useMemo } from "react";
-import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
-import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
 import { WELLS, type Well } from "@/data/wells";
 import { WellMap } from "@/components/well-explorer/map/WellMap";
 import { MapOverlay } from "@/components/well-explorer/map/MapOverlay";
@@ -43,18 +39,16 @@ export default function WellExplorer() {
   );
 
   return (
-    <CurrentWellProvider wellId={selectedWell?.id}>
+    <>
       <style>{POPUP_STYLES}</style>
 
       <div
-        className="grid h-screen w-screen overflow-hidden"
+        className="grid h-full w-full overflow-hidden"
         style={{
           gridTemplateRows:
-            "var(--spacing-rt-shell-top) var(--spacing-rt-shell-sub) 1fr",
+            "var(--spacing-rt-shell-sub) 1fr",
         }}
       >
-        <UniversalTopbar />
-
         <ExplorerSubheader
           query={query}
           onQueryChange={setQuery}
@@ -83,6 +77,6 @@ export default function WellExplorer() {
           />
         </div>
       </div>
-    </CurrentWellProvider>
+    </>
   );
 }

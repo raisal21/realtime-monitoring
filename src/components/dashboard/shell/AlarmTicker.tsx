@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef } from "react";
-import { useUi, useSettings } from "@/stores/dashboard-store";
+import { useSettings } from "@/stores/app-store";
 import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +25,6 @@ function playAlarmSound() {
 }
 
 export function AlarmTicker() {
-  const { dispatch } = useUi();
   const { state: settings } = useSettings();
   const intervalRef = useRef<number | null>(null);
   const hasAlarmsRef = useRef<boolean>(false);

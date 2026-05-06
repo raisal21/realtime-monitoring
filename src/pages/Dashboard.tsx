@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { useUi, useChart } from "@/stores/dashboard-store";
+import { useUi, useChart } from "@/stores/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
-import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
 import { Footer } from "@/components/dashboard/shell/Footer";
 import { LeftToolRail } from "@/components/dashboard/rail/LeftToolRail";
@@ -44,14 +43,12 @@ export default function Dashboard() {
   return (
     <>
       <div
-        className="grid h-screen w-screen overflow-hidden"
+        className="grid h-full w-full overflow-hidden"
         style={{
           gridTemplateRows:
-            "var(--spacing-rt-shell-top) var(--spacing-rt-shell-sub) 1fr var(--spacing-rt-shell-foot)",
+            "var(--spacing-rt-shell-sub) 1fr var(--spacing-rt-shell-foot)",
         }}
       >
-        <UniversalTopbar />
-
         <DashboardSubheader />
         <main className="flex overflow-hidden relative">
           <LeftToolRail />

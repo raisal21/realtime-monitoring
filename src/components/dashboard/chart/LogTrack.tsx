@@ -1,7 +1,7 @@
 import { useMemo, useRef, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useChart, useSettings, FS_SCALE, TRACKS_META } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE, TRACKS_META } from "@/stores/app-store";
 import {
   TRACK_TRACES,
   WELL_SESSION,
@@ -10,7 +10,7 @@ import {
 } from "@/data/dashboard-static";
 import { Badge } from "@/components/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
-import { formatDepth } from "@/lib/units";
+import { formatDepth, formatQuantityBounds } from "@/lib/units";
 import { cn } from "@/lib/utils";
 
 interface LogTrackProps {
@@ -20,6 +20,55 @@ interface LogTrackProps {
   stream: "drill" | "geo";
 }
 
+// Derive display min/max/unit from a trace entry + unitSystem.
+type TraceEntry = typeof TRACK_TRACES[keyof typeof TRACK_TRACES][number];
+
+function traceAxisDisplay(
+  t: TraceEntry,
+  unitSystem: "metric" | "imperial",
+): { min: number; max: number; unit: string } {
+  if (t.kind === "scalar") {
+    return { min: t.minScalar, max: t.maxScalar, unit: t.unit };
+  }
+
+  const boundsMap: Record<string, { kind: "load" | "pressure" | "rop"; min: number; max: number }> = {
+    load:     t.kind === "load"     ? { kind: "load",     min: t.minKN,   max: t.maxKN   } : undefined!,
+    pressure: t.kind === "pressure" ? { kind: "pressure", min: t.minBar,  max: t.maxBar  } : undefined!,
+    rop:      t.kind === "rop"      ? { kind: "rop",      min: t.minMHr,  max: t.maxMHr  } : undefined!,
+  };
+  const bounds = boundsMap[t.kind];
+  return formatQuantityBounds(bounds, bounds.min, bounds.max, unitSystem);
+}
+
+interface TraceDisplay {
+  trace: string;
+  name: string;
+  displayMin: string;
+  displayMax: string;
+  unit: string;
+  axisMin: number;
+  axisMax: number;
+}
+
+function resolveTraceDisplays(
+  traces: readonly TraceEntry[],
+  unitSystem: "metric" | "imperial",
+): Map<string, TraceDisplay> {
+  const map = new Map<string, TraceDisplay>();
+  for (const t of traces) {
+    const axis = traceAxisDisplay(t, unitSystem);
+    map.set(t.trace, {
+      trace: t.trace,
+      name: t.name,
+      displayMin: axis.min.toLocaleString(undefined, { maximumFractionDigits: t.kind === "scalar" ? 0 : 1 }),
+      displayMax: axis.max.toLocaleString(undefined, { maximumFractionDigits: t.kind === "scalar" ? 0 : 1 }),
+      unit: axis.unit,
+      axisMin: axis.min,
+      axisMax: axis.max,
+    });
+  }
+  return map;
+}
 
 interface TrackHeaderProps {
   traces: typeof TRACK_TRACES[keyof typeof TRACK_TRACES];
@@ -27,12 +76,19 @@ interface TrackHeaderProps {
   traceVisibility: Record<string, boolean>;
   onToggle: (trace: string) => void;
   compact?: boolean;
+  unitSystem: "metric" | "imperial";
 }
 
-function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact }: TrackHeaderProps) {
+function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact, unitSystem }: TrackHeaderProps) {
+  const displays = useMemo(
+    () => resolveTraceDisplays(traces, unitSystem),
+    [traces, unitSystem],
+  );
+
   return (
     <div className="flex-shrink-0 min-h-[72px] border-b border-(--theme-border)">
       {traces.map((t) => {
+        const d = displays.get(t.trace)!;
         const color = traceColors[t.trace as keyof typeof traceColors] || "var(--theme-fg-dim)";
         const visible = traceVisibility[t.trace];
         return (
@@ -66,21 +122,21 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact }
               className="font-['Share_Tech_Mono',monospace] text-fs-9 tabular-nums transition-opacity"
               style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
             >
-              {t.min}
+              {d.displayMin}
             </span>
             <span className="font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-border) mx-0.5">──</span>
             <span
               className="font-['Share_Tech_Mono',monospace] text-fs-9 tabular-nums transition-opacity"
               style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
             >
-              {t.max}
+              {d.displayMax}
             </span>
             {!compact && (
               <span
                 className="font-['Share_Tech_Mono',monospace] text-fs-9 ml-0.5 truncate max-w-[32px] transition-opacity"
                 style={{ color: "var(--theme-fg-dim)", opacity: visible ? 1 : 0.35 }}
               >
-                {t.unit}
+                {d.unit}
               </span>
             )}
           </button>
@@ -117,6 +173,12 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const echartsRef = useRef<ReactECharts>(null);
   const wasRemote = useRef(false);
 
+  // Resolved display values per trace (reacts to unitSystem changes).
+  const traceDisplays = useMemo(
+    () => resolveTraceDisplays(traces, settings.unitSystem),
+    [traces, settings.unitSystem],
+  );
+
   const handleDataZoom = useCallback((params: unknown) => {
     const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
     const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
@@ -139,8 +201,11 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       const localTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
       if (!localTraces.length) return;
 
+      const firstTrace = traceDisplays.get(localTraces[0].trace);
+      if (!firstTrace) return;
+
       const logValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
-      const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [localTraces[0].min, logValue]);
+      const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [firstTrace.axisMin, logValue]);
       if (!coords) return;
 
       const pixelX = ec.getWidth() / 2;
@@ -156,21 +221,31 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       ec.setOption({ tooltip: { axisPointer: { label: { show: true } } } });
       wasRemote.current = false;
     }
-  }, [chart.crosshairValue, chart.traceVisibility, traces, yRange.min, yRange.max]);
+  }, [chart.crosshairValue, chart.traceVisibility, traces, yRange.min, yRange.max, traceDisplays]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
     const tc = getTraceColors();
     const mode = chart.mode;
+    const unitSystem = settings.unitSystem;
 
     const visibleTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
     const trackData = WELL_SESSION.traces[trackId] as Record<string, readonly number[]>;
 
     const yPoints = mode === "depth" ? WELL_SESSION.depthPoints : WELL_SESSION.timePoints;
 
+    // Conversion factors from canonical metric → display units.
+    const convertVal = (t: typeof visibleTraces[number], v: number): number => {
+      if (t.kind === "scalar") return v;
+      if (t.kind === "load" && unitSystem === "imperial") return v / 4.4482216;
+      if (t.kind === "pressure" && unitSystem === "imperial") return v / 0.0689476;
+      if (t.kind === "rop" && unitSystem === "imperial") return v / 0.3048;
+      return v;
+    };
+
     const series = visibleTraces.map((t, idx) => {
       const values = trackData[t.trace] ?? [];
-      const data = values.map((val, i) => [val, yPoints[i]]);
+      const data = values.map((val, i) => [convertVal(t, val), yPoints[i]]);
       const color = tc[t.trace as keyof typeof tc] || c.fgMuted;
       return {
         type: "line" as const,
@@ -188,22 +263,25 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     });
 
     const xAxes = visibleTraces.length > 0
-      ? visibleTraces.map((t, idx) => ({
-          type: "value" as const,
-          min: t.min,
-          max: t.max,
-          position: "top" as const,
-          offset: 0,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { show: false },
-          splitLine: {
-            show: idx === 0,
-            lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" as const },
-          },
-          splitNumber: 4,
-          axisPointer: { label: { show: false } },
-        }))
+      ? visibleTraces.map((t, idx) => {
+          const d = traceDisplays.get(t.trace)!;
+          return {
+            type: "value" as const,
+            min: d.axisMin,
+            max: d.axisMax,
+            position: "top" as const,
+            offset: 0,
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { show: false },
+            splitLine: {
+              show: idx === 0,
+              lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" as const },
+            },
+            splitNumber: 4,
+            axisPointer: { label: { show: false } },
+          };
+        })
       : [{ type: "value" as const, show: false, min: 0, max: 1 }];
 
     return {
@@ -264,8 +342,9 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
             .map((p, i) => {
               const t = visibleTraces[i];
               if (!t) return "";
+              const d = traceDisplays.get(t.trace)!;
               const color = tc[t.trace as keyof typeof tc] || c.fgMuted;
-              return `<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${t.name}</span> <span style="color:${c.fg};font-weight:600">${p.value[0].toFixed(1)}</span> <span style="color:${c.fgDim}">${t.unit}</span>`;
+              return `<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${p.value[0].toFixed(1)}</span> <span style="color:${c.fgDim}">${d.unit}</span>`;
             })
             .filter(Boolean)
             .join("<br/>");
@@ -273,7 +352,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       },
       series,
     };
-  }, [traces, chart.traceVisibility, chart.mode, yRange.min, yRange.max, settings.theme, fsScale]);
+  }, [traces, chart.traceVisibility, chart.mode, yRange.min, yRange.max, settings.theme, settings.unitSystem, fsScale, traceDisplays, trackId]);
 
   const trackMeta = TRACKS_META.find((t) => t.id === trackId);
   const trackWidth = trackMeta ? (chart.trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;
@@ -301,6 +380,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         traceVisibility={chart.traceVisibility}
         onToggle={(trace) => dispatch({ type: "TOGGLE_TRACE_VISIBILITY", trace })}
         compact={settings.density === "compact"}
+        unitSystem={settings.unitSystem}
       />
 
       <div className="relative flex-1 overflow-hidden">

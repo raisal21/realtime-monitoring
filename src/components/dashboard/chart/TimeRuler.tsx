@@ -8,7 +8,7 @@ import {
   depthRangeToTimeRange,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
-import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE } from "@/stores/app-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 

@@ -1,12 +1,17 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useUi, useSettings, FS_SCALE } from "@/stores/dashboard-store";
+import { useUi, useSettings, FS_SCALE } from "@/stores/app-store";
 import { GAUGES } from "@/data/dashboard-static";
 import { IconButton } from "@/components/form";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
+import {
+  type UnitSystem,
+  formatQuantity,
+  formatQuantityBounds,
+} from "@/lib/units";
 
 const GAUGE_SIDEBAR_WIDTH = 260;
 
@@ -20,18 +25,59 @@ interface GaugeConfig {
   max: number;
 }
 
-const GAUGE_RANGES: Record<string, { min: number; max: number }> = {
-  rpm:    { min: 0, max: 200  },
-  wob:    { min: 0, max: 50   },
-  torque: { min: 0, max: 10   },
-  spp:    { min: 0, max: 3500 },
-  hkld:   { min: 0, max: 300  },
-  gamma:  { min: 0, max: 150  },
-  rop:    { min: 0, max: 60   },
-  h2s:    { min: 0, max: 50   },
-  inc:    { min: 0, max: 90   },
-  azi:    { min: 0, max: 360  },
+// Canonical metric bounds per gauge id. Mirrors TRACK_TRACES semantics.
+const GAUGE_BOUNDS: Record<string, {
+  kind: "load" | "pressure" | "rop" | "scalar";
+  min: number;
+  max: number;
+  unit?: string;
+}> = {
+  rpm:    { kind: "scalar", min: 0, max: 200, unit: "rpm" },
+  wob:    { kind: "load",   min: 0, max: 178 },
+  torque: { kind: "scalar", min: 0, max: 10, unit: "klbf·ft" },
+  spp:    { kind: "pressure", min: 0, max: 207 },
+  hkld:   { kind: "load",   min: 0, max: 1112 },
+  gamma:  { kind: "scalar", min: 0, max: 150, unit: "gAPI" },
+  rop:    { kind: "rop",    min: 0, max: 18.3 },
+  h2s:    { kind: "scalar", min: 0, max: 50, unit: "ppm" },
+  inc:    { kind: "scalar", min: 0, max: 90, unit: "°" },
+  azi:    { kind: "scalar", min: 0, max: 360, unit: "°" },
 };
+
+function buildGaugeMap(
+  unitSystem: UnitSystem,
+): Record<string, GaugeConfig> {
+  const out: Record<string, GaugeConfig> = {};
+
+  for (const g of GAUGES) {
+    const bounds = GAUGE_BOUNDS[g.id] ?? { kind: "scalar" as const, min: 0, max: 100, unit: "" };
+    const display = formatQuantity(g.quantity, unitSystem);
+
+    let minMax: { min: number; max: number; unit: string };
+    if (bounds.kind === "scalar") {
+      minMax = { min: bounds.min, max: bounds.max, unit: bounds.unit ?? "" };
+    } else {
+      minMax = formatQuantityBounds(
+        { kind: bounds.kind },
+        bounds.min,
+        bounds.max,
+        unitSystem,
+      );
+    }
+
+    out[g.id] = {
+      id: g.id,
+      label: g.label,
+      value: display.value,
+      unit: display.unit,
+      status: g.status,
+      min: minMax.min,
+      max: minMax.max,
+    };
+  }
+
+  return out;
+}
 
 // Status background helpers — background tint only, no colored border.
 // Left accent stripe via inset box-shadow as a secondary non-color cue (accessibility).
@@ -376,9 +422,10 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
 
-  const gaugeMap = Object.fromEntries(
-    GAUGES.map((g) => [g.id, { ...g, ...GAUGE_RANGES[g.id] ?? { min: 0, max: 100 } }])
-  ) as Record<string, GaugeConfig>;
+  const gaugeMap = useMemo(
+    () => buildGaugeMap(settings.unitSystem),
+    [settings.unitSystem],
+  );
 
   const radialIds = ["rpm", "wob", "spp", "hkld", "torque"] as const;
   const valueIds  = ["rop", "h2s", "gamma"] as const;

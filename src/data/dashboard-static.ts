@@ -47,93 +47,103 @@ export const TRACK_RENDER_CONFIG: Record<
   directional: { title: "DIRECTIONAL", hz: "1 Hz",  stream: "geo"   },
 };
 
-// Snapshot values reflect cursor state (last sample, drilling at TD ≈ 15,200 ft).
-// Re-derive after changing SESSION_SEED or PHASE_SCHEDULE.
-export const GAUGES = [
+import type { Quantity } from "@/lib/units";
+
+// Snapshot values reflect cursor state (last sample, drilling at TD).
+// Values stored as canonical metric; display layer converts per unitSystem.
+export const GAUGES: Array<{
+  id: string;
+  label: string;
+  quantity: Quantity;
+  status: "ok" | "warning" | "critical";
+}> = [
   {
     id: "rpm",
     label: "RPM",
-    value: "120",
-    unit: "rpm",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "scalar", value: 120, unit: "rpm" },
+    status: "ok" as const,
   },
   {
     id: "wob",
     label: "WOB",
-    value: "19.4",
-    unit: "klbs",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "load", valueKN: 86.3 },
+    status: "ok" as const,
   },
   {
     id: "torque",
     label: "Torque",
-    value: "4.60",
-    unit: "klbf·ft",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "scalar", value: 4.60, unit: "klbf·ft" },
+    status: "ok" as const,
   },
   {
     id: "spp",
     label: "SPP",
-    value: "2,681",
-    unit: "psi",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "pressure", valueBar: 184.8 },
+    status: "ok" as const,
   },
   {
     id: "hkld",
     label: "HKLD",
-    value: "200.3",
-    unit: "klbs",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "load", valueKN: 891.0 },
+    status: "ok" as const,
   },
   {
     id: "gamma",
     label: "Gamma",
-    value: "47",
-    unit: "gAPI",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "scalar", value: 47, unit: "gAPI" },
+    status: "ok" as const,
   },
   {
     id: "rop",
     label: "ROP",
-    value: "21.8",
-    unit: "ft/hr",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "rop", valueMHr: 6.6 },
+    status: "ok" as const,
   },
   {
     id: "h2s",
     label: "H2S",
-    value: "5.1",
-    unit: "ppm",
-    status: "ok" as "ok" | "warning" | "critical",
+    quantity: { kind: "scalar", value: 5.1, unit: "ppm" },
+    status: "ok" as const,
   },
-  { id: "inc", label: "Inc", value: "22.2", unit: "°", status: "ok" as "ok" | "warning" | "critical" },
-  { id: "azi", label: "Azi", value: "145", unit: "°", status: "ok" as "ok" | "warning" | "critical" },
-] as const;
+  {
+    id: "inc",
+    label: "Inc",
+    quantity: { kind: "scalar", value: 22.2, unit: "°" },
+    status: "ok" as const,
+  },
+  {
+    id: "azi",
+    label: "Azi",
+    quantity: { kind: "scalar", value: 145, unit: "°" },
+    status: "ok" as const,
+  },
+];
 
 export const TRACK_TRACES = {
   drill: [
-    { trace: "rpm" as const, name: "RPM", min: 0, max: 200, unit: "rpm" },
-    { trace: "wob" as const, name: "WOB", min: 0, max: 40, unit: "klbf" },
+    { trace: "rpm" as const, name: "RPM", kind: "scalar" as const, minScalar: 0, maxScalar: 200, unit: "rpm" },
+    { trace: "wob" as const, name: "WOB", kind: "load" as const, minKN: 0, maxKN: 178 },
     {
       trace: "torque" as const,
       name: "TORQUE",
-      min: 0,
-      max: 10,
+      kind: "scalar" as const,
+      minScalar: 0,
+      maxScalar: 10,
       unit: "klbf·ft",
     },
   ],
   hydraulics: [
-    { trace: "spp" as const, name: "SPP", min: 0, max: 3000, unit: "psi" },
-    { trace: "hkld" as const, name: "HKLD", min: 0, max: 250, unit: "klbs" },
+    { trace: "spp" as const, name: "SPP", kind: "pressure" as const, minBar: 0, maxBar: 207 },
+    { trace: "hkld" as const, name: "HKLD", kind: "load" as const, minKN: 0, maxKN: 1112 },
   ],
   geo: [
-    { trace: "gamma" as const, name: "GR", min: 0, max: 150, unit: "gAPI" },
-    { trace: "rop" as const, name: "ROP", min: 0, max: 60, unit: "ft/hr" },
-    { trace: "h2s" as const, name: "H2S", min: 0, max: 50, unit: "ppm" },
+    { trace: "gamma" as const, name: "GR", kind: "scalar" as const, minScalar: 0, maxScalar: 150, unit: "gAPI" },
+    { trace: "rop" as const, name: "ROP", kind: "rop" as const, minMHr: 0, maxMHr: 18.3 },
+    { trace: "h2s" as const, name: "H2S", kind: "scalar" as const, minScalar: 0, maxScalar: 50, unit: "ppm" },
   ],
   directional: [
-    { trace: "inc" as const, name: "INC", min: 0, max: 90, unit: "°" },
-    { trace: "azi" as const, name: "AZI", min: 0, max: 360, unit: "°" },
+    { trace: "inc" as const, name: "INC", kind: "scalar" as const, minScalar: 0, maxScalar: 90, unit: "°" },
+    { trace: "azi" as const, name: "AZI", kind: "scalar" as const, minScalar: 0, maxScalar: 360, unit: "°" },
   ],
 } as const;
 
@@ -409,21 +419,21 @@ function generateSession(): SessionData {
     //  SPP grows with hole depth (longer mud column → more friction loss).
     //  HKLD grows with depth too (more drillpipe weight in tension).
     const depthDelta = curDepth - SESSION_DEPTH_START_M;
-    const sppDrillBase = 2497 + depthDelta * 0.49;        // ~2497 → ~2692 psi
-    const hkldDrillBase = 185 + depthDelta * 0.043;       // ~185 → ~202 klbs
+    const sppDrillBase = 172 + depthDelta * 0.034;         // ~172 → ~185 bar
+    const hkldDrillBase = 823 + depthDelta * 0.191;        // ~823 → ~900 kN
 
     // ── Phase-dependent surface measurements & flow ──
     if (phase === "drill") {
       out.rpm[i] = Math.round(120 + j(4));
-      const wobV = r1(20.5 + j(1.2));
+      const wobV = r1(91.2 + j(5.3));
       out.wob[i] = wobV;
       // Torque correlates with WOB (frictional reaction at bit) + slight noise.
-      out.torque[i] = r1(0.22 * wobV + 0.4 + j(0.2));
+      out.torque[i] = r1(0.22 * wobV / 4.448 + 0.4 + j(0.2));
       out.spp[i] = Math.round(sppDrillBase + j(20));
       out.hkld[i] = r1(hkldDrillBase + j(2));
       // ROP penalised by hot/shale formations (high gamma → harder drilling).
-      const ropPenalty = Math.max(0, gammaBase - 60) * 0.15;
-      out.rop[i] = r1(Math.max(2, 24 - ropPenalty + j(6)));
+      const ropPenalty = Math.max(0, gammaBase - 60) * 0.046;
+      out.rop[i] = r1(Math.max(0.6, 7.3 - ropPenalty + j(1.8)));
       out.gamma[i] = Math.round(gammaBase + j(4));
       // Drilling H2S (ppm): elevated when penetrating sulfide-bearing zone
       // (depth band, m) with low-probability spike for transient gas kicks.
@@ -435,7 +445,7 @@ function generateSession(): SessionData {
     } else if (phase === "connect") {
       out.rpm[i] = 0; out.wob[i] = 0; out.torque[i] = 0; out.spp[i] = 0;
       // Pickup weight ≈ drill weight + bit/BHA static contribution.
-      out.hkld[i] = r1(hkldDrillBase + 17 + j(1.5));
+      out.hkld[i] = r1(hkldDrillBase + 76 + j(1.5));
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(3));
       out.h2s[i] = r1(6 + j(1.5));         // residual H2S
@@ -445,7 +455,7 @@ function generateSession(): SessionData {
       // Trip out: HKLD scales with pipe still in hole (≈ current bit depth).
       // Heavier than drilling baseline due to running drag, then decreasing
       // as more pipe is racked at surface.
-      out.hkld[i] = r1(hkldDrillBase + 35 + j(3));
+      out.hkld[i] = r1(hkldDrillBase + 156 + j(3));
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(3));
       // Possible swab-induced H2S influx mid-trip.
@@ -456,8 +466,8 @@ function generateSession(): SessionData {
     } else if (phase === "trip_in") {
       out.rpm[i] = 0; out.wob[i] = 0; out.torque[i] = 0;
       // Slow circulation while tripping in (fill-up + reaming pressure).
-      out.spp[i] = Math.round(800 + depthDelta * 0.05 + j(60));
-      out.hkld[i] = r1(hkldDrillBase - 6 + j(3)); // lighter (fluid lubrication)
+      out.spp[i] = Math.round(55 + depthDelta * 0.003 + j(60));
+      out.hkld[i] = r1(hkldDrillBase - 27 + j(3)); // lighter (fluid lubrication)
       out.rop[i] = 0;
       out.gamma[i] = Math.round(gammaBase + j(3));
       out.h2s[i] = r1(6 + j(1.5));

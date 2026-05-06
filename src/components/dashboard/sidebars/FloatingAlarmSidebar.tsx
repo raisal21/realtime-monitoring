@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
-import { useUi } from "@/stores/dashboard-store";
+import { useUi } from "@/stores/app-store";
 import { FEED_ITEMS } from "@/data/dashboard-static";
 import { IconButton } from "@/components/form";
 import { CriticalBanner } from "@/components/alarm";

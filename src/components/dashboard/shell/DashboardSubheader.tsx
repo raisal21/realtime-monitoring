@@ -3,7 +3,7 @@ import { useClock, useResizeObserver } from "@/hooks/dashboard-hooks";
 import { WELL_SESSION, FEED_ITEMS, FIELD_INFO } from "@/data/dashboard-static";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
 import { PAD_NAMES } from "@/components/well-explorer/sidebar/PadMap";
-import { useSettings, useUi } from "@/stores/dashboard-store";
+import { useSettings, useUi } from "@/stores/app-store";
 import { formatDepth } from "@/lib/units";
 import { ValueReadout } from "@/components/telemetry";
 import { cn } from "@/lib/utils";

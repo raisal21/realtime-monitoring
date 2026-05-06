@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { SettingsContext } from "@/stores/dashboard-store";
+import { SettingsContext } from "@/stores/app-store";
 
 export type TerrainPreset = "gruvbox" | "tomorrow" | "solarized";
 

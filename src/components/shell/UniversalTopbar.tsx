@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
 import { useLocation, useParams, Link } from "react-router-dom";
-import { UiContext } from "@/stores/dashboard-store";
+import { UiContext } from "@/stores/app-store";
 import { useOptionalCurrentWell } from "@/contexts/CurrentWellContext";
 import { getWellName } from "@/data/wells";
 import { Popover, PopoverTrigger } from "@/components/popover";
@@ -13,11 +13,16 @@ import { SettingsPopoverContent } from "@/components/dashboard/popovers/Settings
 import PulseRLockup from "@/components/brand/PulseRLockup";
 
 interface UniversalTopbarProps {
-  rightContent?: React.ReactNode;
   hideBreadcrumbs?: boolean;
+  hideConnectionStatus?: boolean;
+  profileSlot?: React.ReactNode;
 }
 
-export function UniversalTopbar({ rightContent, hideBreadcrumbs }: UniversalTopbarProps) {
+export function UniversalTopbar({
+  hideBreadcrumbs,
+  hideConnectionStatus,
+  profileSlot,
+}: UniversalTopbarProps) {
   const uiCtx = React.useContext(UiContext);
   const location = useLocation();
   const params = useParams<{ wellId?: string }>();
@@ -31,6 +36,34 @@ export function UniversalTopbar({ rightContent, hideBreadcrumbs }: UniversalTopb
 
   const showWellInBreadcrumb = isDashboardPage || (isWellsPage && !!ctx?.wellId);
   const showDashboardInBreadcrumb = isDashboardPage;
+
+  const defaultProfile = (
+    <TopbarButton title="User profile" aria-label="User profile">
+      <CircleUser size={16} strokeWidth={2} />
+    </TopbarButton>
+  );
+
+  const defaultSettings = (
+    <Popover
+      open={uiCtx?.state.settingsPopover ?? false}
+      onOpenChange={(open) =>
+        uiCtx?.dispatch({ type: "SET_SETTINGS_POPOVER", open })
+      }
+    >
+      <PopoverTrigger
+        render={
+          <TopbarButton
+            title="Settings (Cmd+K)"
+            aria-label="Open settings"
+            data-settings-trigger
+          >
+            <SettingsIcon size={16} strokeWidth={2} />
+          </TopbarButton>
+        }
+      />
+      <SettingsPopoverContent />
+    </Popover>
+  );
 
   return (
     <header
@@ -85,36 +118,13 @@ export function UniversalTopbar({ rightContent, hideBreadcrumbs }: UniversalTopb
 
       <div className="flex-1" />
 
-      <ConnectionStatus status="online" className="mr-3" />
+      {!hideConnectionStatus && (
+        <ConnectionStatus status="online" className="mr-3" />
+      )}
 
       <div className="flex items-center gap-1 pl-3 border-l border-(--theme-border)">
-        {rightContent ?? (
-          <>
-            <Popover
-              open={uiCtx?.state.settingsPopover ?? false}
-              onOpenChange={(open) =>
-                uiCtx?.dispatch({ type: "SET_SETTINGS_POPOVER", open })
-              }
-            >
-              <PopoverTrigger
-                render={
-                  <TopbarButton
-                    title="Settings (Cmd+K)"
-                    aria-label="Open settings"
-                    data-settings-trigger
-                  >
-                    <SettingsIcon size={16} strokeWidth={2} />
-                  </TopbarButton>
-                }
-              />
-              <SettingsPopoverContent hideAlarmSound />
-            </Popover>
-
-            <TopbarButton title="User profile" aria-label="User profile">
-              <CircleUser size={16} strokeWidth={2} />
-            </TopbarButton>
-          </>
-        )}
+        {defaultSettings}
+        {profileSlot ?? defaultProfile}
       </div>
     </header>
   );

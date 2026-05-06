@@ -4,7 +4,7 @@ import {
   type Theme,
   type Density,
   type FontSize,
-} from "@/stores/dashboard-store";
+} from "@/stores/app-store";
 import type { UnitSystem } from "@/lib/units";
 import { THEMES } from "@/data/dashboard-static";
 import {
@@ -35,7 +35,7 @@ function SettingRow({
   );
 }
 
-export function SettingsPopoverContent({ hideAlarmSound }: { hideAlarmSound?: boolean }) {
+export function SettingsPopoverContent() {
   const { state, dispatch } = useSettings();
 
   return (
@@ -134,27 +134,25 @@ export function SettingsPopoverContent({ hideAlarmSound }: { hideAlarmSound?: bo
         </div>
       </div>
 
-      {!hideAlarmSound && (
-        <div className="px-rt-pad py-rt-pad-sm">
-          <div className="flex items-center gap-1.5 mb-2">
-            <BellRing
-              size={11}
-              strokeWidth={2}
-              className="text-(--theme-fg-dim)"
-            />
-            <span className="section-heading">Alerts</span>
-          </div>
-
-          <div className="flex flex-col gap-rt-gap-sm">
-            <SettingRow label="Sound">
-              <Switch
-                checked={state.soundEnabled}
-                onCheckedChange={() => dispatch({ type: "TOGGLE_SOUND" })}
-              />
-            </SettingRow>
-          </div>
+      <div className="px-rt-pad py-rt-pad-sm">
+        <div className="flex items-center gap-1.5 mb-2">
+          <BellRing
+            size={11}
+            strokeWidth={2}
+            className="text-(--theme-fg-dim)"
+          />
+          <span className="section-heading">Alerts</span>
         </div>
-      )}
+
+        <div className="flex flex-col gap-rt-gap-sm">
+          <SettingRow label="Sound">
+            <Switch
+              checked={state.soundEnabled}
+              onCheckedChange={() => dispatch({ type: "TOGGLE_SOUND" })}
+            />
+          </SettingRow>
+        </div>
+      </div>
     </PopoverContent>
   );
 }

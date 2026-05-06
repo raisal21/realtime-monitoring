@@ -6,7 +6,7 @@ import {
   PRESET_TO_MINUTES,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
-import { useChart, useSettings, FS_SCALE } from "@/stores/dashboard-store";
+import { useChart, useSettings, FS_SCALE } from "@/stores/app-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { formatDepth } from "@/lib/units";
 import { cn } from "@/lib/utils";

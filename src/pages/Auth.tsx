@@ -1,12 +1,14 @@
 "use client";
 
 import { Lock } from "lucide-react";
+import { useNavigate, Navigate } from "react-router-dom";
 import Terrain from "@/components/ui/terrain";
 import type { TerrainPreset } from "@/components/ui/terrain";
 import { TopbarButton } from "@/components/navigation";
 import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
 import { SettingsProvider, UiProvider } from "@/stores/app-store";
 import AuthCard from "@/components/auth/AuthCard";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AuthProps {
   onSignIn?: () => void;
@@ -17,6 +19,17 @@ export default function Auth({
   onSignIn,
   defaultPreset = "gruvbox",
 }: AuthProps) {
+  const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
+
+  if (isAuthenticated) return <Navigate to="/wells" replace />;
+
+  const handleSignIn = () => {
+    login();
+    onSignIn?.();
+    navigate("/wells", { replace: true });
+  };
+
   const handleLoginClick = () => {
     const form = document.getElementById("login-form");
     form?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -46,7 +59,7 @@ export default function Auth({
             <Terrain preset={defaultPreset} className="absolute inset-0" />
 
             <div className="absolute inset-0 flex items-center justify-center p-rt-pad-lg z-10">
-              <AuthCard onSignIn={onSignIn} />
+              <AuthCard onSignIn={handleSignIn} />
             </div>
           </div>
         </div>

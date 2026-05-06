@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useUi, useChart } from "@/stores/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
@@ -27,14 +27,21 @@ export default function Dashboard() {
   const { state: chart } = useChart();
   useKeyboardShortcuts();
 
+  const collapsedBelowBreakpoint = useRef(false);
   useEffect(() => {
-    const checkWidth = () => {
-      if (window.innerWidth < 1366 && ui.leftRail === "expanded") {
+    const onResize = () => {
+      const below = window.innerWidth < 1366;
+      if (below && !collapsedBelowBreakpoint.current) {
+        collapsedBelowBreakpoint.current = true;
         uiDispatch({ type: "SET_LEFT_RAIL", value: "collapsed" });
+      } else if (!below) {
+        collapsedBelowBreakpoint.current = false;
       }
     };
-    checkWidth();
-  }, []);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [uiDispatch]);
 
   const alarmAnchor =
     ui.alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH;

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { cn } from "@/lib/utils";
 import RigIllustration from "@/components/illustrations/RigIllustration";
 import LoginForm from "@/components/auth/LoginForm";
@@ -8,9 +9,11 @@ import PulseR from "@/components/brand/PulseR";
 
 export interface AuthCardProps {
   onSignIn?: () => void;
+  formRef?: React.Ref<HTMLFormElement>;
+  firstInputRef?: React.Ref<HTMLInputElement>;
 }
 
-export default function AuthCard({ onSignIn }: AuthCardProps) {
+export default function AuthCard({ onSignIn, formRef, firstInputRef }: AuthCardProps) {
   return (
     <div
       className={cn(
@@ -50,7 +53,7 @@ export default function AuthCard({ onSignIn }: AuthCardProps) {
         </p>
 
         {/* Form */}
-        <LoginForm onSignIn={onSignIn} />
+        <LoginForm onSignIn={onSignIn} formRef={formRef} firstInputRef={firstInputRef} />
 
         {/* Footer stamp */}
         <div

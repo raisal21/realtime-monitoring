@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { WELLS, type Well } from "@/data/wells";
 import { WellMap } from "@/components/well-explorer/map/WellMap";
 import { MapOverlay } from "@/components/well-explorer/map/MapOverlay";
@@ -14,15 +15,17 @@ export default function WellExplorer() {
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<Well["wellType"] | "all">("all");
 
+  const debouncedQuery = useDebouncedValue(query, 150);
+
   const filteredWells = useMemo(() => {
-    const q = query.toLowerCase();
+    const q = debouncedQuery.toLowerCase();
     return WELLS.filter((w) => {
       const matchesQuery =
         !q || w.name.toLowerCase().includes(q) || w.padId.toLowerCase().includes(q);
       const matchesType = activeType === "all" || w.wellType === activeType;
       return matchesQuery && matchesType;
     });
-  }, [query, activeType]);
+  }, [debouncedQuery, activeType]);
 
   const { coords, flyToWell } = useMaplibre({
     containerRef: mapContainerRef,

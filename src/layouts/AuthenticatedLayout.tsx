@@ -1,5 +1,6 @@
-import { Outlet, Navigate, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useParams } from "react-router-dom";
 import { UiProvider, SettingsProvider } from "@/stores/app-store";
+import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
 import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
 import { useAuth } from "@/hooks/useAuth";
 import { Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverTitle } from "@/components/popover";
@@ -7,10 +8,9 @@ import { TopbarButton } from "@/components/navigation";
 import { LogOut, CircleUser, ShieldCheck } from "lucide-react";
 
 export function AuthenticatedLayout() {
-  const { isAuthenticated, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
-
-  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  const { wellId } = useParams<{ wellId?: string }>();
 
   const handleLogout = () => {
     logout();
@@ -50,12 +50,14 @@ export function AuthenticatedLayout() {
   return (
     <SettingsProvider>
       <UiProvider>
-        <div className="flex flex-col h-screen overflow-hidden">
-          <UniversalTopbar profileSlot={profileSlot} />
-          <div className="flex-1 overflow-hidden">
-            <Outlet />
+        <CurrentWellProvider wellId={wellId}>
+          <div className="flex flex-col h-screen overflow-hidden">
+            <UniversalTopbar profileSlot={profileSlot} />
+            <div className="flex-1 overflow-hidden">
+              <Outlet />
+            </div>
           </div>
-        </div>
+        </CurrentWellProvider>
       </UiProvider>
     </SettingsProvider>
   );

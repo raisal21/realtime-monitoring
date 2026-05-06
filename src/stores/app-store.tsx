@@ -2,6 +2,7 @@ import React, {
   useReducer,
   useContext,
   useEffect,
+  useRef,
   createContext,
   type ReactNode,
 } from "react";
@@ -453,6 +454,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(UNIT_SYSTEM_KEY, state.unitSystem);
     }
   }, [state.unitSystem]);
+
+  const isFirstThemeRun = useRef(true);
+  useEffect(() => {
+    if (isFirstThemeRun.current) {
+      isFirstThemeRun.current = false;
+      return;
+    }
+    const root = document.documentElement;
+    root.classList.add("theme-transitioning");
+    const id = window.setTimeout(() => {
+      root.classList.remove("theme-transitioning");
+    }, 320);
+    return () => window.clearTimeout(id);
+  }, [state.theme]);
 
   return (
     <SettingsContext.Provider value={{ state, dispatch }}>

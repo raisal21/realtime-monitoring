@@ -903,3 +903,782 @@ Each phase = one commit (or PR if scope > one session). Commit prefix:
 - `refactor(data): phase 6 metric depth canonical`
 
 Update this section with `(DONE YYYY-MM-DD)` markers as phases land.
+
+---
+
+## Phase 8 — Brand Identity: Favicon + Document Title
+
+**Risk: L** · **Touch: 3 files** · **Ship: solo**
+
+Replace generic Vite favicon (`/public/vite.svg`) and title `"Realtime Monitoring"` with the in-house `PulseR` brand mark and a domain-accurate title. Cheap visible win — every browser tab + bookmark currently shows Vite default.
+
+### 8.1 Goal
+
+- Favicon = static SVG export of `PulseR` (gruvbox theme tokens hardcoded since favicon renders before any CSS theme loads).
+- Title = `"RTDC · Guntur Geothermal"` (or `"Realtime Drilling Control · Guntur"` — pick one and keep it in sync with `Footer` footer-string `RTDC v0.2.0-alpha`).
+
+### 8.2 Steps
+
+**Step 1 — Generate static SVG.**
+`PulseR` is a React component, not a static SVG file. Browsers fetch the favicon over HTTP before any JS runs, so the React tree never renders. Two options:
+
+- **Option A (recommended)** — hand-port the JSX from `src/components/brand/PulseR.tsx` lines 38-63 into a plain `.svg` file at `public/pulse-r.svg`. Inline the gruvbox values directly:
+  - `fgColor` = `#ebdbb2`
+  - `accentColor` = `#83a598` (info — neutral default for favicon)
+  - `scanOpacity = 0.85`, `dimOpacity1 = 0.5`, `dimOpacity2 = 0.25`
+  - Keep `viewBox="0 0 64 64"` and `shape-rendering="crispEdges"` so it stays sharp at 16/32 px.
+- **Option B** — write a tiny Node script (`scripts/build-favicon.mjs`) that imports `react-dom/server`, calls `renderToStaticMarkup(<PulseR tone="default" status="info" />)`, writes to `public/pulse-r.svg`. Run as a `prebuild` npm script so favicon stays in sync with the React component automatically. Heavier, but no drift.
+
+Default: **Option A**. Favicon rarely changes. One-time port + comment on top of the SVG referencing the source component is enough.
+
+**Step 2 — Add SVG file at `public/pulse-r.svg`.**
+Strip React-isms: `xmlns` stays, drop `className`, drop the `<g>` wrapper if not needed (kept for clarity is fine), convert any camelCase attrs that don't apply to raw SVG. Source attrs already use kebab-case (`shape-rendering`, `stroke-width`) so port is near-verbatim.
+
+**Step 3 — Wire `index.html`.**
+Replace lines 5 and 8:
+
+```diff
+-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
++    <link rel="icon" type="image/svg+xml" href="/pulse-r.svg" />
+-    <title>Realtime Monitoring</title>
++    <title>RTDC · Guntur Geothermal</title>
+```
+
+Optional polish: add a `<link rel="mask-icon">` + `<meta name="theme-color" content="#1d2021">` (gruvbox base) so Safari pinned tabs and mobile chrome bars match.
+
+**Step 4 — Delete `public/vite.svg`.**
+Dead asset once the link is rewired. `grep -r "vite.svg" .` first to confirm no other references.
+
+### 8.3 What to watch for
+
+- **Theme drift**: favicon is frozen gruvbox. If the user switches to `tomorrow` or `solarized`, the tab icon will not follow — accepted. SVG-with-CSS-vars does not work because the favicon SVG is loaded outside the document and has no access to `:root` vars.
+- **Dynamic favicon (status-aware)** is possible later: a `useFavicon()` hook can swap `link[rel=icon].href` at runtime when alarm severity escalates. Out of scope for Phase 8 — open Phase 8b if/when wanted.
+- **Build hashing**: Vite copies `public/*` verbatim with no fingerprint. Browsers may cache. Bump filename to `pulse-r-v1.svg` if cache-busting needed.
+- **Title sync**: keep tab title aligned with `Footer` brand string. If brand becomes "RTDC v0.3.x" later, update both at once.
+
+### 8.4 Acceptance criteria
+
+- New tab shows the `PulseR` mark, not the Vite logo.
+- Tab title reads `RTDC · Guntur Geothermal` (or chosen variant).
+- `public/vite.svg` deleted.
+- `grep -rn "vite.svg\|Realtime Monitoring" .` returns zero matches outside `node_modules` and historical NOTES.
+
+---
+
+## Phase 9 — Performance & Code Quality Pass
+
+**Risk: L-M** · **Touch: ~8 files** · **Ship: incremental subtasks**
+
+Findings from a full audit of `src/pages/`, `src/components/`, `src/index.css`, `src/routes.tsx`, `src/guards/`. Each subtask is independently shippable. Ordered by impact.
+
+### 9.1 Route-level code splitting (biggest win)
+
+**Problem.** `src/routes.tsx` imports `Dashboard`, `WellExplorer`, `Auth`, `404` synchronously at the top. Result: the very first paint of `/auth` ships the entire chart engine, every dashboard panel, MapLibre GL (heavy), and AckModal in one bundle. Most users hit `/auth` first and never see those bytes during sign-in.
+
+**Fix.** Convert each page to `React.lazy` + `<Suspense>` so the chunk only downloads when its route activates.
+
+**Steps.**
+
+1. Replace direct imports in `src/routes.tsx`:
+   ```tsx
+   import { lazy, Suspense } from "react";
+   const Dashboard    = lazy(() => import("@/pages/Dashboard"));
+   const WellExplorer = lazy(() => import("@/pages/WellExplorer"));
+   const Auth         = lazy(() => import("@/pages/Auth"));
+   const NotFoundPage = lazy(() => import("@/pages/404"));
+   ```
+2. Wrap `<Routes>` (or each lazy element) in `<Suspense fallback={<RouteFallback />}>`. Build a minimal `RouteFallback` that uses existing tokens — solid `bg-base` + a centered status dot or skeleton — so the fallback flash matches the active theme and never flashes white.
+3. Force MapLibre into its own chunk via dynamic import inside `useMaplibre.ts` if it is not already isolated. Vite's default chunking should already split it once the page is lazy, but verify with `vite build --mode production` and inspect `dist/assets/`.
+4. Pre-warm critical chunks on idle: in `Auth.tsx`, after first paint, fire `import("@/pages/WellExplorer")` inside `requestIdleCallback` so the navigation post-login feels instant. Optional but cheap.
+
+**What to watch for.**
+
+- Suspense fallback must not unmount providers above it — keep `<Suspense>` *inside* `AuthenticatedLayout`'s `<Outlet />` boundary so context (auth, current well) does not reset on every navigation.
+- `StrictMode` double-mounts in dev only; do not chase the doubled lazy fetch.
+- Dynamic imports break if the path is computed. Keep paths static literals.
+- Watch initial bundle size before/after with `vite build` output. Expect `40-60%` initial JS reduction. Record numbers in commit body.
+
+**Acceptance.**
+- `dist/assets/index-*.js` initial chunk size strictly smaller than baseline.
+- Network tab shows separate chunks fetched only on first visit to `/wells` and `/dashboard`.
+- No flicker of providers across navigations.
+
+### 9.2 `Dashboard.tsx` stale-closure + missing resize listener
+
+**Problem.** `src/pages/Dashboard.tsx:30-37`:
+
+```tsx
+useEffect(() => {
+  const checkWidth = () => {
+    if (window.innerWidth < 1366 && ui.leftRail === "expanded") {
+      uiDispatch({ type: "SET_LEFT_RAIL", value: "collapsed" });
+    }
+  };
+  checkWidth();
+}, []);
+```
+
+Two bugs in five lines:
+1. Empty dep array + reads `ui.leftRail` from closure → stale on every re-render after mount. The check uses the value of `ui.leftRail` as it was at first render, not the current one.
+2. No `resize` listener attached. The auto-collapse only fires on mount, not when the user actually drags the window across the 1366 px threshold.
+
+**Fix.**
+
+```tsx
+useEffect(() => {
+  const onResize = () => {
+    if (window.innerWidth < 1366) {
+      uiDispatch({ type: "SET_LEFT_RAIL", value: "collapsed" });
+    }
+  };
+  onResize();
+  window.addEventListener("resize", onResize);
+  return () => window.removeEventListener("resize", onResize);
+}, [uiDispatch]);
+```
+
+**What to watch for.**
+
+- Drop the `ui.leftRail === "expanded"` guard — dispatching the same value on a reducer should be a no-op (or you can early-return inside the reducer). Reading `ui.leftRail` here re-introduces the stale-closure trap.
+- If the user *intentionally* re-expands the rail below 1366 px after auto-collapse, the listener will fight them on the next resize event. Add a one-shot flag (`useRef(false)`) so auto-collapse only happens once per breakpoint crossing.
+- Consider extracting to a `useViewportBreakpoint(1366)` hook for reuse — `LeftToolRail` likely has the same logic duplicated somewhere.
+- Throttle with `requestAnimationFrame` or a 100 ms debounce if the dispatch becomes hot. For a single boolean flip it is fine raw.
+
+**Acceptance.**
+- Resize from 1500 → 1200 px → rail auto-collapses without page reload.
+- Resize back to 1500 px does not auto-expand (one-way collapse, by design).
+- React DevTools shows no "stale state" warnings.
+
+### 9.3 Provider tree split in `routes.tsx`
+
+**Problem.** `src/routes.tsx:23-32`. `/wells` has no `CurrentWellProvider`. `/wells/:wellId` does. Navigating from `/wells` → `/wells/:wellId` mounts a new provider subtree → all well-scoped state, refs, and any in-flight effects reset. `WellExplorer.tsx` already wraps an inner provider keyed on `selectedWell?.id` (per Phase 0 notes), so the outer route-level provider is partially redundant but inconsistent.
+
+**Fix options.**
+
+- **Option A** — hoist `CurrentWellProvider` to wrap *both* `/wells` and `/wells/:wellId` routes (single provider, fed by `useParams()` inside the provider). Simplest.
+- **Option B** — put `CurrentWellProvider` inside `AuthenticatedLayout` so every authenticated route shares one provider. Cleanest if more routes will need it. Matches Phase 0 intent ("seeded from route param `:wellId`").
+
+**Steps (Option B).**
+
+1. Move provider into `src/layouts/AuthenticatedLayout.tsx`, wrapping the `<Outlet />`.
+2. Remove the per-route wrappers in `routes.tsx` for `/wells/:wellId` and `/dashboard/:wellId?`.
+3. Inside provider, read `useParams<{ wellId?: string }>()` and resolve to `WELLS.find(...)` or `WELLS[0]`.
+4. Remove the inner keyed provider in `WellExplorer.tsx` if Phase 0 added one — single source of truth.
+
+**What to watch for.**
+
+- Every consumer of `useCurrentWell()` must tolerate the provider mounting once at layout level and surviving across route changes. Check `Footer`, `UniversalTopbar`, `DashboardSubheader`.
+- `useParams()` returns `undefined` for `wellId` on `/wells` — handle the no-selection case explicitly. Do not silently fallback to `WELLS[0]` on the explorer landing page (breadcrumb should show "Wells" not "Wells > [PROD-GA-01]").
+- React Router 7 re-renders all parent routes on param change — provider memo should compare resolved well by id, not by reference, to avoid unnecessary downstream re-renders.
+
+**Acceptance.**
+- Navigate `/wells` → `/wells/ga-01` → `/wells/ga-02`: provider does not unmount/remount (verify via React DevTools).
+- Footer well name updates on each navigation.
+- No double-render of dashboard panels.
+
+### 9.4 Missing `AuthGuard` on authenticated routes
+
+**Problem.** `src/guards/GuestGuard.tsx` exists for `/auth`. There is no `AuthGuard` for `/wells`, `/dashboard`. Direct URL hit (`https://app/dashboard`) renders the page without authentication. Likely a real bug, not a perf concern.
+
+**Fix.**
+
+1. Create `src/guards/AuthGuard.tsx`:
+   ```tsx
+   import { Navigate, useLocation } from "react-router-dom";
+   import { useAuth } from "@/hooks/useAuth";
+   import type { ReactNode } from "react";
+
+   export function AuthGuard({ children }: { children: ReactNode }) {
+     const { isAuthenticated } = useAuth();
+     const location = useLocation();
+     if (!isAuthenticated) {
+       return <Navigate to="/auth" replace state={{ from: location }} />;
+     }
+     return <>{children}</>;
+   }
+   ```
+2. Wrap `AuthenticatedLayout` element in `routes.tsx`:
+   ```tsx
+   <Route element={<AuthGuard><AuthenticatedLayout /></AuthGuard>}>
+     ...
+   </Route>
+   ```
+3. In `Auth.tsx` `handleSignIn`, read `location.state?.from?.pathname` and `navigate(from ?? "/wells", { replace: true })` so post-login lands on the originally requested URL.
+
+**What to watch for.**
+
+- `useAuth()` must return synchronously on first render. If auth check is async (token validation against server), add an "auth loading" state — guards rendering `<Navigate>` while auth is still loading would bounce the user to `/auth` mid-validation.
+- `replace: true` on the redirect prevents back-button loops.
+- Pair with `GuestGuard` semantics: authenticated user hitting `/auth` redirects to `/wells`. Already in place.
+
+**Acceptance.**
+- Direct hit on `/dashboard/ga-01` while logged out → redirected to `/auth`.
+- After login → land on `/dashboard/ga-01`, not `/wells`.
+- Logged-in user hitting `/auth` still redirects to `/wells` (existing GuestGuard).
+
+### 9.5 `WellExplorer.tsx` search not debounced
+
+**Problem.** `src/pages/WellExplorer.tsx:17-25`. `query` updates on every keystroke → `filteredWells` recomputes (cheap) → new array reference passes to `useMaplibre({ wells: filteredWells, ... })` → likely triggers map source/marker rebuild on each keystroke. For ~100 wells acceptable; at scale it stalls input.
+
+**Fix.**
+
+1. Add `useDebouncedValue` hook (or use existing if any in `src/hooks/`):
+   ```ts
+   export function useDebouncedValue<T>(value: T, delayMs: number): T {
+     const [debounced, setDebounced] = useState(value);
+     useEffect(() => {
+       const id = setTimeout(() => setDebounced(value), delayMs);
+       return () => clearTimeout(id);
+     }, [value, delayMs]);
+     return debounced;
+   }
+   ```
+2. In `WellExplorer.tsx`:
+   ```ts
+   const debouncedQuery = useDebouncedValue(query, 150);
+   const filteredWells = useMemo(() => { /* use debouncedQuery */ }, [debouncedQuery, activeType]);
+   ```
+3. Sidebar input continues to bind to immediate `query` (instant feedback in the textbox); only the *map* sees the debounced value. UX trick: input feels responsive, expensive work is throttled.
+
+**What to watch for.**
+
+- 150 ms is a sweet spot — long enough to skip per-keystroke work, short enough that users do not notice. Bump to 250 ms only if profiling shows MapLibre work is the bottleneck.
+- Make sure `useMaplibre` *internally* memoizes marker creation by well `id`, not by array identity. Otherwise debounce only delays the same problem. Audit `useMaplibre.ts` source/marker effects: deps array should reference `wells.map(w => w.id).join(",")` or use a structural hash.
+- Verify that activeType filter (button toggle, not text input) does not need debouncing — single click is one update, fine to be immediate.
+
+**Acceptance.**
+- Type "guntur" rapidly: textbox echoes instantly, map markers update once after typing stops.
+- Profiling shows ≤1 MapLibre re-source per ~150 ms instead of per keystroke.
+
+### 9.6 `Auth.tsx` imperative DOM scroll
+
+**Problem.** `src/pages/Auth.tsx:33-37`:
+
+```tsx
+const handleLoginClick = () => {
+  const form = document.getElementById("login-form");
+  form?.scrollIntoView({ behavior: "smooth", block: "center" });
+  form?.querySelector("input")?.focus();
+};
+```
+
+Imperative DOM access from a React component. Brittle (depends on a string id rendered far away in a child), bypasses React reconciliation, fragile under SSR/hydration if it ever ships.
+
+**Fix.**
+
+1. Lift refs into `Auth.tsx`:
+   ```tsx
+   const formRef = useRef<HTMLDivElement>(null);
+   const inputRef = useRef<HTMLInputElement>(null);
+   ```
+2. Pass refs into `AuthCard` → `LoginForm`:
+   ```tsx
+   <AuthCard onSignIn={handleSignIn} formRef={formRef} firstInputRef={inputRef} />
+   ```
+3. `handleLoginClick` becomes:
+   ```tsx
+   const handleLoginClick = () => {
+     formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+     inputRef.current?.focus();
+   };
+   ```
+4. In `LoginForm`, attach `inputRef` to the email input. Remove the `id="login-form"` attribute if it was only there for `getElementById`.
+
+**What to watch for.**
+
+- `forwardRef` may be needed if `AuthCard`/`LoginForm` are component types that cannot accept a ref directly. React 19 allows passing `ref` as a regular prop on function components — confirm version.
+- If `scrollIntoView` is the user's desired UX (scroll then focus), preserve order and timing. `behavior: "smooth"` runs async; calling `focus()` immediately after will jump scroll. If that becomes visible, wrap focus in `setTimeout(..., 300)` or use `scrollend` event.
+
+**Acceptance.**
+- Topbar "Login" button still scrolls and focuses input.
+- No `getElementById`/`querySelector` calls in `src/pages/Auth.tsx`.
+
+### 9.7 `404.tsx` inline font-family literals
+
+**Problem.** `src/pages/404.tsx:20, 23, 26, 32` use Tailwind arbitrary-value font literals: `font-['Barlow_Condensed',sans-serif]`. The design system already exposes `--font-ui`, `--font-body`, `--font-mono` via `index.css` `@theme` block. Inline literals duplicate this and bypass the token system — if the brand font ever changes, this file is the one place it forks.
+
+**Fix.**
+
+1. Use Tailwind v4 utilities derived from `@theme`: `font-ui`, `font-body`, `font-mono`. Verify Tailwind generates them; they should because `@theme` registers `--font-*` tokens.
+2. Replace each occurrence:
+   - `font-['Barlow_Condensed',sans-serif] font-extrabold` → `font-ui font-extrabold`
+   - `font-['Barlow_Condensed',sans-serif] font-bold` → `font-ui font-bold`
+   - `font-['Barlow',sans-serif]` → `font-body`
+3. Same audit pass on any other component — `grep -rn "font-\[" src/` to find stragglers.
+
+**What to watch for.**
+
+- Tailwind v4's font utility generation requires the `--font-*` token to be in the `@theme` layer (it is, in `index.css:60-62`).
+- If `font-ui` is not generated, fall back to `style={{ fontFamily: "var(--font-ui)" }}` rather than re-introducing literals.
+- 404 page is rarely seen — deprioritize until a broader typography sweep is planned.
+
+**Acceptance.**
+- `grep -n "font-\[" src/pages/404.tsx` → zero matches.
+- Visual regression check: 404 page renders identically.
+
+### 9.8 `index.css` blanket theme transition
+
+**Problem.** `src/index.css:952-958`:
+
+```css
+[data-theme] {
+  transition:
+    background-color 280ms ease,
+    color 280ms ease,
+    border-color 280ms ease,
+    box-shadow 280ms ease;
+}
+```
+
+Applies a 4-property transition to `<html>`. Children inherit `transition` if explicitly set, but `transition` is non-inherited by default — so this is actually scoped to the root element. Cost is minimal. Flagged for awareness, not action.
+
+**Where it might bite.**
+
+- If, later, `transition` is added to a base-layer rule on `*` or to a wide selector, the cost compounds. Watch for that during future CSS additions.
+- On theme switch, even with the transition only on `<html>`, the *visual* re-paint is full-screen. Fine on desktop, may be visible on low-end machines.
+
+**Optional improvement.**
+
+- Wrap the theme switch in `document.documentElement.classList.add("theme-transitioning")`, apply transition only when that class is present, then remove the class after 280 ms. Prevents transition on initial paint and other non-theme repaints.
+
+**Acceptance.** None — informational only. Mark resolved when a future CSS audit either keeps or replaces it.
+
+### 9.9 `index.css` per-theme block duplication
+
+**Problem.** Three `[data-theme="*"]` blocks (`gruvbox`, `tomorrow`, `solarized`) at `index.css:164-285` repeat the exact same set of `--theme-*` and `--trace-*` keys with different values. ~120 lines of structural repetition. Adding a fourth theme means another full block. Easy to miss a key and ship a partial theme.
+
+**Fix options.**
+
+- **Option A** — keep raw blocks, add a CI lint script (`scripts/check-themes.mjs`) that parses the CSS and asserts every theme defines the same set of keys. Fast, no runtime change.
+- **Option B** — move theme palettes into a single TypeScript object (`src/data/themes.ts`) and inject as inline `<style>` at the document root. Theme switcher reads from one source. More invasive — affects build pipeline and SSR if added later.
+
+Default: **Option A**. Linter is ~30 lines of Node, no runtime cost, catches the bug class entirely.
+
+**Steps (Option A).**
+
+1. Add `scripts/check-themes.mjs`:
+   - Read `src/index.css`.
+   - Find every `[data-theme="..."] { ... }` block via regex.
+   - Extract `--theme-*` + `--trace-*` keys per block.
+   - Diff key sets; fail with a clear list if any diverge.
+2. Wire into `package.json`: `"prebuild": "node scripts/check-themes.mjs"`.
+3. Run once now; expect all three themes to match. Fix any drift discovered.
+
+**What to watch for.**
+
+- Trace tokens (`--trace-rpm`, etc.) are theme-scoped; lint must include them.
+- Comments inside blocks must not break the regex — use a tolerant parser or exclude comments before regex.
+- If a future theme intentionally drops a key (unlikely), allow override via `// theme-lint-ignore` comment or a config list.
+
+**Acceptance.**
+- Removing any `--theme-*` line from one theme block fails the prebuild.
+- `npm run build` runs the check before Vite.
+
+### 9.10 Tracking
+
+Subtask commits:
+
+- `perf(routes): phase 9.1 lazy load routes`
+- `fix(dashboard): phase 9.2 dashboard resize listener`
+- `refactor(routes): phase 9.3 hoist current-well provider to layout`
+- `feat(guards): phase 9.4 add AuthGuard`
+- `perf(explorer): phase 9.5 debounce well search query`
+- `refactor(auth): phase 9.6 replace getElementById with refs`
+- `style(404): phase 9.7 use font-ui token utility`
+- `chore(css): phase 9.8 theme transition note (no-op)`
+- `chore(build): phase 9.9 lint theme key parity`
+
+### Risk Register (Phase 9)
+
+| Risk | Subtask | Mitigation |
+|---|---|---|
+| Lazy chunks regress fallback flicker | 9.1 | Theme-aware Suspense fallback, prewarm on idle |
+| Provider hoist breaks WellExplorer's keyed inner provider | 9.3 | Audit `useCurrentWell()` consumers, remove duplicate inner provider in same commit |
+| AuthGuard bounces during async auth init | 9.4 | Add `isLoading` state to `useAuth`, render null while loading |
+| Debounce hides bug if `useMaplibre` is doing too much per render | 9.5 | Audit `useMaplibre` deps before debouncing — fix root cause if found |
+| Tailwind `font-ui` utility not generated | 9.7 | Verify `@theme` `--font-*` registration; fallback to inline `style` |
+| Theme lint false positives on comments | 9.9 | Strip comments before regex parse |
+
+---
+
+## Phase 10 — Unify UI State on Zustand
+
+**Risk: M** · **Touch: ~15 files** · **Ship: incremental subtasks**
+
+Project currently runs two parallel state worlds:
+
+- **Zustand** (`src/store/index-store.ts`, `globalRigStore`) — connection, telemetry streams, alarms, subscriptions. Owned by services (`connection-manager.ts`, `rig-client.ts`). Pages do not read it.
+- **React Context + useReducer** (`src/stores/app-store.tsx`) — `UiState`, `ChartState`, `SettingsState`. Owned by pages. Services do not read it.
+
+`CurrentWellContext` sits orthogonal — pure route-derived value, no shared mutation.
+
+Goal: collapse the two worlds into one Zustand store (or one store w/ slices), keep `CurrentWellContext` as thin Context. Net: pages gain selector-based re-render, services gain access to UI flags (e.g. `liveMode`, `unitSystem`), provider tree shrinks.
+
+### 10.1 Scope
+
+**Migrate to Zustand:**
+
+- `UiState` — sidebar open/closed, popover visibility, alarm filters, ack modal, leftRail breakpoint state.
+- `ChartState` — mode (time/depth), liveMode, rangePreset, trace/track visibility/order/widths.
+- `SettingsState` — theme, density, fontSize, sampleRate, smoothing, sound/notifications, unitSystem.
+
+**Keep as React Context:**
+
+- `CurrentWellContext` — route-derived (`useParams` → `WELLS.find`), one-way data flow, no cross-component mutation. Zustand-ifying it = sync `useParams` → store via `useEffect` in layout, which adds indirection without benefit.
+
+### 10.2 Why migrate
+
+| Gain | Mechanism |
+|---|---|
+| Selector-based re-render | `useStore(s => s.ui.leftRail)` re-renders only on that slice change. Context+useReducer fires every consumer on any slice change. |
+| Persist for free | `zustand/middleware persist` + `partialize` replaces hand-rolled `useEffect(() => localStorage.setItem(...), [state.x])` per setting. |
+| Cross-slice access | `ChartTrace` rendering can read `settings.unitSystem` without nested context. Currently requires `useSettings()` + `useChart()` co-call. |
+| Service ↔ UI bridge | `connection-manager.ts` already dispatches into `globalRigStore`. Once UI is in same store, e.g. `AlarmTicker` can read `alarmRegistry` directly without bouncing through context. |
+| DevTools | `zustand/middleware/devtools` gives time-travel debug across telemetry + UI + settings. |
+| Shorter provider tree | `AuthenticatedLayout` drops `SettingsProvider` + `UiProvider` wrappers. `Dashboard` route drops `ChartProvider`. Net: 3 Provider components removed. |
+
+### 10.3 Architecture Decision
+
+**Option A — Single store, many slices (recommended).** Extend existing `globalRigStore` w/ `UiSlice`, `ChartSlice`, `SettingsSlice`. Mirrors current slice pattern (`ConnectionSlice`, `TelemetrySlice`, `AlarmSlice`, `SubscriptionSlice`). One store, one DevTools timeline, one persist scope.
+
+**Option B — Two stores.** Keep `globalRigStore` for service-driven state. New `uiStore` for UI/Chart/Settings. Cleaner separation, but doubles store boilerplate and breaks cross-slice subscribe (alarm filter UI reading alarm registry).
+
+**Pick Option A.** Slice pattern already established. Cross-slice reads (alarm filter ↔ alarm registry) are real usage.
+
+### 10.4 Steps
+
+**Step 1 — Add slice files under `src/store/slices/`.**
+
+Mirror existing slice structure:
+
+```ts
+// src/store/slices/ui-slice.ts
+export interface UiSlice {
+  ui: {
+    leftRail: "expanded" | "collapsed";
+    gaugeSidebar: "open" | "closed";
+    alarmSidebar: "open" | "closed";
+    settingsPopover: boolean;
+    zoomPopover: boolean;
+    ackModal: { open: boolean; alarmId: string | null };
+    alarmFilter: AlarmFilter;
+  };
+  setLeftRail: (v: "expanded" | "collapsed") => void;
+  setGaugeSidebar: (v: "open" | "closed") => void;
+  // ...
+}
+
+export const createUiSlice: StateCreator<RootStore, [], [], UiSlice> = (set) => ({
+  ui: { leftRail: "expanded", /* ... */ },
+  setLeftRail: (v) => set((s) => ({ ui: { ...s.ui, leftRail: v } })),
+  // ...
+});
+```
+
+Repeat for `ChartSlice` and `SettingsSlice`. Action shapes mirror current `useReducer` action types — easier to grep-replace consumers later.
+
+**Step 2 — Compose root store.**
+
+```ts
+// src/store/index-store.ts
+import { create } from "zustand";
+import { persist, devtools } from "zustand/middleware";
+
+export type RootStore = ConnectionSlice & TelemetrySlice & AlarmSlice
+  & SubscriptionSlice & UiSlice & ChartSlice & SettingsSlice;
+
+export const globalRigStore = create<RootStore>()(
+  devtools(
+    persist(
+      (...a) => ({
+        ...createConnectionSlice(...a),
+        ...createTelemetrySlice(...a),
+        ...createAlarmSlice(...a),
+        ...createSubscriptionSlice(...a),
+        ...createUiSlice(...a),
+        ...createChartSlice(...a),
+        ...createSettingsSlice(...a),
+      }),
+      {
+        name: "rtdc-store",
+        version: 1,
+        partialize: (s) => ({
+          ui: s.ui,            // optional — persist sidebar state across reloads
+          chart: s.chart,      // optional — persist chart layout
+          settings: s.settings // mandatory — already persisted today
+        }),
+        migrate: (persisted, version) => {
+          // version 0 → 1 migration: lift old localStorage keys
+          //   `rtdc.unitSystem`, etc. into the consolidated `rtdc-store`
+          //   payload. Read legacy keys, merge, then `localStorage.removeItem`.
+          return persisted as RootStore;
+        },
+      },
+    ),
+    { name: "rtdc" },
+  ),
+);
+```
+
+**Step 3 — Replace `useUi`, `useChart`, `useSettings` hook bodies.**
+
+Two flavors of API are possible. Pick one and apply consistently:
+
+- **API-compatible (stage 1, low-touch):**
+  ```ts
+  export function useUi() {
+    const ui = useStore((s) => s.ui);
+    const dispatch = useStore((s) => s.uiDispatch); // synthesized from action setters
+    return { state: ui, dispatch };
+  }
+  ```
+  Drop-in. Existing call sites (`const { state, dispatch } = useUi()`) keep working. **Caveat:** `useStore((s) => s.ui)` returns a fresh ref on any UI mutation → still a re-render storm. Use only as temporary shim during migration.
+
+- **Selector-based (stage 2, target form):**
+  ```ts
+  // call site
+  const leftRail = useStore((s) => s.ui.leftRail);
+  const setLeftRail = useStore((s) => s.setLeftRail);
+  ```
+  Per-component selector. True per-slice re-render. Requires touching every call site — but that is exactly the perf gain we want.
+
+**Migrate per consumer**, not all at once. Stage 1 lets the codebase compile; stage 2 happens incrementally.
+
+**Step 4 — Delete `src/stores/app-store.tsx` Provider exports.**
+
+Remove `UiProvider`, `ChartProvider`, `SettingsProvider`. Update `AuthenticatedLayout.tsx` (drop `<SettingsProvider><UiProvider>` wrapping) and `routes.tsx` (drop `<ChartProvider>` from `/dashboard/:wellId?`). Auth.tsx similarly drops its `<SettingsProvider><UiProvider>` (it had its own copy for the auth-page theme context).
+
+**Step 5 — Migrate localStorage persist.**
+
+Today: `SettingsProvider` writes `rtdc.unitSystem` (and likely others) via `useEffect`. After migration: `persist` middleware handles it. Add a one-time `migrate` fn in the persist config that reads legacy keys (`rtdc.unitSystem`, `rtdc.theme` if any) and folds them into the new `rtdc-store` payload, then `localStorage.removeItem` the legacy keys. Bump `version: 1`.
+
+**Step 6 — Apply chart-state lifecycle decision.**
+
+Currently `ChartProvider` wraps only `/dashboard/:wellId?` → chart state resets when user leaves the route. After Zustand singleton, it survives.
+
+Two paths:
+
+- (a) **Survive across nav** — desired in most cases. User flips chart layout, opens settings, returns later → state intact. Default.
+- (b) **Reset on dashboard mount** — call `resetChart()` action from `Dashboard.tsx` `useEffect(() => resetChart, [])`. Choose only if UX explicitly wants fresh chart per session.
+
+Pick (a). If (b) needed later, a single `resetChart()` action handles it.
+
+### 10.5 What to watch for
+
+- **Re-render hygiene.** Stage 1 shim recreates the Context-equivalent re-render storm. Plan ahead to migrate hot paths (`LogTrack`, `FlowRuler`, `FloatingGaugeSidebar`) to selector form first — those re-render every telemetry tick. Cold paths (`SettingsPopover`) can stay shimmed.
+- **`useShallow` for derived objects.** When a selector returns an object (`useStore(s => ({ a: s.ui.a, b: s.ui.b }))`), it returns a fresh ref every render. Wrap in `useShallow` from `zustand/react/shallow` to compare by structural equality.
+- **Action naming collisions.** Existing `globalRigStore` has `registerAlarm`, `reconcileTopics`, etc. UiSlice will likely add `setAlarmFilter`, `openAckModal`. Keep names slice-prefixed if collision risk (e.g. `ui.openAckModal` vs `alarm.acknowledgeAlarm`).
+- **Persist scope.** Do NOT persist Telemetry/Connection/Alarm slices — they are runtime/server-driven. `partialize` to `{ ui, chart, settings }` only. Persisting alarms across reloads would resurrect stale alarm rows.
+- **DevTools in prod.** `devtools` middleware auto-disables outside dev, but verify build flags. Wrap `devtools(...)` in `import.meta.env.DEV ?` if Vite tree-shaking misses it.
+- **Test surface.** No test runner today. Rely on tsc + manual smoke. After migration, every action setter is a pure fn on the store — easier to add Vitest later.
+- **CurrentWellContext stays.** Do not migrate. Document in CLAUDE.md why: route-derived, no shared mutation, Context is the right tool.
+- **SSR.** Project is SPA → Zustand singleton fine. If SSR ever added, Zustand needs per-request store factory + Context bridge. Out of scope.
+
+### 10.6 Subtasks
+
+Each subtask shippable independently. tsc must stay green between subtasks.
+
+- **10.a** Scaffolding: add `UiSlice`/`ChartSlice`/`SettingsSlice` files. Compose into `globalRigStore`. Slices unused yet — store has dual ownership briefly.
+- **10.b** Migrate `useSettings()` to Zustand-backed shim. Move `localStorage` persist to middleware. Migration fn folds legacy `rtdc.unitSystem` into new `rtdc-store`.
+- **10.c** Delete `SettingsProvider` from `AuthenticatedLayout` + `Auth.tsx`.
+- **10.d** Migrate `useUi()` to Zustand-backed shim. Touch hot consumers (`Dashboard.tsx` resize listener, `LeftToolRail`) to selector form.
+- **10.e** Delete `UiProvider` from `AuthenticatedLayout` + `Auth.tsx`.
+- **10.f** Migrate `useChart()` to Zustand-backed shim. Touch hot consumers (`LogTrack`, `FlowRuler`, `WellProfileTrack`, `DepthRuler`, `TimeRuler`) to selector form.
+- **10.g** Delete `ChartProvider` from `routes.tsx`. Decide chart-lifecycle (survive vs reset) — default survive.
+- **10.h** Strip `src/stores/app-store.tsx` reducer code. File becomes a thin re-export of hooks pointing at Zustand. Or delete entirely if all consumers updated.
+- **10.i** (optional) Add `useShallow` import where call sites return derived objects. Audit re-render counts via React DevTools profiler.
+
+### 10.7 Acceptance criteria
+
+- `tsc -b` clean throughout migration. Each subtask compiles.
+- `pnpm run build` succeeds. Theme check still passes.
+- No `<UiProvider>`, `<ChartProvider>`, `<SettingsProvider>` references remain in `src/`.
+- `grep -rn "useReducer" src/stores/` returns zero (or only test fixtures).
+- Settings persist across reload via `rtdc-store` localStorage key. Legacy `rtdc.unitSystem` key removed by migration fn on first run.
+- React DevTools profiler shows fewer renders on telemetry tick — `LogTrack` re-renders only when its trace data changes, not on unrelated UI mutations.
+- `CurrentWellProvider` untouched.
+
+### 10.8 Tracking
+
+Subtask commits:
+
+- `feat(store): phase 10.a slice scaffolding`
+- `refactor(settings): phase 10.b migrate useSettings to zustand`
+- `chore(layout): phase 10.c drop SettingsProvider`
+- `refactor(ui): phase 10.d migrate useUi to zustand`
+- `chore(layout): phase 10.e drop UiProvider`
+- `refactor(chart): phase 10.f migrate useChart to zustand`
+- `chore(routes): phase 10.g drop ChartProvider, finalise lifecycle`
+- `chore(store): phase 10.h delete legacy reducer code`
+- `perf(store): phase 10.i useShallow audit + selector tightening`
+
+### 10.9 Risk Register (Phase 10)
+
+| Risk | Subtask | Mitigation |
+|---|---|---|
+| Stage-1 shim hides re-render bug → looks migrated, perf identical | 10.d/10.f | Profile before stage-2 selector pass; require selector form on hot paths in same commit |
+| Persist migration loses settings on first reload | 10.b | `migrate` fn reads legacy keys w/ fallback; ship behind a feature flag for one release if cautious |
+| Chart state survives across nav, breaks UX assumption | 10.g | Default survive; expose `resetChart()` action; revisit per user feedback |
+| Cross-slice action name collision | 10.a | Slice-prefix where ambiguous; document naming convention in CLAUDE.md |
+| `globalRigStore` becomes 1000+ line god-store | all | Slice files separate; `RootStore` is type union, not implementation |
+| DevTools middleware shipped to prod | 10.a | Guard with `import.meta.env.DEV`; verify build output |
+| Telemetry slice accidentally persisted → resurrects stale stream data | 10.b | `partialize` allowlist UI/Chart/Settings only; never blanket-persist root |
+
+---
+
+## Phase 11 — Vendor Chunk Split (Bundle Polish)
+
+**Risk: L-M** · **Touch: 2 files (`vite.config.ts`, `package.json`)** · **Depends: Phase 10**
+
+Post-Phase-9.1 lazy routes captured ~82% gzip reduction at `/auth` first-paint. Two chunks still warn `> 500 kB` raw:
+
+- `Dashboard-*.js` ≈ 1.34 MB raw / 434 kB gzip — ECharts heavy.
+- `WellExplorer-*.js` ≈ 1.08 MB raw / 292 kB gzip — MapLibre GL heavy.
+
+Phase 11 splits ECharts + MapLibre into vendor chunks via `build.rollupOptions.output.manualChunks`. Goal is **not** initial-paint reduction (already shipped) — goal is **cache stability across deploys** + **cross-route warm cache** when more chart-consuming routes appear.
+
+### 11.1 Why deferred (not done with Phase 9)
+
+- First visit to `/dashboard` downloads same total bytes either way — ECharts has to land somewhere.
+- Real win is incremental: vendor hash unchanged when only Dashboard code changes → repeat visitors skip re-download after deploy. Compound benefit only on weekly+ deploy cadence.
+- Phase 10 zustand migration reshuffles import graph. `manualChunks` written before Phase 10 may produce stale chunk boundaries afterward. Better to split *after* imports settle.
+- `chunkSizeWarning` is cosmetic (does not block build, does not hurt runtime). No production pressure to act.
+
+### 11.2 When to actually do it
+
+Trigger on any of:
+
+- Deploy cadence reaches multiple per week → vendor cache stability compounds.
+- Second chart library lands (recharts, d3, plotly) → without vendor split, ECharts ends up bundled twice across chunks.
+- Adding routes that consume MapLibre beyond `/wells` → vendor split warms cache cross-route.
+- Web Vitals regression on repeat visits.
+
+If none of those → leave it.
+
+### 11.3 Steps
+
+**Step 1 — Add bundle analyzer first.**
+
+```bash
+pnpm add -D rollup-plugin-visualizer
+```
+
+`vite.config.ts`:
+
+```ts
+import { visualizer } from "rollup-plugin-visualizer";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    process.env.ANALYZE && visualizer({
+      filename: "dist/stats.html",
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
+});
+```
+
+Run `ANALYZE=1 pnpm run build`. Inspect `dist/stats.html`. Confirm assumed dep weights — ECharts often pulls `zrender` separately, MapLibre pulls `pmtiles`/`@mapbox/*` transitive deps. **Do not guess; measure.**
+
+**Step 2 — Define `manualChunks`.**
+
+After visualizer data is in hand:
+
+```ts
+// vite.config.ts
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: {
+        echarts: ["echarts", "echarts-for-react"],
+        maplibre: ["maplibre-gl"],
+        react: ["react", "react-dom", "react-router-dom"],
+        // optional further splits — only if visualizer shows them >100 kB:
+        // "vendor-utils": ["date-fns", "zod", "clsx", "tailwind-merge"],
+      },
+    },
+  },
+},
+```
+
+Strategy notes:
+
+- **Function form vs object form.** Object form is declarative and safer. Function form (`manualChunks(id) { if (id.includes("node_modules/echarts")) return "echarts" }`) is more flexible but easy to misroute. Start with object form.
+- **`react` chunk** is optional. If only one entry point ever loads React (which is true here), Vite already shares it — no gain. Skip unless visualizer shows duplication.
+- **Do not chunk by ad-hoc string match on transitive deps.** ECharts → `zrender` will follow ECharts into the `echarts` chunk because of import graph; no need to name it explicitly.
+
+**Step 3 — Verify lazy-route boundaries still hold.**
+
+After splitting, run `pnpm run build` and inspect chunk sizes:
+
+- `index-*.js` (initial paint at `/auth`) MUST stay ≤ current 459 kB raw / 150 kB gzip. If it grows, a `manualChunks` rule pulled a vendor lib into the entry chunk — fix by tightening the rule.
+- `Dashboard-*.js` should shrink by roughly the ECharts size minus shared overhead.
+- `WellExplorer-*.js` should shrink by MapLibre size.
+- New `echarts-*.js` and `maplibre-*.js` chunks should appear, fetched only when their consumer route activates.
+
+**Step 4 — Tune `chunkSizeWarningLimit`.**
+
+```ts
+build: {
+  chunkSizeWarningLimit: 800, // raw kB, post-split target
+},
+```
+
+Set to a value that's loud when something genuinely regresses, quiet when current state is fine. 800 kB raw is a reasonable mid-point post-split.
+
+**Step 5 — Document trigger to revisit.**
+
+Add a comment block to `vite.config.ts` `manualChunks` listing the assumptions: "split because echarts > 600 kB raw; revisit if bundle analyzer shows shift". Future maintainers see the *why*, not just the *what*.
+
+### 11.4 Steps that need verification, not assumption
+
+- **Tree-shaking interaction.** ECharts ships full + partial entry points (`echarts/core` + `echarts/charts/LineChart`). If the codebase imports `echarts` (not the partial form), tree-shaking is partial. Check `src/lib/echarts-theme.ts` and chart components for import shape. If full `echarts` is imported, splitting is fine but switching to partial imports first is a bigger win — measure both.
+- **Worker bundles.** MapLibre uses Web Workers (`maplibre-gl/dist/maplibre-gl-csp-worker`). Vite chunks workers separately by default. Confirm worker chunk is not duplicated into `maplibre` vendor chunk.
+- **CSS chunks.** MapLibre ships its own CSS. `dist/assets/WellExplorer-*.css` (69.92 kB) likely contains it. Splitting JS does not affect CSS chunks unless `cssCodeSplit` config changes — leave alone.
+
+### 11.5 What to watch for
+
+- **Vendor split that makes things worse.** If `react` is force-chunked but only loaded once, the extra HTTP request + gzip overhead beats inlining. HTTP/2 multiplexing reduces per-request cost but doesn't eliminate it. Verify with Lighthouse before/after.
+- **Cache invalidation drift.** Vendor chunks have stable hashes only if their content is stable. Upgrading `echarts` from `6.0.0` to `6.1.0` invalidates the chunk for *all* users, regardless of whether app code touched it. That is the trade — fewer invalidations from app-side churn, occasional big invalidation on dep upgrade. Acceptable.
+- **Build time.** `manualChunks` adds negligible build time. `visualizer` adds ~2-3 s. Gate behind `ANALYZE` env var so default builds stay fast.
+- **CDN / preload hints.** If a CDN with HTTP/3 sits in front, vendor chunks benefit from `<link rel="modulepreload">` on critical chunks. Out of scope for Phase 11; revisit if/when CDN added.
+
+### 11.6 Subtasks
+
+- **11.a** Add `rollup-plugin-visualizer` (dev dep), gate behind `ANALYZE` env. Run, inspect, save baseline `stats.html` to `docs/` if wanted.
+- **11.b** Add `manualChunks` config for ECharts + MapLibre. Verify entry chunk size unchanged.
+- **11.c** Audit ECharts imports — switch to partial entry points (`echarts/core`, register only used charts/components) if currently importing full `echarts`. Optional but bigger win.
+- **11.d** Tune `chunkSizeWarningLimit`.
+- **11.e** Document `manualChunks` rationale inline.
+
+### 11.7 Acceptance criteria
+
+- `pnpm run build` succeeds. No new warnings.
+- `dist/assets/index-*.js` raw size ≤ pre-Phase-11 size (no regression on initial paint).
+- `dist/assets/echarts-*.js` and `dist/assets/maplibre-*.js` chunks present, loaded only on consumer routes (verify via Network tab on hard reload of `/auth`).
+- Hash of `echarts-*.js` stable across consecutive builds when no ECharts source changes.
+- `chunkSizeWarningLimit` does not flag any chunk on green build.
+
+### 11.8 Tracking
+
+Subtask commits:
+
+- `chore(build): phase 11.a add rollup visualizer`
+- `perf(build): phase 11.b vendor chunk split echarts + maplibre`
+- `perf(echarts): phase 11.c switch to partial entry points` (optional)
+- `chore(build): phase 11.d tune chunk size warning`
+- `docs(build): phase 11.e document manualChunks rationale`
+
+### 11.9 Risk Register (Phase 11)
+
+| Risk | Subtask | Mitigation |
+|---|---|---|
+| `manualChunks` rule pulls vendor into entry chunk → undoes Phase 9.1 | 11.b | Verify `index-*.js` size after every config change; CI check optional |
+| Worker bundle duplication | 11.b | Inspect `dist/assets/*worker*.js`; ensure single instance |
+| Partial ECharts imports break existing chart components | 11.c | Land per-component; tsc + visual smoke before merge |
+| Vendor cache benefit invisible on first deploy | n/a | Compound benefit; measure on second+ deploy |
+| Visualizer plugin shipped to prod | 11.a | Gate behind `ANALYZE` env; never default-on |

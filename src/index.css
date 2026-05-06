@@ -949,10 +949,15 @@
    Applied on [data-theme] so initial paint is never delayed
    (avoids flash-of-wrong-theme on hydration)
    ------------------------------------------------------------ */
-[data-theme] {
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
   transition:
     background-color 280ms ease,
     color 280ms ease,
     border-color 280ms ease,
-    box-shadow 280ms ease;
+    box-shadow 280ms ease,
+    fill 280ms ease,
+    stroke 280ms ease !important;
 }

@@ -6,9 +6,11 @@ import { Button, Input } from "@/components/core";
 
 export interface LoginFormProps {
   onSignIn?: () => void;
+  formRef?: React.Ref<HTMLFormElement>;
+  firstInputRef?: React.Ref<HTMLInputElement>;
 }
 
-export default function LoginForm({ onSignIn }: LoginFormProps) {
+export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFormProps) {
   const [email, setEmail] = React.useState("alpha-1@field.ops");
   const [pass, setPass] = React.useState("xxxxxxxxxxxx");
   const [err, setErr] = React.useState<string | null>(null);
@@ -24,11 +26,12 @@ export default function LoginForm({ onSignIn }: LoginFormProps) {
   };
 
   return (
-    <form id="login-form" onSubmit={submit}>
+    <form ref={formRef} onSubmit={submit}>
       {/* Email field */}
       <div className="mb-rt-pad-sm">
         <label className="field-label">Operator email</label>
         <Input
+          ref={firstInputRef}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="rig.ops@example.com"

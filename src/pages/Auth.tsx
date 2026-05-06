@@ -1,7 +1,8 @@
 "use client";
 
+import { useRef } from "react";
 import { Lock } from "lucide-react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import Terrain from "@/components/ui/terrain";
 import type { TerrainPreset } from "@/components/ui/terrain";
 import { TopbarButton } from "@/components/navigation";
@@ -20,20 +21,25 @@ export default function Auth({
   defaultPreset = "gruvbox",
 }: AuthProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isAuthenticated } = useAuth();
+  const formRef = useRef<HTMLFormElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
 
-  if (isAuthenticated) return <Navigate to="/wells" replace />;
+  const from =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/wells";
+
+  if (isAuthenticated) return <Navigate to={from} replace />;
 
   const handleSignIn = () => {
     login();
     onSignIn?.();
-    navigate("/wells", { replace: true });
+    navigate(from, { replace: true });
   };
 
   const handleLoginClick = () => {
-    const form = document.getElementById("login-form");
-    form?.scrollIntoView({ behavior: "smooth", block: "center" });
-    form?.querySelector("input")?.focus();
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => firstInputRef.current?.focus(), 300);
   };
 
   return (
@@ -59,7 +65,11 @@ export default function Auth({
             <Terrain preset={defaultPreset} className="absolute inset-0" />
 
             <div className="absolute inset-0 flex items-center justify-center p-rt-pad-lg z-10">
-              <AuthCard onSignIn={handleSignIn} />
+              <AuthCard
+                onSignIn={handleSignIn}
+                formRef={formRef}
+                firstInputRef={firstInputRef}
+              />
             </div>
           </div>
         </div>

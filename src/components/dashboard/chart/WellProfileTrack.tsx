@@ -7,7 +7,9 @@ import {
   parseWellProfileDate,
   dateToSessionMinute,
 } from "@/data/dashboard-static";
-import { useChart, useSettings, FS_SCALE } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
+import { useSettings, FS_SCALE } from "@/stores/app-store";
 import { formatDepth } from "@/lib/units";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -49,7 +51,16 @@ function idxAt(values: readonly number[], value: number): number {
 }
 
 export function WellProfileTrack() {
-  const { state: chart, dispatch } = useChart();
+  // Per-field selectors: avoid re-render on unrelated chart mutations
+  // (crosshair, traceVisibility, log-track range, track layout).
+  const mode = useStore(globalRigStore, (s) => s.chart.mode);
+  const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
+  const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
+  const wellProfileSlider = useStore(
+    globalRigStore,
+    (s) => s.chart.wellProfileSlider,
+  );
+  const setRulerRange = useStore(globalRigStore, (s) => s.setRulerRange);
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
 
@@ -87,14 +98,14 @@ export function WellProfileTrack() {
 
       // Interpolate continuous depth/time at the fractional index, then clamp
       // to the session window — pre-session entries have no log data.
-      if (chart.mode === "depth") {
+      if (mode === "depth") {
         const { min: dMin, max: dMax } = WELL_SESSION.depthAxis.range;
         const a = lerpAtIdx(WP_DEPTHS, loIdx);
         const b = lerpAtIdx(WP_DEPTHS, hiIdx);
         const lo = Math.max(dMin, Math.min(dMax, Math.min(a, b)));
         const hi = Math.max(dMin, Math.min(dMax, Math.max(a, b)));
         if (hi <= lo) return; // empty overlap with session — keep current range
-        dispatch({ type: "SET_RULER_RANGE", min: lo, max: hi });
+        setRulerRange(lo, hi);
       } else {
         const { min: tMin, max: tMax } = WELL_SESSION.timeAxis.range;
         const a = lerpAtIdx(WP_SESSION_MIN, loIdx);
@@ -102,10 +113,10 @@ export function WellProfileTrack() {
         const lo = Math.max(tMin, Math.min(tMax, Math.min(a, b)));
         const hi = Math.max(tMin, Math.min(tMax, Math.max(a, b)));
         if (hi <= lo) return;
-        dispatch({ type: "SET_RULER_RANGE", min: lo, max: hi });
+        setRulerRange(lo, hi);
       }
     },
-    [chart.mode, dispatch],
+    [mode, setRulerRange],
   );
 
   // Map current rulerRange back to a fractional WP index so the slider handles
@@ -114,16 +125,16 @@ export function WellProfileTrack() {
   // nearest of 14 entries). Required because the option object is rebuilt on
   // each dispatch with `notMerge` and would otherwise reset start/end.
   const sliderRange = useMemo(() => {
-    const r = chart.rulerRange;
+    const r = rulerRange;
     if (!r) return { startPct: 0, endPct: 100 };
-    const series = chart.mode === "depth" ? WP_DEPTHS : WP_SESSION_MIN;
+    const series = mode === "depth" ? WP_DEPTHS : WP_SESSION_MIN;
     const s = idxAt(series, r.min);
     const e = idxAt(series, r.max);
     return {
       startPct: (Math.min(s, e) / WP_LAST_IDX) * 100,
       endPct: (Math.max(s, e) / WP_LAST_IDX) * 100,
     };
-  }, [chart.rulerRange, chart.mode]);
+  }, [rulerRange, mode]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -276,7 +287,7 @@ export function WellProfileTrack() {
         },
       ],
       dataZoom:
-        chart.wellProfileSlider && !chart.liveMode
+        wellProfileSlider && !liveMode
           ? [
               {
                 type: "inside" as const,
@@ -324,7 +335,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.theme, chart.wellProfileSlider, chart.liveMode, chart.rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale]);
+  }, [settings.theme, wellProfileSlider, liveMode, rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale]);
 
   return (
     <div

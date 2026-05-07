@@ -7,7 +7,6 @@ import Terrain from "@/components/ui/terrain";
 import type { TerrainPreset } from "@/components/ui/terrain";
 import { TopbarButton } from "@/components/navigation";
 import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
-import { SettingsProvider, UiProvider } from "@/stores/app-store";
 import AuthCard from "@/components/auth/AuthCard";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -43,9 +42,7 @@ export default function Auth({
   };
 
   return (
-    <SettingsProvider>
-      <UiProvider>
-        <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden">
           <UniversalTopbar
             hideBreadcrumbs
             hideConnectionStatus
@@ -72,8 +69,6 @@ export default function Auth({
               />
             </div>
           </div>
-        </div>
-      </UiProvider>
-    </SettingsProvider>
+    </div>
   );
 }

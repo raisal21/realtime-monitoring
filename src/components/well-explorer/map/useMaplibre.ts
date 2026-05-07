@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { Well } from "@/data/wells";
 import { WELLS } from "@/data/wells";
 import { MAP_STYLE, FIELD_BOUNDARY, PAD_BOUNDARIES, WELL_TYPE_COLOR } from "../lib/constants";

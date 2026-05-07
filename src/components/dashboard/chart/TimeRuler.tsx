@@ -8,7 +8,9 @@ import {
   depthRangeToTimeRange,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
-import { useChart, useSettings, FS_SCALE } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
+import { useSettings, FS_SCALE } from "@/stores/app-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +63,15 @@ function getEffectiveRange(
 }
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
-  const { state: chart, dispatch: chartDispatch } = useChart();
+  const chart = useStore(globalRigStore, (s) => s.chart);
+  const setLogTrackRange = useStore(
+    globalRigStore,
+    (s) => s.setLogTrackRange,
+  );
+  const setCrosshairValue = useStore(
+    globalRigStore,
+    (s) => s.setCrosshairValue,
+  );
   const { state: settings } = useSettings();
   const echartsRef = useRef<ReactECharts>(null);
   const axisPointerActive = useRef(false);
@@ -145,9 +155,9 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       } else {
         return;
       }
-      chartDispatch({ type: "SET_LOG_TRACK_RANGE", min: lo, max: hi });
+      setLogTrackRange(lo, hi);
     },
-    [chartDispatch, sliderAxisMin, sliderAxisMax, isPrimary],
+    [setLogTrackRange, sliderAxisMin, sliderAxisMax, isPrimary],
   );
 
   const handleMouseMove = isPrimary
@@ -157,13 +167,13 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
           0,
           Math.min(1, (e.clientY - rect.top) / rect.height),
         );
-        chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: pct });
+        setCrosshairValue(pct);
       }
     : undefined;
 
   const handleMouseLeave = isPrimary
     ? () => {
-        chartDispatch({ type: "SET_CROSSHAIR_VALUE", value: null });
+        setCrosshairValue(null);
       }
     : undefined;
 

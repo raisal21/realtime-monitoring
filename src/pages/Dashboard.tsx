@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useUi, useChart } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
+import { useChart } from "@/stores/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
 import { Footer } from "@/components/dashboard/shell/Footer";
@@ -23,7 +25,9 @@ const ALARM_SIDEBAR_WIDTH = 300;
 const STRIP_WIDTH = 32;
 
 export default function Dashboard() {
-  const { state: ui, dispatch: uiDispatch } = useUi();
+  const alarmSidebar = useStore(globalRigStore, (s) => s.ui.alarmSidebar);
+  const gaugeSidebar = useStore(globalRigStore, (s) => s.ui.gaugeSidebar);
+  const setLeftRail = useStore(globalRigStore, (s) => s.setLeftRail);
   const { state: chart } = useChart();
   useKeyboardShortcuts();
 
@@ -33,7 +37,7 @@ export default function Dashboard() {
       const below = window.innerWidth < 1366;
       if (below && !collapsedBelowBreakpoint.current) {
         collapsedBelowBreakpoint.current = true;
-        uiDispatch({ type: "SET_LEFT_RAIL", value: "collapsed" });
+        setLeftRail("collapsed");
       } else if (!below) {
         collapsedBelowBreakpoint.current = false;
       }
@@ -41,10 +45,10 @@ export default function Dashboard() {
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [uiDispatch]);
+  }, [setLeftRail]);
 
   const alarmAnchor =
-    ui.alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH;
+    alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH;
   const chartRightInset = STRIP_WIDTH * 2;
 
   return (
@@ -90,13 +94,13 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {ui.gaugeSidebar === "open" ? (
+          {gaugeSidebar === "open" ? (
             <FloatingGaugeSidebar rightPosition={alarmAnchor} />
           ) : (
             <GaugeCollapsedStrip rightPosition={alarmAnchor} />
           )}
 
-          {ui.alarmSidebar === "open" ? (
+          {alarmSidebar === "open" ? (
             <FloatingAlarmSidebar />
           ) : (
             <AlarmCollapsedStrip />

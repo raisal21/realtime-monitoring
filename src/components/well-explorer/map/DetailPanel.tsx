@@ -18,7 +18,7 @@ export function DetailPanel({ well, onClose }: DetailPanelProps) {
   return (
     <div
       className={cn(
-        "absolute top-[12px] left-[12px] z-40 w-[280px]",
+        "absolute top-[12px] left-[12px] z-[1000] w-[280px]",
         "overflow-hidden animate-fade-up",
         "shadow-[0_8px_40px_rgba(0,0,0,0.7)]",
       )}
@@ -59,32 +59,44 @@ export function DetailPanel({ well, onClose }: DetailPanelProps) {
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-[8px] px-[10px] py-[6px] border-b border-(--theme-border)">
-          <div className="flex flex-col gap-[1px]">
-            <ValueReadout
-              value={well.temperature}
-              size="md"
-              status={isActive ? "ok" : "inactive"}
-            />
-            <span className="label-mono">Temp</span>
+        {well.phase === "drilling" ? (
+          <div className="grid grid-cols-3 gap-[8px] px-[10px] py-[6px] border-b border-(--theme-border)">
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={well.currentDepth} size="md" status="ok" />
+              <span className="label-mono">Depth</span>
+            </div>
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={well.rop} size="md" status="ok" />
+              <span className="label-mono">ROP</span>
+            </div>
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={String(well.daysOnWell)} size="md" status="ok" />
+              <span className="label-mono">Days</span>
+            </div>
           </div>
-          <div className="flex flex-col gap-[1px]">
-            <ValueReadout
-              value={well.flowRate}
-              size="md"
-              status={isActive ? "info" : "inactive"}
-            />
-            <span className="label-mono">Flow</span>
+        ) : well.phase === "producing" || well.phase === "injecting" ? (
+          <div className="grid grid-cols-3 gap-[8px] px-[10px] py-[6px] border-b border-(--theme-border)">
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={well.temperature} size="md" status={isActive ? "ok" : "inactive"} />
+              <span className="label-mono">Temp</span>
+            </div>
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={well.flowRate} size="md" status={isActive ? "info" : "inactive"} />
+              <span className="label-mono">Flow</span>
+            </div>
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={well.pressure} size="md" status={isActive ? "ok" : "inactive"} />
+              <span className="label-mono">Pressure</span>
+            </div>
           </div>
-          <div className="flex flex-col gap-[1px]">
-            <ValueReadout
-              value={well.pressure}
-              size="md"
-              status={isActive ? "ok" : "inactive"}
-            />
-            <span className="label-mono">Pressure</span>
+        ) : (
+          <div className="px-[10px] py-[6px] border-b border-(--theme-border)">
+            <div className="flex flex-col gap-[1px]">
+              <ValueReadout value={well.targetDepth} size="md" status="inactive" />
+              <span className="label-mono">TD Target</span>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="px-[10px] py-[8px]">
           {isActive ? (

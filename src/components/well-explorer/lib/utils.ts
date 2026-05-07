@@ -51,9 +51,55 @@ export function buildWellsGeoJSON(wells: Well[]): GeoJSON.FeatureCollection {
   };
 }
 
+function buildPopupMetrics(well: Well, isActive: boolean): string {
+  if (well.phase === "drilling") {
+    return `
+      <div>
+        <div class="pop-val" style="color:${isActive ? "#b8bb26" : "#5a524a"};">${well.currentDepth}</div>
+        <div class="pop-label">Depth</div>
+      </div>
+      <div>
+        <div class="pop-val" style="color:${isActive ? "#83a598" : "#5a524a"};">${well.rop}</div>
+        <div class="pop-label">ROP</div>
+      </div>
+      <div>
+        <div class="pop-val" style="color:#ebdbb2;">${well.daysOnWell} d</div>
+        <div class="pop-label">Days</div>
+      </div>
+      <div>
+        <div class="pop-val" style="color:#a89984;">${well.targetDepth}</div>
+        <div class="pop-label">TD Target</div>
+      </div>`;
+  }
+
+  if (well.phase === "producing" || well.phase === "injecting") {
+    return `
+      <div>
+        <div class="pop-val" style="color:${isActive ? "#b8bb26" : "#5a524a"};">${well.temperature}</div>
+        <div class="pop-label">Temperature</div>
+      </div>
+      <div>
+        <div class="pop-val" style="color:${isActive ? "#83a598" : "#5a524a"};">${well.flowRate}</div>
+        <div class="pop-label">Flow Rate</div>
+      </div>
+      <div>
+        <div class="pop-val" style="color:#ebdbb2;">${well.pressure}</div>
+        <div class="pop-label">Pressure</div>
+      </div>
+      <div>
+        <div class="pop-val" style="color:#a89984;">${well.targetDepth}</div>
+        <div class="pop-label">TD Target</div>
+      </div>`;
+  }
+
+  return `
+    <div>
+      <div class="pop-val" style="color:#a89984;">${well.targetDepth}</div>
+      <div class="pop-label">TD Target</div>
+    </div>`;
+}
+
 export function buildPopupHTML(well: Well, col: string, isActive: boolean): string {
-  const tempCol = isActive ? "#b8bb26" : "#5a524a";
-  const flowCol = isActive ? "#83a598" : "#5a524a";
   const activeBtnStyle = isActive
     ? "background:#83a598;color:#0c0e10;"
     : "background:#32302f;color:#5a524a;";
@@ -69,22 +115,7 @@ export function buildPopupHTML(well: Well, col: string, isActive: boolean): stri
       </div>
 
       <div class="pop-body">
-        <div>
-          <div class="pop-val" style="color:${tempCol};">${well.temperature}</div>
-          <div class="pop-label">Temperature</div>
-        </div>
-        <div>
-          <div class="pop-val" style="color:${flowCol};">${well.flowRate}</div>
-          <div class="pop-label">Flow Rate</div>
-        </div>
-        <div>
-          <div class="pop-val" style="color:#ebdbb2;">${well.pressure}</div>
-          <div class="pop-label">Pressure</div>
-        </div>
-        <div>
-          <div class="pop-val" style="color:#a89984;">${well.targetDepth}</div>
-          <div class="pop-label">TD Target</div>
-        </div>
+        ${buildPopupMetrics(well, isActive)}
       </div>
 
       <div class="pop-btn-wrap">
@@ -99,7 +130,6 @@ export function buildPopupHTML(well: Well, col: string, isActive: boolean): stri
 }
 
 export const POPUP_STYLES = `
-  /* Density-aware popup — all sizes scale with --fs-scale */
   .rtdc-popup .maplibregl-popup-content {
     background: rgba(34,38,42,0.96);
     backdrop-filter: blur(12px);
@@ -131,7 +161,6 @@ export const POPUP_STYLES = `
     border-radius: 2px;
   }
 
-  /* Popup internal sections */
   .pop-header {
     padding: calc(12px * var(--fs-scale, 1)) calc(14px * var(--fs-scale, 1)) calc(10px * var(--fs-scale, 1));
     border-bottom: 1px solid #3c3836;

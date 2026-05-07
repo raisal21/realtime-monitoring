@@ -5,9 +5,18 @@ import type {
   GeoUpdate,
 } from "@/domain/message.types";
 import { StreamDef } from "@/domain/constants";
+import type { UiSlice } from "./slices/ui-slice";
+import type { ChartSlice } from "./slices/chart-slice";
+import type { SettingsSlice } from "./slices/settings-slice";
 
 export interface GlobalRigState
-  extends ConnectionSlice, TelemetrySlice, AlarmSlice, SubscriptionSlice {}
+  extends ConnectionSlice,
+    TelemetrySlice,
+    AlarmSlice,
+    SubscriptionSlice,
+    UiSlice,
+    ChartSlice,
+    SettingsSlice {}
 
 export interface ConnectionError {
   code: string;

@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { ChartProvider } from "@/stores/app-store";
 import { AuthenticatedLayout } from "@/layouts/AuthenticatedLayout";
 import { GuestGuard } from "@/guards/GuestGuard";
 import { AuthGuard } from "@/guards/AuthGuard";
@@ -64,14 +63,11 @@ export function AppRoutes() {
             <Route path="/wells/:wellId" element={<WellExplorer />} />
 
             {/* Dashboard Routes (optional wellId param) */}
-            <Route
-              path="/dashboard/:wellId?"
-              element={
-                <ChartProvider>
-                  <Dashboard />
-                </ChartProvider>
-              }
-            />
+            {/* Phase 10.g: ChartProvider removed. Chart state lives in
+                Zustand and survives route nav by default. To reset on
+                each Dashboard mount, call `resetChart()` from a useEffect
+                in Dashboard.tsx. */}
+            <Route path="/dashboard/:wellId?" element={<Dashboard />} />
           </Route>
 
           {/* Fallback Route */}

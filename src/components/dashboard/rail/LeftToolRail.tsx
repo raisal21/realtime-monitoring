@@ -1,5 +1,7 @@
 import { Search, Clock, Ruler, ChevronsLeft, ChevronsRight, LayoutGrid, Gauge as GaugeIcon, TriangleAlert } from "lucide-react";
-import { useChart, useUi, type ChartMode } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
+import { useChart, type ChartMode } from "@/stores/app-store";
 import { Popover, PopoverTrigger } from "@/components/popover";
 import { RailSection } from "@/components/display";
 import { RadioCard, RadioCardGroup } from "@/components/form";
@@ -13,8 +15,29 @@ const RAIL_WIDTH_COLLAPSED = 48;
 
 export function LeftToolRail() {
   const { state: chart, dispatch } = useChart();
-  const { state: ui, dispatch: uiDispatch } = useUi();
-  const isCollapsed = ui.leftRail === "collapsed";
+  const leftRail = useStore(globalRigStore, (s) => s.ui.leftRail);
+  const zoomPopover = useStore(globalRigStore, (s) => s.ui.zoomPopover);
+  const displayLayoutPopover = useStore(
+    globalRigStore,
+    (s) => s.ui.displayLayoutPopover,
+  );
+  const gaugeSidebar = useStore(globalRigStore, (s) => s.ui.gaugeSidebar);
+  const alarmSidebar = useStore(globalRigStore, (s) => s.ui.alarmSidebar);
+  const setZoomPopover = useStore(globalRigStore, (s) => s.setZoomPopover);
+  const setDisplayLayoutPopover = useStore(
+    globalRigStore,
+    (s) => s.setDisplayLayoutPopover,
+  );
+  const toggleGaugeSidebar = useStore(
+    globalRigStore,
+    (s) => s.toggleGaugeSidebar,
+  );
+  const toggleAlarmSidebar = useStore(
+    globalRigStore,
+    (s) => s.toggleAlarmSidebar,
+  );
+  const toggleLeftRail = useStore(globalRigStore, (s) => s.toggleLeftRail);
+  const isCollapsed = leftRail === "collapsed";
 
   return (
     <aside
@@ -58,10 +81,8 @@ export function LeftToolRail() {
 
       <RailSection label="Zoom" collapsed={isCollapsed}>
         <Popover
-          open={ui.zoomPopover}
-          onOpenChange={(open) =>
-            uiDispatch({ type: "SET_ZOOM_POPOVER", open })
-          }
+          open={zoomPopover}
+          onOpenChange={(open) => setZoomPopover(open)}
         >
           <PopoverTrigger
             render={
@@ -105,10 +126,8 @@ export function LeftToolRail() {
 
       <RailSection label="Layout" collapsed={isCollapsed}>
         <Popover
-          open={ui.displayLayoutPopover}
-          onOpenChange={(open) =>
-            uiDispatch({ type: "SET_DISPLAY_LAYOUT_POPOVER", open })
-          }
+          open={displayLayoutPopover}
+          onOpenChange={(open) => setDisplayLayoutPopover(open)}
         >
           <PopoverTrigger
             render={
@@ -148,12 +167,12 @@ export function LeftToolRail() {
       <RailSection label="Panels" collapsed={isCollapsed}>
         <button
           type="button"
-          onClick={() => uiDispatch({ type: "TOGGLE_GAUGE_SIDEBAR" })}
+          onClick={() => toggleGaugeSidebar()}
           className={cn(
             "flex items-center cursor-pointer transition-all duration-150",
             "rounded-(--radius-badge) border",
             isCollapsed ? "size-9 justify-center" : "gap-2 px-2.5 py-1.5",
-            ui.gaugeSidebar === "open"
+            gaugeSidebar === "open"
               ? "bg-(--theme-accent-dim) border-(--theme-accent) text-(--theme-accent)"
               : "bg-(--theme-elevated) border-(--theme-border) text-(--theme-fg-muted) hover:text-(--theme-fg)",
           )}
@@ -169,12 +188,12 @@ export function LeftToolRail() {
         </button>
         <button
           type="button"
-          onClick={() => uiDispatch({ type: "TOGGLE_ALARM_SIDEBAR" })}
+          onClick={() => toggleAlarmSidebar()}
           className={cn(
             "flex items-center cursor-pointer transition-all duration-150",
             "rounded-(--radius-badge) border",
             isCollapsed ? "size-9 justify-center" : "gap-2 px-2.5 py-1.5",
-            ui.alarmSidebar === "open"
+            alarmSidebar === "open"
               ? "bg-(--theme-accent-dim) border-(--theme-accent) text-(--theme-accent)"
               : "bg-(--theme-elevated) border-(--theme-border) text-(--theme-fg-muted) hover:text-(--theme-fg)",
           )}
@@ -192,7 +211,7 @@ export function LeftToolRail() {
 
       <button
         type="button"
-        onClick={() => uiDispatch({ type: "TOGGLE_LEFT_RAIL" })}
+        onClick={() => toggleLeftRail()}
         className={cn(
           "flex items-center justify-center cursor-pointer transition-all duration-150",
           "rounded-(--radius-badge) border border-(--theme-border-subtle)",

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { SettingsContext } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
 
 export type TerrainPreset = "gruvbox" | "tomorrow" | "solarized";
 
@@ -371,9 +372,9 @@ export default function Terrain({
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rafRef = React.useRef(0);
   const startRef = React.useRef<number>(0);
-  const settings = React.useContext(SettingsContext);
-
-  const theme = settings?.state?.theme as TerrainPreset | undefined;
+  const theme = useStore(globalRigStore, (s) => s.settings.theme) as
+    | TerrainPreset
+    | undefined;
   const tweaks = PRESETS[theme ?? preset] ?? PRESETS[preset];
 
   React.useEffect(() => {

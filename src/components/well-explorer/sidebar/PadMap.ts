@@ -1,5 +1,1 @@
-export const PAD_NAMES: Record<string, string> = {
-  "pad-a": "Guntur",
-  "pad-b": "Talpad",
-  "pad-c": "North Ridge",
-};
+export { PAD_NAMES } from "@/data/pads";

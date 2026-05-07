@@ -2,7 +2,7 @@ import { Clock, Bell } from "lucide-react";
 import { useClock, useResizeObserver } from "@/hooks/dashboard-hooks";
 import { WELL_SESSION, FEED_ITEMS, FIELD_INFO } from "@/data/dashboard-static";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
-import { PAD_NAMES } from "@/components/well-explorer/sidebar/PadMap";
+import { PAD_NAMES } from "@/data/pads";
 import { useSettings, useUi } from "@/stores/app-store";
 import { formatDepth } from "@/lib/units";
 import { ValueReadout } from "@/components/telemetry";

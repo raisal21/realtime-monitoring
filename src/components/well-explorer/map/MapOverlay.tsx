@@ -8,7 +8,7 @@ interface MapOverlayProps {
 
 export function MapOverlay({ coords }: MapOverlayProps) {
   return (
-    <div className="absolute bottom-[20px] left-[20px] z-40 flex flex-col gap-[8px]">
+    <div className="absolute bottom-[20px] left-[20px] z-[900] flex flex-col gap-[8px]">
       <Surface
         elevation="glass"
         outline="all"

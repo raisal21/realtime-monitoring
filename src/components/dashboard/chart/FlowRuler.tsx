@@ -6,7 +6,9 @@ import {
   PRESET_TO_MINUTES,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
-import { useChart, useSettings, FS_SCALE } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
+import { useSettings, FS_SCALE } from "@/stores/app-store";
 import { getChartColors } from "@/lib/echarts-theme";
 import { formatDepth } from "@/lib/units";
 import { cn } from "@/lib/utils";
@@ -24,28 +26,30 @@ const FLOW_SCALE = Math.max(
 );
 
 export function FlowRuler() {
-  const { state: chart } = useChart();
+  // Per-field selectors: avoid re-render on unrelated chart mutations
+  // (crosshair, traceVisibility, track layout).
+  const mode = useStore(globalRigStore, (s) => s.chart.mode);
+  const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
+  const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
+  const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
+  const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
 
   // Mirror LogTrack's yRange logic so flow bars stay vertically aligned with
   // the active ruler (Time / Depth) under live, preset, and zoom states.
   const sessionRange =
-    chart.mode === "depth"
+    mode === "depth"
       ? WELL_SESSION.depthAxis.range
       : WELL_SESSION.timeAxis.range;
   let yRange: { min: number; max: number };
-  if (chart.liveMode) {
-    if (chart.mode === "depth") {
+  if (liveMode) {
+    if (mode === "depth") {
       const cur = WELL_SESSION.cursor.depthM;
-      const span = chart.rangePreset
-        ? presetToDepthSpanM(chart.rangePreset)
-        : 30;
+      const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
       yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
     } else {
-      const span = chart.rangePreset
-        ? PRESET_TO_MINUTES[chart.rangePreset] ?? 60
-        : 60;
+      const span = rangePreset ? PRESET_TO_MINUTES[rangePreset] ?? 60 : 60;
       yRange = {
         min: Math.max(sessionRange.min, sessionRange.max - span),
         max: sessionRange.max,
@@ -53,13 +57,12 @@ export function FlowRuler() {
     }
   } else {
     yRange =
-      chart.logTrackRange ??
-      chart.rulerRange ?? { min: sessionRange.min, max: sessionRange.max };
+      logTrackRange ??
+      rulerRange ?? { min: sessionRange.min, max: sessionRange.max };
   }
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
-    const mode = chart.mode;
     const samples = WELL_SESSION.flow;
 
     // Filter samples by visible window. Depth is non-monotonic (drill / trip
@@ -157,7 +160,7 @@ export function FlowRuler() {
         },
       },
     };
-  }, [chart.mode, yRange.min, yRange.max, settings.theme, fsScale]);
+  }, [mode, yRange.min, yRange.max, settings.theme, settings.unitSystem, fsScale]);
 
   return (
     <div

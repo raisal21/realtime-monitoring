@@ -1,7 +1,9 @@
 import { useMemo, useRef, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useChart, useSettings, FS_SCALE, TRACKS_META } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
+import { useSettings, FS_SCALE, TRACKS_META } from "@/stores/app-store";
 import {
   TRACK_TRACES,
   WELL_SESSION,
@@ -147,7 +149,15 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact, 
 }
 
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
-  const { state: chart, dispatch } = useChart();
+  const chart = useStore(globalRigStore, (s) => s.chart);
+  const setLogTrackRange = useStore(
+    globalRigStore,
+    (s) => s.setLogTrackRange,
+  );
+  const toggleTraceVisibility = useStore(
+    globalRigStore,
+    (s) => s.toggleTraceVisibility,
+  );
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
   const traces = TRACK_TRACES[trackId];
@@ -183,13 +193,12 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const p = params as { startValue?: number; endValue?: number; batch?: Array<{ startValue?: number; endValue?: number }> };
     const raw = (p.batch?.[0] ?? p) as { startValue?: number; endValue?: number };
     if (raw.startValue !== undefined && raw.endValue !== undefined) {
-      dispatch({
-        type: "SET_LOG_TRACK_RANGE",
-        min: Math.min(raw.startValue, raw.endValue),
-        max: Math.max(raw.startValue, raw.endValue),
-      });
+      setLogTrackRange(
+        Math.min(raw.startValue, raw.endValue),
+        Math.max(raw.startValue, raw.endValue),
+      );
     }
-  }, [dispatch]);
+  }, [setLogTrackRange]);
 
   useEffect(() => {
     const ec = echartsRef.current?.getEchartsInstance();
@@ -378,7 +387,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         traces={traces}
         traceColors={tc}
         traceVisibility={chart.traceVisibility}
-        onToggle={(trace) => dispatch({ type: "TOGGLE_TRACE_VISIBILITY", trace })}
+        onToggle={(trace) => toggleTraceVisibility(trace)}
         compact={settings.density === "compact"}
         unitSystem={settings.unitSystem}
       />

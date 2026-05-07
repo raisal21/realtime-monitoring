@@ -1,4 +1,5 @@
 import { createStore } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { log } from "@/utils/logger";
 import type { StateCreator } from "zustand";
 import type {
@@ -9,6 +10,9 @@ import type {
   SubscriptionSlice,
   AlarmEntity,
 } from "./store.types";
+import { createUiSlice } from "./slices/ui-slice";
+import { createChartSlice } from "./slices/chart-slice";
+import { createSettingsSlice } from "./slices/settings-slice";
 import { StreamDef } from "@/domain/constants";
 
 export const createConnectionSlice: StateCreator<
@@ -179,9 +183,32 @@ const createSubscriptionSlice: StateCreator<
   },
 });
 
-export const globalRigStore = createStore<GlobalRigState>()((...args) => ({
-  ...createConnectionSlice(...args),
-  ...createTelemetrySlice(...args),
-  ...createAlarmSlice(...args),
-  ...createSubscriptionSlice(...args),
-}));
+export const globalRigStore = createStore<GlobalRigState>()(
+  persist(
+    (...args) => ({
+      ...createConnectionSlice(...args),
+      ...createTelemetrySlice(...args),
+      ...createAlarmSlice(...args),
+      ...createSubscriptionSlice(...args),
+      ...createUiSlice(...args),
+      ...createChartSlice(...args),
+      ...createSettingsSlice(...args),
+    }),
+    {
+      name: "rtdc-store",
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      // Allowlist persisted slices. Connection/Telemetry/Alarm/Subscription
+      // are runtime/server-driven — persisting would resurrect stale state.
+      partialize: (s) => ({
+        ui: s.ui,
+        chart: s.chart,
+        settings: s.settings,
+      }),
+      // version 0 → 1: legacy `rtdc.unitSystem` is lifted into
+      // `settings.unitSystem` at slice-init time (see settings-slice.ts).
+      // Future schema changes should branch on `version` here.
+      migrate: (persisted) => persisted as GlobalRigState,
+    },
+  ),
+);

@@ -2,7 +2,28 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { SidebarStat, WellListItem } from "@/components/well";
 import type { Well } from "@/data/wells";
-import { PAD_NAMES } from "./PadMap";
+import { PAD_NAMES } from "@/data/pads";
+
+function getWellMetrics(w: Well) {
+  switch (w.phase) {
+    case "drilling":
+      return [
+        { key: "Depth", value: w.currentDepth },
+        { key: "ROP", value: w.rop },
+        { key: "Days", value: String(w.daysOnWell) },
+      ];
+    case "producing":
+    case "injecting":
+      return [
+        { key: "Temp", value: w.temperature },
+        { key: "Flow", value: w.flowRate },
+        { key: "Press", value: w.pressure },
+      ];
+    case "completion":
+    case "shut-in":
+      return [{ key: "TD Target", value: w.targetDepth }];
+  }
+}
 
 interface ExplorerSidebarProps {
   wells: Well[];
@@ -49,21 +70,7 @@ export function ExplorerSidebar({ wells, selectedId, onSelectWell }: ExplorerSid
             onClick={() => onSelectWell(w)}
             onEnter={w.status === "drilling" ? () => {} : undefined}
             wellType={w.wellType}
-            metrics={
-              w.phase === "drilling"
-                ? [
-                    { key: "Depth", value: w.currentDepth ?? "—" },
-                    { key: "ROP", value: w.rop ?? "—" },
-                    { key: "Days", value: w.daysOnWell != null ? String(w.daysOnWell) : "—" },
-                  ]
-                : w.phase === "completion" || w.phase === "shut-in"
-                ? [{ key: "TD Target", value: w.targetDepth }]
-                : [
-                    { key: "Temp", value: w.temperature },
-                    { key: "Flow", value: w.flowRate },
-                    { key: "Press", value: w.pressure },
-                  ]
-            }
+            metrics={getWellMetrics(w)}
           />
         ))}
         {wells.length === 0 && (

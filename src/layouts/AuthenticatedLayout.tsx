@@ -1,5 +1,4 @@
 import { Outlet, useNavigate, useParams } from "react-router-dom";
-import { UiProvider, SettingsProvider } from "@/stores/app-store";
 import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
 import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,17 +47,13 @@ export function AuthenticatedLayout() {
   );
 
   return (
-    <SettingsProvider>
-      <UiProvider>
-        <CurrentWellProvider wellId={wellId}>
-          <div className="flex flex-col h-screen overflow-hidden">
-            <UniversalTopbar profileSlot={profileSlot} />
-            <div className="flex-1 overflow-hidden">
-              <Outlet />
-            </div>
-          </div>
-        </CurrentWellProvider>
-      </UiProvider>
-    </SettingsProvider>
+    <CurrentWellProvider wellId={wellId}>
+      <div className="flex flex-col h-screen overflow-hidden">
+        <UniversalTopbar profileSlot={profileSlot} />
+        <div className="flex-1 overflow-hidden">
+          <Outlet />
+        </div>
+      </div>
+    </CurrentWellProvider>
   );
 }

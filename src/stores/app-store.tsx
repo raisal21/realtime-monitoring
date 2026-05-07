@@ -1,39 +1,36 @@
-import React, {
-  useReducer,
-  useContext,
-  useEffect,
-  useRef,
-  createContext,
-  type ReactNode,
-} from "react";
-import { TRACKS_META, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
+// Phase 10.h: legacy reducer code stripped. File now exposes Zustand-backed
+// shims for `useUi()`, `useChart()`, `useSettings()` so existing call sites
+// keep their `{ state, dispatch }` API. Provider components and Context
+// objects are gone — consumers either use these hooks or switch to direct
+// `useStore(globalRigStore, ...)` selector form.
+//
+// Future cleanup (10.i / beyond): retire dispatch shims by migrating cold
+// consumers to direct slice action calls, then delete this file entirely.
+
+import type React from "react";
+import { useStore } from "zustand";
 import type { UnitSystem } from "@/lib/units";
+import { globalRigStore } from "@/store/index-store";
+import type {
+  Theme,
+  Density,
+  FontSize,
+  SampleRate,
+  SettingsState,
+} from "@/store/slices/settings-slice";
+import type { UiState } from "@/store/slices/ui-slice";
+import type {
+  ChartMode,
+  ChartState,
+  RangePreset,
+} from "@/store/slices/chart-slice";
 
 export { TRACKS_META } from "@/data/dashboard-static";
+export { FS_SCALE } from "@/store/slices/settings-slice";
+export type { ChartMode };
+export type { Theme, Density, FontSize, SampleRate, SettingsState };
 
-type Theme = "gruvbox" | "tomorrow" | "solarized";
-type Density = "compact" | "comfortable";
-type FontSize = "sm" | "md" | "lg";
-
-// Must mirror --fs-scale values in index.css so canvas/SVG renderers
-// (ECharts axisLabel.fontSize, raw <text fontSize=...>) match CSS-driven text.
-export const FS_SCALE: Record<FontSize, number> = {
-  sm: 0.9,
-  md: 1,
-  lg: 1.12,
-};
-type SampleRate = "10hz" | "5hz" | "1hz";
-
-type UiState = {
-  gaugeSidebar: "open" | "closed";
-  alarmSidebar: "open" | "closed";
-  leftRail: "expanded" | "collapsed";
-  settingsPopover: boolean;
-  zoomPopover: boolean;
-  displayLayoutPopover: boolean;
-  ackModal: { open: boolean; alarmId: string | null };
-  alarmFilters: { critical: boolean; warning: boolean; info: boolean };
-};
+// ─── UI ──────────────────────────────────────────────────────────────────────
 
 type UiAction =
   | { type: "TOGGLE_GAUGE_SIDEBAR" }
@@ -48,110 +45,40 @@ type UiAction =
   | { type: "CLOSE_ACK_MODAL" }
   | { type: "TOGGLE_ALARM_FILTER"; filter: keyof UiState["alarmFilters"] };
 
-const uiInitial: UiState = {
-  gaugeSidebar: "closed",
-  alarmSidebar: "open",
-  leftRail: "expanded",
-  settingsPopover: false,
-  zoomPopover: false,
-  displayLayoutPopover: false,
-  ackModal: { open: false, alarmId: null },
-  alarmFilters: { critical: true, warning: true, info: true },
-};
-
-function uiReducer(s: UiState, a: UiAction): UiState {
+const uiDispatch: React.Dispatch<UiAction> = (a) => {
+  const g = globalRigStore.getState();
   switch (a.type) {
     case "TOGGLE_GAUGE_SIDEBAR":
-      return {
-        ...s,
-        gaugeSidebar: s.gaugeSidebar === "open" ? "closed" : "open",
-      };
+      return g.toggleGaugeSidebar();
     case "TOGGLE_ALARM_SIDEBAR":
-      return {
-        ...s,
-        alarmSidebar: s.alarmSidebar === "open" ? "closed" : "open",
-      };
-    case "TOGGLE_BOTH_SIDEBARS": {
-      const target =
-        s.gaugeSidebar === "open" && s.alarmSidebar === "open"
-          ? "closed"
-          : "open";
-      return { ...s, gaugeSidebar: target, alarmSidebar: target };
-    }
+      return g.toggleAlarmSidebar();
+    case "TOGGLE_BOTH_SIDEBARS":
+      return g.toggleBothSidebars();
     case "TOGGLE_LEFT_RAIL":
-      return {
-        ...s,
-        leftRail: s.leftRail === "expanded" ? "collapsed" : "expanded",
-      };
+      return g.toggleLeftRail();
     case "SET_LEFT_RAIL":
-      return { ...s, leftRail: a.value };
+      return g.setLeftRail(a.value);
     case "SET_SETTINGS_POPOVER":
-      return { ...s, settingsPopover: a.open };
+      return g.setSettingsPopover(a.open);
     case "SET_ZOOM_POPOVER":
-      return { ...s, zoomPopover: a.open };
+      return g.setZoomPopover(a.open);
     case "SET_DISPLAY_LAYOUT_POPOVER":
-      return { ...s, displayLayoutPopover: a.open };
+      return g.setDisplayLayoutPopover(a.open);
     case "OPEN_ACK_MODAL":
-      return { ...s, ackModal: { open: true, alarmId: a.alarmId } };
+      return g.openAckModal(a.alarmId);
     case "CLOSE_ACK_MODAL":
-      return { ...s, ackModal: { open: false, alarmId: null } };
+      return g.closeAckModal();
     case "TOGGLE_ALARM_FILTER":
-      return {
-        ...s,
-        alarmFilters: {
-          ...s.alarmFilters,
-          [a.filter]: !s.alarmFilters[a.filter],
-        },
-      };
-    default:
-      return s;
+      return g.toggleAlarmFilter(a.filter);
   }
-}
-
-export const UiContext = createContext<{
-  state: UiState;
-  dispatch: React.Dispatch<UiAction>;
-} | null>(null);
-
-export function UiProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(uiReducer, uiInitial);
-  return (
-    <UiContext.Provider value={{ state, dispatch }}>
-      {children}
-    </UiContext.Provider>
-  );
-}
+};
 
 export function useUi() {
-  const ctx = useContext(UiContext);
-  if (!ctx) throw new Error("useUi must be used inside UiProvider");
-  return ctx;
+  const state = useStore(globalRigStore, (s) => s.ui);
+  return { state, dispatch: uiDispatch };
 }
 
-export type ChartMode = "time" | "depth";
-type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
-
-type Range = { min: number; max: number };
-
-type ChartState = {
-  mode: ChartMode;
-  liveMode: boolean;
-  rangePreset: RangePreset | null;
-  // Range scopes (null = inherit from live/session).
-  // rulerRange controls TimeRuler/DepthRuler y-axis;
-  //   set by Well Profile slider and Date+Time Apply in ZoomPopover.
-  // logTrackRange controls LogTrack y-axis (sub-window of ruler);
-  //   set by Ruler slider (dataZoom inside Time/Depth Ruler).
-  rulerRange: Range | null;
-  logTrackRange: Range | null;
-  wellProfileSlider: boolean;
-  rulerSlider: boolean;
-  traceVisibility: Record<string, boolean>;
-  trackOrder: string[];
-  trackWidths: Record<string, number>;
-  trackVisibility: Record<string, boolean>;
-  crosshairValue: number | null;
-};
+// ─── Chart ───────────────────────────────────────────────────────────────────
 
 type ChartAction =
   | { type: "SET_MODE"; mode: ChartMode }
@@ -171,215 +98,53 @@ type ChartAction =
   | { type: "TOGGLE_TRACK_VISIBILITY"; trackId: string }
   | { type: "RESET_TRACK_LAYOUT" };
 
-const chartInitial: ChartState = {
-  mode: "depth",
-  liveMode: true,
-  rangePreset: "1h",
-  rulerRange: null,
-  logTrackRange: null,
-  wellProfileSlider: false,
-  rulerSlider: false,
-  crosshairValue: null,
-  traceVisibility: {
-    rpm: true,
-    wob: true,
-    torque: true,
-    spp: true,
-    hkld: true,
-    gamma: true,
-    rop: true,
-    h2s: true,
-    inc: true,
-    azi: true,
-  },
-  trackOrder: TRACKS_META.map((t) => t.id),
-  trackWidths: Object.fromEntries(
-    TRACKS_META.map((t) => [t.id, t.defaultWidth]),
-  ),
-  trackVisibility: Object.fromEntries(TRACKS_META.map((t) => [t.id, true])),
+const chartDispatch: React.Dispatch<ChartAction> = (a) => {
+  const g = globalRigStore.getState();
+  switch (a.type) {
+    case "SET_MODE":
+      return g.setMode(a.mode);
+    case "SET_CROSSHAIR_VALUE":
+      return g.setCrosshairValue(a.value);
+    case "TOGGLE_LIVE":
+      return g.toggleLive();
+    case "SET_LIVE":
+      return g.setLive(a.live);
+    case "SET_RANGE_PRESET":
+      return g.setRangePreset(a.preset);
+    case "SET_RULER_RANGE":
+      return g.setRulerRange(a.min, a.max);
+    case "SET_LOG_TRACK_RANGE":
+      return g.setLogTrackRange(a.min, a.max);
+    case "SET_SLIDER_MODE":
+      return g.setSliderMode(a.value);
+    case "ZOOM_IN":
+      return g.zoomIn();
+    case "ZOOM_OUT":
+      return g.zoomOut();
+    case "RESET_ZOOM":
+      return g.resetZoom();
+    case "TOGGLE_TRACE_VISIBILITY":
+      return g.toggleTraceVisibility(a.trace);
+    case "SET_TRACK_ORDER":
+      return g.setTrackOrder(a.order);
+    case "SET_TRACK_WIDTH":
+      return g.setTrackWidth(a.trackId, a.width);
+    case "TOGGLE_TRACK_VISIBILITY":
+      return g.toggleTrackVisibility(a.trackId);
+    case "RESET_TRACK_LAYOUT":
+      return g.resetTrackLayout();
+  }
 };
 
-function chartReducer(s: ChartState, a: ChartAction): ChartState {
-  switch (a.type) {
-    // Mode invariant: exactly one of {liveMode + rangePreset} or {sliders} is
-    // active at any time. The reducer is the sole owner — handlers should
-    // never set sliders / liveMode / rangePreset independently.
-    case "SET_MODE":
-      return { ...s, mode: a.mode, crosshairValue: null, rulerRange: null, logTrackRange: null };
-    case "SET_CROSSHAIR_VALUE":
-      return { ...s, crosshairValue: a.value };
-    case "TOGGLE_LIVE": {
-      const nextLive = !s.liveMode;
-      return nextLive
-        ? {
-            ...s,
-            liveMode: true,
-            rangePreset: s.rangePreset ?? "1h",
-            rulerRange: null,
-            logTrackRange: null,
-            wellProfileSlider: false,
-            rulerSlider: false,
-          }
-        : {
-            ...s,
-            liveMode: false,
-            rangePreset: null,
-            wellProfileSlider: true,
-            rulerSlider: true,
-          };
-    }
-    case "SET_LIVE":
-      return a.live
-        ? {
-            ...s,
-            liveMode: true,
-            rangePreset: s.rangePreset ?? "1h",
-            rulerRange: null,
-            logTrackRange: null,
-            wellProfileSlider: false,
-            rulerSlider: false,
-          }
-        : {
-            ...s,
-            liveMode: false,
-            rangePreset: null,
-            wellProfileSlider: true,
-            rulerSlider: true,
-          };
-    case "SET_RANGE_PRESET":
-      return {
-        ...s,
-        rangePreset: a.preset,
-        liveMode: true,
-        rulerRange: null,
-        logTrackRange: null,
-        wellProfileSlider: false,
-        rulerSlider: false,
-      };
-    case "SET_RULER_RANGE":
-      // From WellProfile slider drag or Date+Time Apply — implies slider mode.
-      return {
-        ...s,
-        rulerRange: { min: a.min, max: a.max },
-        logTrackRange: null,
-        liveMode: false,
-        rangePreset: null,
-        wellProfileSlider: true,
-        rulerSlider: true,
-      };
-    case "SET_LOG_TRACK_RANGE":
-      // From ruler slider drag — implies slider mode.
-      return {
-        ...s,
-        logTrackRange: { min: a.min, max: a.max },
-        liveMode: false,
-        rangePreset: null,
-        wellProfileSlider: true,
-        rulerSlider: true,
-      };
-    case "SET_SLIDER_MODE":
-      return a.value
-        ? {
-            ...s,
-            wellProfileSlider: true,
-            rulerSlider: true,
-            liveMode: false,
-            rangePreset: null,
-          }
-        : {
-            ...s,
-            wellProfileSlider: false,
-            rulerSlider: false,
-            liveMode: true,
-            rangePreset: s.rangePreset ?? "1h",
-            rulerRange: null,
-            logTrackRange: null,
-          };
-    case "ZOOM_IN":
-    case "ZOOM_OUT":
-      // Wheel/keyboard zoom = intent to enter slider mode.
-      return {
-        ...s,
-        liveMode: false,
-        rangePreset: null,
-        wellProfileSlider: true,
-        rulerSlider: true,
-      };
-    case "RESET_ZOOM":
-      return {
-        ...s,
-        liveMode: true,
-        rangePreset: "1h",
-        rulerRange: null,
-        logTrackRange: null,
-        wellProfileSlider: false,
-        rulerSlider: false,
-      };
-    case "TOGGLE_TRACE_VISIBILITY":
-      return {
-        ...s,
-        traceVisibility: {
-          ...s.traceVisibility,
-          [a.trace]: !s.traceVisibility[a.trace],
-        },
-      };
-    case "SET_TRACK_ORDER":
-      return { ...s, trackOrder: a.order };
-    case "SET_TRACK_WIDTH":
-      return { ...s, trackWidths: { ...s.trackWidths, [a.trackId]: a.width } };
-    case "TOGGLE_TRACK_VISIBILITY":
-      return {
-        ...s,
-        trackVisibility: {
-          ...s.trackVisibility,
-          [a.trackId]: !s.trackVisibility[a.trackId],
-        },
-      };
-    case "RESET_TRACK_LAYOUT":
-      return {
-        ...s,
-        trackWidths: Object.fromEntries(
-          TRACKS_META.map((t) => [t.id, t.defaultWidth]),
-        ),
-        trackVisibility: Object.fromEntries(
-          TRACKS_META.map((t) => [t.id, true]),
-        ),
-      };
-    default:
-      return s;
-  }
-}
-
-const ChartContext = createContext<{
+export function useChart(): {
   state: ChartState;
   dispatch: React.Dispatch<ChartAction>;
-} | null>(null);
-
-export function ChartProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(chartReducer, chartInitial);
-  return (
-    <ChartContext.Provider value={{ state, dispatch }}>
-      {children}
-    </ChartContext.Provider>
-  );
+} {
+  const state = useStore(globalRigStore, (s) => s.chart);
+  return { state, dispatch: chartDispatch };
 }
 
-export function useChart() {
-  const ctx = useContext(ChartContext);
-  if (!ctx) throw new Error("useChart must be used inside ChartProvider");
-  return ctx;
-}
-
-type SettingsState = {
-  theme: Theme;
-  density: Density;
-  fontSize: FontSize;
-  sampleRate: SampleRate;
-  smoothing: boolean;
-  soundEnabled: boolean;
-  notificationsEnabled: boolean;
-  unitSystem: UnitSystem;
-};
+// ─── Settings ────────────────────────────────────────────────────────────────
 
 type SettingsAction =
   | { type: "SET_THEME"; theme: Theme }
@@ -391,95 +156,29 @@ type SettingsAction =
   | { type: "TOGGLE_NOTIFICATIONS" }
   | { type: "SET_UNIT_SYSTEM"; system: UnitSystem };
 
-const UNIT_SYSTEM_KEY = "rtdc.unitSystem";
-
-function readUnitSystem(): UnitSystem {
-  if (typeof localStorage === "undefined") return "metric";
-  const v = localStorage.getItem(UNIT_SYSTEM_KEY);
-  return v === "imperial" || v === "metric" ? v : "metric";
-}
-
-const settingsInitial: SettingsState = {
-  theme: "gruvbox",
-  density: "comfortable",
-  fontSize: "md",
-  sampleRate: "10hz",
-  smoothing: false,
-  soundEnabled: true,
-  notificationsEnabled: true,
-  unitSystem: readUnitSystem(),
-};
-
-function settingsReducer(s: SettingsState, a: SettingsAction): SettingsState {
+const settingsDispatch: React.Dispatch<SettingsAction> = (a) => {
+  const g = globalRigStore.getState();
   switch (a.type) {
     case "SET_THEME":
-      return { ...s, theme: a.theme };
+      return g.setTheme(a.theme);
     case "SET_DENSITY":
-      return { ...s, density: a.density };
+      return g.setDensity(a.density);
     case "SET_FONT_SIZE":
-      return { ...s, fontSize: a.size };
+      return g.setFontSize(a.size);
     case "SET_SAMPLE_RATE":
-      return { ...s, sampleRate: a.rate };
+      return g.setSampleRate(a.rate);
     case "TOGGLE_SMOOTHING":
-      return { ...s, smoothing: !s.smoothing };
+      return g.toggleSmoothing();
     case "TOGGLE_SOUND":
-      return { ...s, soundEnabled: !s.soundEnabled };
+      return g.toggleSound();
     case "TOGGLE_NOTIFICATIONS":
-      return { ...s, notificationsEnabled: !s.notificationsEnabled };
+      return g.toggleNotifications();
     case "SET_UNIT_SYSTEM":
-      return { ...s, unitSystem: a.system };
-    default:
-      return s;
+      return g.setUnitSystem(a.system);
   }
-}
-
-export const SettingsContext = createContext<{
-  state: SettingsState;
-  dispatch: React.Dispatch<SettingsAction>;
-} | null>(null);
-
-export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(settingsReducer, settingsInitial);
-
-  // Directly update HTML attribute before children render - required for ECharts sync theme
-  // eslint-disable-next-line
-  document && (document.documentElement.dataset.theme = state.theme);
-  // eslint-disable-next-line
-  document && (document.documentElement.dataset.fontSize = state.fontSize);
-  // eslint-disable-next-line
-  document && (document.documentElement.dataset.density = state.density);
-
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(UNIT_SYSTEM_KEY, state.unitSystem);
-    }
-  }, [state.unitSystem]);
-
-  const isFirstThemeRun = useRef(true);
-  useEffect(() => {
-    if (isFirstThemeRun.current) {
-      isFirstThemeRun.current = false;
-      return;
-    }
-    const root = document.documentElement;
-    root.classList.add("theme-transitioning");
-    const id = window.setTimeout(() => {
-      root.classList.remove("theme-transitioning");
-    }, 320);
-    return () => window.clearTimeout(id);
-  }, [state.theme]);
-
-  return (
-    <SettingsContext.Provider value={{ state, dispatch }}>
-      {children}
-    </SettingsContext.Provider>
-  );
-}
+};
 
 export function useSettings() {
-  const ctx = useContext(SettingsContext);
-  if (!ctx) throw new Error("useSettings must be used inside SettingsProvider");
-  return ctx;
+  const state = useStore(globalRigStore, (s) => s.settings);
+  return { state, dispatch: settingsDispatch };
 }
-
-export type { Theme, Density, FontSize, SampleRate };

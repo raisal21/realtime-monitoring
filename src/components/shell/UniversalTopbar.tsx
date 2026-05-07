@@ -1,7 +1,8 @@
 import * as React from "react";
 import { Settings as SettingsIcon, CircleUser, ChevronRight } from "lucide-react";
 import { useLocation, useParams, Link } from "react-router-dom";
-import { UiContext } from "@/stores/app-store";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
 import { useOptionalCurrentWell } from "@/contexts/CurrentWellContext";
 import { getWellName } from "@/data/wells";
 import { Popover, PopoverTrigger } from "@/components/popover";
@@ -23,7 +24,14 @@ export function UniversalTopbar({
   hideConnectionStatus,
   profileSlot,
 }: UniversalTopbarProps) {
-  const uiCtx = React.useContext(UiContext);
+  const settingsPopover = useStore(
+    globalRigStore,
+    (s) => s.ui.settingsPopover,
+  );
+  const setSettingsPopover = useStore(
+    globalRigStore,
+    (s) => s.setSettingsPopover,
+  );
   const location = useLocation();
   const params = useParams<{ wellId?: string }>();
 
@@ -45,10 +53,8 @@ export function UniversalTopbar({
 
   const defaultSettings = (
     <Popover
-      open={uiCtx?.state.settingsPopover ?? false}
-      onOpenChange={(open) =>
-        uiCtx?.dispatch({ type: "SET_SETTINGS_POPOVER", open })
-      }
+      open={settingsPopover}
+      onOpenChange={(open) => setSettingsPopover(open)}
     >
       <PopoverTrigger
         render={

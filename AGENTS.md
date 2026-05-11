@@ -28,6 +28,10 @@ No test runner configured. Add tests before submitting changes that affect logic
 - `tsconfig.node.json` — TypeScript config for Vite config
 - `tsconfig.server.json` — TypeScript config for stubs (separate output dir: `dist-server`)
 
+## Search
+
+When searching the codebase, always use `bm25_search` (BM25-ranked search) alongside `grep` for better relevance. `bm25_search` uses ripgrep for candidate matching then ranks results with the Okapi BM25 algorithm.
+
 ## Key conventions
 
 - `verbatimModuleSyntax: true` — use `import type` for type-only imports

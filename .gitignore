@@ -28,4 +28,14 @@ env
 AGENTS.md
 CLAUDE.md
 PLAN.md
-graphify-out
+NAPKIN.md
+
+.obsidian/
+templates/
+guides/
+decisions/
+architecture/
+daily/
+changelog/
+.napkin/
+

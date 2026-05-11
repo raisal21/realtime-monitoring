@@ -6,8 +6,8 @@ interface WebSocketStreamOptions {
 interface WebSocketStream {
   readonly url: string;
   readonly opened: Promise<{
-    readable: ReadableStream<any>;
-    writable: WritableStream<any>;
+    readable: ReadableStream<Uint8Array>;
+    writable: WritableStream<string | Uint8Array>;
     extensions: string;
     protocol: string;
   }>;
@@ -21,6 +21,6 @@ interface Window {
   };
 }
 
-declare var WebSocketStream: {
+declare const WebSocketStream: {
   new (url: string, options?: WebSocketStreamOptions): WebSocketStream;
 };

@@ -2,10 +2,10 @@ import { Search, Clock, Ruler, ChevronsLeft, ChevronsRight, LayoutGrid, Gauge as
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useChart, type ChartMode } from "@/store/app-store";
-import { Popover, PopoverTrigger } from "@/components/popover";
-import { RailSection } from "@/components/display";
-import { RadioCard, RadioCardGroup } from "@/components/form";
-import { LiveBadge } from "@/components/display";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
+import { RailSection } from "@/components/ui/display";
+import { RadioCard, RadioCardGroup } from "@/components/ui/form";
+import { LiveBadge } from "@/components/ui/display";
 import { cn } from "@/lib/utils";
 import { ZoomPopoverContent } from "@/components/dashboard/popovers/ZoomPopover";
 import { DisplayLayoutPopoverContent } from "@/components/dashboard/popovers/DisplayLayoutPopover";

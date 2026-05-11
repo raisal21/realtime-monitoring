@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { SidebarStat, WellListItem } from "@/components/well";
+import { SidebarStat, WellListItem } from "@/components/ui/well";
 import type { Well } from "@/data/wells";
 import { PAD_NAMES } from "@/data/pads";
 

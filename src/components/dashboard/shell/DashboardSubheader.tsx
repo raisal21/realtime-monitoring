@@ -5,7 +5,7 @@ import { useCurrentWell } from "@/contexts/CurrentWellContext";
 import { PAD_NAMES } from "@/data/pads";
 import { useSettings, useUi } from "@/store/app-store";
 import { formatDepth } from "@/lib/units";
-import { ValueReadout } from "@/components/telemetry";
+import { ValueReadout } from "@/components/ui/telemetry";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 

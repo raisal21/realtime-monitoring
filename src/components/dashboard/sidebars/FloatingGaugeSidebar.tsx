@@ -4,7 +4,7 @@ import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { useUi, useSettings, FS_SCALE } from "@/store/app-store";
 import { GAUGES } from "@/data/dashboard-static";
-import { IconButton } from "@/components/form";
+import { IconButton } from "@/components/ui/form";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 import {

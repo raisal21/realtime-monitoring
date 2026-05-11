@@ -1,4 +1,4 @@
-import { Surface } from "@/components/core";
+import { Surface } from "@/components/ui/core";
 import type { Well } from "@/data/wells";
 import { WELL_TYPE_COLOR, WELL_TYPE_LABEL } from "../lib/constants";
 

@@ -2,8 +2,8 @@
 
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import Terrain from "@/components/ui/terrain";
-import type { TerrainPreset } from "@/components/ui/terrain";
+import Terrain from "@/components/ui/Terrain";
+import type { TerrainPreset } from "@/components/ui/Terrain";
 
 export default function NotFoundPage({
   defaultPreset = "gruvbox",

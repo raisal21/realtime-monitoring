@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Activity } from "lucide-react";
-import { Button, Input } from "@/components/core";
+import { Button, Input } from "@/components/ui/core";
 
 export interface LoginFormProps {
   onSignIn?: () => void;

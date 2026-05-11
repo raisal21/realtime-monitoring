@@ -1,6 +1,6 @@
 import { BrowserRouter } from "react-router-dom";
 import { AppRoutes } from "@/routes";
-import ScreenGuard from "@/components/ui/screen-guard";
+import ScreenGuard from "@/components/ui/ScreenGuard";
 
 function App() {
   return (

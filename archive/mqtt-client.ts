@@ -8,7 +8,6 @@ function writeToScreen(message: string) {
 }
 
 if ("WebSocketStream" in self) {
-  const controller = new AbortController();
   const wsURL = "ws://localhost:8080";
   const socket = new WebSocketStream(wsURL, {
     signal: AbortSignal.timeout(5000),
@@ -26,7 +25,7 @@ if ("WebSocketStream" in self) {
     writeToScreen("SENT: ping");
 
     while (true) {
-      const { value, done } = reader.read();
+      const { done } = reader.read();
       if (done) {
         break;
       }

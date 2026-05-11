@@ -21,9 +21,9 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
-} from "@/components/popover";
-import { Slider, Switch } from "@/components/form";
-import { Button } from "@/components/core";
+} from "@/components/ui/popover";
+import { Slider, Switch } from "@/components/ui/form";
+import { Button } from "@/components/ui/core";
 import { cn } from "@/lib/utils";
 
 function SortableTrackItem({

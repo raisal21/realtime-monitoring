@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Surface, StatusDot, Button } from "@/components/core";
-import { ValueReadout } from "@/components/telemetry";
+import { Surface, StatusDot, Button } from "@/components/ui/core";
+import { ValueReadout } from "@/components/ui/telemetry";
 import type { Well } from "@/data/wells";
 import { WELL_TYPE_COLOR, WELL_TYPE_LABEL, STATUS_LABEL, STATUS_DOT } from "../lib/constants";
 

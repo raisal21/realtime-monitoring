@@ -3,9 +3,9 @@
 import { useRef } from "react";
 import { Lock } from "lucide-react";
 import { useNavigate, Navigate, useLocation } from "react-router-dom";
-import Terrain from "@/components/ui/terrain";
-import type { TerrainPreset } from "@/components/ui/terrain";
-import { TopbarButton } from "@/components/navigation";
+import Terrain from "@/components/ui/Terrain";
+import type { TerrainPreset } from "@/components/ui/Terrain";
+import { TopbarButton } from "@/components/ui/navigation";
 import { UniversalTopbar } from "@/components/app-shell/UniversalTopbar";
 import AuthCard from "@/components/auth/AuthCard";
 import { useAuth } from "@/hooks/useAuth";

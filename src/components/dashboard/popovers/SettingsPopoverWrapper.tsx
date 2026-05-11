@@ -2,7 +2,7 @@ import { useUi } from "@/store/app-store";
 import {
   Popover,
   PopoverTrigger,
-} from "@/components/popover";
+} from "@/components/ui/popover";
 import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
 
 export function SettingsPopoverWrapper() {

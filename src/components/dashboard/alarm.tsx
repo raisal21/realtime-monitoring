@@ -4,8 +4,8 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // Imports from core
-import { Badge } from "@/components/core";
-import { Button } from "@/components/core";
+import { Badge } from "@/components/ui/core";
+import { Button } from "@/components/ui/core";
 import { useSettings } from "@/store/app-store";
 
 /* ============================================================================

@@ -1,19 +1,18 @@
 "use client";
 
-import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// Deterministic star field — computed once at module init, not during render.
+const stars = Array.from({ length: 24 }, () => ({
+  cx: `${Math.random() * 96 + 2}%`,
+  cy: `${Math.random() * 72}%`,
+  r: Math.random() < 0.15 ? 1.3 : 0.7,
+  alpha: (Math.random() * 0.45 + 0.1).toFixed(2),
+  dur: `${(2 + Math.random() * 3.5).toFixed(2)}s`,
+  delay: `${(Math.random() * 4).toFixed(2)}s`,
+}));
+
 function RigIllustration() {
-  const stars = React.useRef(
-    Array.from({ length: 24 }, () => ({
-      cx: `${Math.random() * 96 + 2}%`,
-      cy: `${Math.random() * 72}%`,
-      r: Math.random() < 0.15 ? 1.3 : 0.7,
-      alpha: (Math.random() * 0.45 + 0.1).toFixed(2),
-      dur: `${(2 + Math.random() * 3.5).toFixed(2)}s`,
-      delay: `${(Math.random() * 4).toFixed(2)}s`,
-    })),
-  );
 
   return (
     <div
@@ -46,7 +45,7 @@ function RigIllustration() {
         }}
         aria-hidden="true"
       >
-        {stars.current.map((s, i) => (
+        {stars.map((s, i) => (
           <circle
             key={i}
             cx={s.cx}

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/core";
+import { Input } from "@/components/ui/core";
 import type { Well } from "@/data/wells";
 
 interface ExplorerSubheaderProps {

@@ -40,7 +40,7 @@ const drillView = new DataView(drillBuff);
 const geoBuff = new ArrayBuffer(40);
 const geoView = new DataView(geoBuff);
 
-let rigState = {
+const rigState = {
   timestamp: BigInt(Date.now()),
   depth: 1500.0,
   rpm: 120.0,
@@ -104,8 +104,8 @@ function getRandom(min: number, max: number) {
 
   wss.on("connection", (conn, req) => {
     console.log(`🔌  WS from:`, req.socket.remoteAddress);
-    const stream = createWebSocketStream(conn as any);
-    aedes.handle(stream as any, req);
+    const stream = createWebSocketStream(conn as unknown as Parameters<typeof createWebSocketStream>[0]);
+    aedes.handle(stream as unknown as Parameters<typeof aedes.handle>[0], req);
   });
 
   httpServer.on("error", (err) => {

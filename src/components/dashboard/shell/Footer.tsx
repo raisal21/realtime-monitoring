@@ -4,7 +4,7 @@ import { useCurrentWell } from "@/contexts/CurrentWellContext";
 import { cn } from "@/lib/utils";
 import PulseR from "@/components/brand/PulseR";
 
-export function Footer(_props: { droppedFrames?: number } = {}) {
+export function Footer() {
   const { well } = useCurrentWell();
 
   return (

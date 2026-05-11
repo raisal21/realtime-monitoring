@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useReducer, useCallback, useEffect, useMemo } from "react";
+import type { Dispatch } from "react";
 import { format } from "date-fns";
 import {
   RotateCcw,
@@ -27,12 +28,81 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
-} from "@/components/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { TimePicker } from "@/components/ui/time-picker";
-import { LiveBadge, RangePresetButton } from "@/components/display";
-import { Button } from "@/components/core";
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/Calendar";
+import { TimePicker } from "@/components/ui/TimePicker";
+import { LiveBadge, RangePresetButton } from "@/components/ui/display";
+import { Button } from "@/components/ui/core";
 import { cn } from "@/lib/utils";
+
+// ─── Local reducer (avoids cascading setState-in-effect) ─────────────────────
+
+interface LocalState {
+  min: number;
+  max: number;
+  fromDate: Date | undefined;
+  toDate: Date | undefined;
+  fromOpen: boolean;
+  toOpen: boolean;
+}
+
+type LocalAction =
+  | { type: "SET_MIN"; value: number }
+  | { type: "SET_MAX"; value: number }
+  | { type: "SET_FROM_DATE"; value: Date | undefined }
+  | { type: "SET_TO_DATE"; value: Date | undefined }
+  | { type: "SET_FROM_OPEN"; value: boolean }
+  | { type: "SET_TO_OPEN"; value: boolean }
+  | { type: "SYNC_FROM_RULER"; min: number; max: number; fromDate: Date; toDate: Date };
+
+function localReducer(state: LocalState, action: LocalAction): LocalState {
+  switch (action.type) {
+    case "SET_MIN":
+      return { ...state, min: action.value };
+    case "SET_MAX":
+      return { ...state, max: action.value };
+    case "SET_FROM_DATE":
+      return { ...state, fromDate: action.value };
+    case "SET_TO_DATE":
+      return { ...state, toDate: action.value };
+    case "SET_FROM_OPEN":
+      return { ...state, fromOpen: action.value };
+    case "SET_TO_OPEN":
+      return { ...state, toOpen: action.value };
+    case "SYNC_FROM_RULER":
+      return {
+        ...state,
+        min: action.min,
+        max: action.max,
+        fromDate: action.fromDate,
+        toDate: action.toDate,
+      };
+  }
+}
+
+
+
+function useRulerSync(
+  state: ReturnType<typeof useChart>["state"],
+  axisRange: { min: number; max: number },
+  dispatch: Dispatch<LocalAction>,
+) {
+  // We intentionally call useEffect here inside a custom hook so the component
+  // body stays pure. The hook *is* the effect boundary.
+  useEffect(() => {
+    if (state.mode !== "time") return;
+    const r = state.rulerRange ?? axisRange;
+    const startWall = sessionMinuteToDate(r.min);
+    const endWall = sessionMinuteToDate(r.max);
+    dispatch({
+      type: "SYNC_FROM_RULER",
+      min: startWall.getHours() * 60 + startWall.getMinutes(),
+      max: endWall.getHours() * 60 + endWall.getMinutes(),
+      fromDate: new Date(startWall.getFullYear(), startWall.getMonth(), startWall.getDate()),
+      toDate: new Date(endWall.getFullYear(), endWall.getMonth(), endWall.getDate()),
+    });
+  }, [state.rulerRange, state.mode, axisRange, dispatch]);
+}
 
 export function ZoomPopoverContent() {
   const { state, dispatch } = useChart();
@@ -69,39 +139,28 @@ export function ZoomPopoverContent() {
     ? ((state.rulerRange?.max ?? 1439) % 1440 + 1440) % 1440
     : 1439;
 
-  const [draftMin, setDraftMin] = useState(initialDraftMin);
-  const [draftMax, setDraftMax] = useState(initialDraftMax);
-  const [fromDate, setFromDate] = useState<Date | undefined>(initialFromDate);
-  const [toDate, setToDate] = useState<Date | undefined>(initialToDate);
-  const [fromOpen, setFromOpen] = useState(false);
-  const [toOpen, setToOpen] = useState(false);
+  // Single reducer avoids cascading renders from multiple setStates in an effect.
+  const [local, localDispatch] = useReducer(localReducer, {
+    min: initialDraftMin,
+    max: initialDraftMax,
+    fromDate: initialFromDate,
+    toDate: initialToDate,
+    fromOpen: false,
+    toOpen: false,
+  });
 
-  useEffect(() => {
-    if (state.mode !== "time") return;
-    const r = state.rulerRange ?? axisRange;
-    // Resolve ruler-range minutes to wall-clock so the day component is kept
-    // in sync (otherwise cross-day ranges collapse to the same date).
-    const startWall = sessionMinuteToDate(r.min);
-    const endWall = sessionMinuteToDate(r.max);
-    setFromDate(
-      new Date(startWall.getFullYear(), startWall.getMonth(), startWall.getDate()),
-    );
-    setToDate(
-      new Date(endWall.getFullYear(), endWall.getMonth(), endWall.getDate()),
-    );
-    setDraftMin(startWall.getHours() * 60 + startWall.getMinutes());
-    setDraftMax(endWall.getHours() * 60 + endWall.getMinutes());
-  }, [state.rulerRange, state.mode, axisRange]);
+  // Sync local state from store when ruler range changes externally.
+  useRulerSync(state, axisRange, localDispatch);
 
-  const fromLabel = fromDate
-    ? format(fromDate, "MMM dd, yyyy")
+  const fromLabel = local.fromDate
+    ? format(local.fromDate, "MMM dd, yyyy")
     : "—";
-  const toLabel = toDate
-    ? format(toDate, "MMM dd, yyyy")
+  const toLabel = local.toDate
+    ? format(local.toDate, "MMM dd, yyyy")
     : "—";
 
   const handleApply = useCallback(() => {
-    if (!fromDate || !toDate) return;
+    if (!local.fromDate || !local.toDate) return;
 
     let min: number;
     let max: number;
@@ -110,19 +169,19 @@ export function ZoomPopoverContent() {
       // Combine date (midnight) + minutes-of-day, convert to minutes since
       // SESSION_START_DATE — the unit the Time Ruler renders.
       const startMs =
-        new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate()).getTime() +
-        draftMin * 60_000;
+        new Date(local.fromDate.getFullYear(), local.fromDate.getMonth(), local.fromDate.getDate()).getTime() +
+        local.min * 60_000;
       const endMs =
-        new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate()).getTime() +
-        draftMax * 60_000;
+        new Date(local.toDate.getFullYear(), local.toDate.getMonth(), local.toDate.getDate()).getTime() +
+        local.max * 60_000;
       const a = dateToSessionMinute(new Date(startMs));
       const b = dateToSessionMinute(new Date(endMs));
       min = Math.min(a, b);
       max = Math.max(a, b);
     } else {
       // Depth mode: derive depth at each picked date via the well profile.
-      const a = wellProfileDepthAt(fromDate);
-      const b = wellProfileDepthAt(toDate);
+      const a = wellProfileDepthAt(local.fromDate);
+      const b = wellProfileDepthAt(local.toDate);
       min = Math.min(a, b);
       max = Math.max(a, b);
     }
@@ -131,7 +190,7 @@ export function ZoomPopoverContent() {
 
     // Reducer handles cascade: enters slider mode, clears live & preset.
     dispatch({ type: "SET_RULER_RANGE", min, max });
-  }, [fromDate, toDate, draftMin, draftMax, state.mode, dispatch]);
+  }, [local.fromDate, local.toDate, local.min, local.max, state.mode, dispatch]);
 
   return (
     <PopoverContent
@@ -174,7 +233,7 @@ export function ZoomPopoverContent() {
 
         {/* From — Date + Time side by side */}
         <div className="flex gap-1.5 mb-2">
-          <Popover open={fromOpen} onOpenChange={setFromOpen}>
+          <Popover open={local.fromOpen} onOpenChange={(v) => localDispatch({ type: "SET_FROM_OPEN", value: v })}>
             <PopoverTrigger
               className={cn(
                 "group flex-1 flex items-stretch",
@@ -199,11 +258,11 @@ export function ZoomPopoverContent() {
             <PopoverContent align="start" sideOffset={6} popupClassName="p-0">
               <Calendar
                 mode="single"
-                defaultMonth={fromDate}
-                selected={fromDate}
+                defaultMonth={local.fromDate}
+                selected={local.fromDate}
                 onSelect={(date) => {
-                  setFromDate(date ?? undefined);
-                  setFromOpen(false);
+                  localDispatch({ type: "SET_FROM_DATE", value: date ?? undefined });
+                  localDispatch({ type: "SET_FROM_OPEN", value: false });
                 }}
                 startMonth={calendarBounds.from}
                 endMonth={calendarBounds.to}
@@ -215,12 +274,12 @@ export function ZoomPopoverContent() {
             </PopoverContent>
           </Popover>
 
-          <TimePicker value={draftMin} onChange={setDraftMin} />
+          <TimePicker value={local.min} onChange={(v) => localDispatch({ type: "SET_MIN", value: v })} />
         </div>
 
         {/* To — Date + Time side by side */}
         <div className="flex gap-1.5 mb-2">
-          <Popover open={toOpen} onOpenChange={setToOpen}>
+          <Popover open={local.toOpen} onOpenChange={(v) => localDispatch({ type: "SET_TO_OPEN", value: v })}>
             <PopoverTrigger
               className={cn(
                 "group flex-1 flex items-stretch",
@@ -245,11 +304,11 @@ export function ZoomPopoverContent() {
             <PopoverContent align="start" sideOffset={6} popupClassName="p-0">
               <Calendar
                 mode="single"
-                defaultMonth={toDate}
-                selected={toDate}
+                defaultMonth={local.toDate}
+                selected={local.toDate}
                 onSelect={(date) => {
-                  setToDate(date ?? undefined);
-                  setToOpen(false);
+                  localDispatch({ type: "SET_TO_DATE", value: date ?? undefined });
+                  localDispatch({ type: "SET_TO_OPEN", value: false });
                 }}
                 startMonth={calendarBounds.from}
                 endMonth={calendarBounds.to}
@@ -261,7 +320,7 @@ export function ZoomPopoverContent() {
             </PopoverContent>
           </Popover>
 
-          <TimePicker value={draftMax} onChange={setDraftMax} />
+          <TimePicker value={local.max} onChange={(v) => localDispatch({ type: "SET_MAX", value: v })} />
         </div>
 
         {/* Apply / Reset */}

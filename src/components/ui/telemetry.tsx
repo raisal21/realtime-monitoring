@@ -5,7 +5,7 @@ import { Check, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Imports from core
-import { TraceColor, type TraceColorProps } from "@/components/core";
+import { TraceColor, type TraceColorProps } from "@/components/ui/core";
 
 /* ============================================================================
    2. TELEMETRY DATA DISPLAY

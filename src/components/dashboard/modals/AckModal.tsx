@@ -1,9 +1,9 @@
 import { TriangleAlert, X } from "lucide-react";
 import { useUi } from "@/store/app-store";
 import { FEED_ITEMS } from "@/data/dashboard-static";
-import { Surface } from "@/components/core";
-import { Button } from "@/components/core";
-import { IconButton } from "@/components/form";
+import { Surface } from "@/components/ui/core";
+import { Button } from "@/components/ui/core";
+import { IconButton } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 
 export function AckModal() {

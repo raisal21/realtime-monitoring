@@ -343,6 +343,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     };
   }, [
     settings.theme,
+    settings.unitSystem,
     fsScale,
     isPrimary,
     axisMin,

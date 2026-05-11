@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import { useUi } from "@/store/app-store";
 import { FEED_ITEMS } from "@/data/dashboard-static";
-import { IconButton } from "@/components/form";
+import { IconButton } from "@/components/ui/form";
 import { CriticalBanner } from "@/components/dashboard/alarm";
 import { FilterChip, FeedItem } from "@/components/dashboard/alarm";
 import { cn } from "@/lib/utils";

@@ -4,7 +4,7 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // Imports from core
-import { StatusDot } from "@/components/core";
+import { StatusDot } from "@/components/ui/core";
 
 /* ============================================================================
    7. FOOTER

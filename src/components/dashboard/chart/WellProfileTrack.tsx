@@ -335,7 +335,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.theme, wellProfileSlider, liveMode, rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale]);
+  }, [settings.theme, settings.unitSystem, wellProfileSlider, liveMode, rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale]);
 
   return (
     <div

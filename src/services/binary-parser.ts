@@ -18,7 +18,7 @@ export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
     log.warn(`[PARSER] Unsupported protocol version: ${protocol}`);
   }
 
-  let rawData: DrillUpdate = {
+  const rawData: DrillUpdate = {
     timestamp: Number(view.getBigUint64(8)),
     depth: view.getFloat32(16),
     sequence: view.getUint32(4),

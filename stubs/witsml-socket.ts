@@ -204,12 +204,12 @@ for (const stream of Object.values(StreamDef).filter(
   streamSubscribers.set(stream, new Set());
 }
 
-let activeAlarms: Map<string, Alarm> = new Map();
+const activeAlarms: Map<string, Alarm> = new Map();
 let alarmSequence: number = 0;
 
 const activeAlarmCodes = new Set<string>();
 
-let rigState = {
+const rigState = {
   timestamp: BigInt(Date.now()),
   depth: 1500.0,
   rpm: 120.0,
@@ -289,7 +289,7 @@ function generateClientId(): string {
 function sendMessage(
   ws: RigWebSocket,
   messageType: string,
-  payload?: Record<string, any>,
+  payload?: Record<string, unknown>,
   error?: { code: string; message: string },
 ) {
   if (ws.readyState !== WebSocket.OPEN) return;
@@ -366,7 +366,7 @@ function raiseAlarm(code: string, message: string, severity: AlarmSeverity) {
   // Prevent duplicate active alarms with same business code
   if (activeAlarmCodes.has(code)) return;
 
-  let id = `ALM-${Date.now()}-${alarmSequence++}`;
+  const id = `ALM-${Date.now()}-${alarmSequence++}`;
   const now = Date.now();
 
   const alarm: Alarm = {
@@ -664,6 +664,7 @@ function handleAlarmAck(
   broadcastJson("ALARM_ACKED", { alarm });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- websocket clients can send anything
 function handleUnknownMessage(rigWs: RigWebSocket, messageType: any) {
   log.warn(
     `[PROTOCOL] Unknown messageType: ${messageType} from ${rigWs.clientId}`,

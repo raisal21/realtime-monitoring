@@ -12,10 +12,10 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverDescription,
-} from "@/components/popover";
-import { RadioCard, RadioCardGroup } from "@/components/form";
-import { ToggleGroup, ToggleItem } from "@/components/core";
-import { Switch } from "@/components/form";
+} from "@/components/ui/popover";
+import { RadioCard, RadioCardGroup } from "@/components/ui/form";
+import { ToggleGroup, ToggleItem } from "@/components/ui/core";
+import { Switch } from "@/components/ui/form";
 import type { ReactNode } from "react";
 
 function SettingRow({

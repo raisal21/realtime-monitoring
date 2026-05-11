@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
 import { useUi } from "@/store/app-store";
 import { GAUGES } from "@/data/dashboard-static";
-import { StatusDot } from "@/components/core";
+import { StatusDot } from "@/components/ui/core";
 import { cn } from "@/lib/utils";
 
 const STRIP_WIDTH = 32;

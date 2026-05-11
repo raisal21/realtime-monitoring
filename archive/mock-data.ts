@@ -38,7 +38,7 @@ const CONFIG = {
 };
 
 // --- 3. STATE INITIALIZATION ---
-let rigState: RigState = {
+const rigState: RigState = {
   timestamp: BigInt(Date.now()),
   depth: 1500.0,
   targetRpm: 120.0,
@@ -52,11 +52,11 @@ let rigState: RigState = {
 // --- 4. HELPER FUNCTIONS (TYPED) ---
 
 function gaussianNoise(mean: number, stdDev: number): number {
-  let u = 0,
+  const u = 0,
     v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
-  let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  const num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
   return mean + num * stdDev;
 }
 
@@ -98,35 +98,35 @@ export function generatePhysicsBatch(): MockDataBatch {
 
     // A. RPM
     rigState.currentRpm = lag(rigState.currentRpm, rigState.targetRpm, 0.05);
-    let finalRpm = gaussianNoise(rigState.currentRpm, CONFIG.NOISE_LEVEL.RPM);
+    const finalRpm = gaussianNoise(rigState.currentRpm, CONFIG.NOISE_LEVEL.RPM);
 
     // B. WOB
     rigState.currentWob = lag(rigState.currentWob, rigState.targetWob, 0.1);
-    let finalWob = Math.max(
+    const finalWob = Math.max(
       0,
       gaussianNoise(rigState.currentWob, CONFIG.NOISE_LEVEL.WOB),
     );
 
     // C. Torque (Coupled)
-    let baseTorque = finalWob * CONFIG.BIT_FRICTION;
-    let stickSlip =
+    const baseTorque = finalWob * CONFIG.BIT_FRICTION;
+    const stickSlip =
       finalWob > 5 && finalRpm > 10
         ? Math.sin(rigState.vibrationPhase) * 1.5
         : 0;
-    let finalTrq = Math.max(
+    const finalTrq = Math.max(
       0,
       gaussianNoise(baseTorque + stickSlip, CONFIG.NOISE_LEVEL.TRQ),
     );
 
     // D. SPP
-    let pumpFactor = rigState.currentRpm > 10 ? 1 : 0;
-    let baseSpp = rigState.currentRpm * 20 * pumpFactor;
-    let finalSpp = Math.max(0, gaussianNoise(baseSpp, CONFIG.NOISE_LEVEL.SPP));
+    const pumpFactor = rigState.currentRpm > 10 ? 1 : 0;
+    const baseSpp = rigState.currentRpm * 20 * pumpFactor;
+    const finalSpp = Math.max(0, gaussianNoise(baseSpp, CONFIG.NOISE_LEVEL.SPP));
 
     // E. Hook Load (Physics Coupling)
-    let staticWeight = CONFIG.STRING_WEIGHT + CONFIG.BLOCK_WEIGHT;
-    let baseHkld = staticWeight - finalWob;
-    let finalHkld = gaussianNoise(baseHkld, CONFIG.NOISE_LEVEL.HKLD);
+    const staticWeight = CONFIG.STRING_WEIGHT + CONFIG.BLOCK_WEIGHT;
+    const baseHkld = staticWeight - finalWob;
+    const finalHkld = gaussianNoise(baseHkld, CONFIG.NOISE_LEVEL.HKLD);
 
     // F. Depth
     if (rigState.activity === "DRILLING" && finalWob > 5 && finalRpm > 10) {

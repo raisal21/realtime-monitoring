@@ -4,9 +4,9 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // Imports from core
-import { StatusDot } from "@/components/core";
-import { Button } from "@/components/core";
-import { Badge } from "@/components/core";
+import { StatusDot } from "@/components/ui/core";
+import { Button } from "@/components/ui/core";
+import { Badge } from "@/components/ui/core";
 
 /* ============================================================================
    5. WELL EXPLORER

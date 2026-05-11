@@ -10,7 +10,7 @@ import {
   PRESET_TO_MINUTES,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
-import { Badge } from "@/components/core";
+import { Badge } from "@/components/ui/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
 import { formatDepth, formatQuantityBounds } from "@/lib/units";
 import { cn } from "@/lib/utils";

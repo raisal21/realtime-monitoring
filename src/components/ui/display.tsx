@@ -4,7 +4,7 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // Imports from core
-import { TraceColor, type TraceColorProps } from "@/components/core";
+import { TraceColor, type TraceColorProps } from "@/components/ui/core";
 
 /* ============================================================================
    8-9. DISPLAY COMPONENTS

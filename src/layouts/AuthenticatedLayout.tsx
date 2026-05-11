@@ -2,8 +2,8 @@ import { Outlet, useNavigate, useParams } from "react-router-dom";
 import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
 import { UniversalTopbar } from "@/components/app-shell/UniversalTopbar";
 import { useAuth } from "@/hooks/useAuth";
-import { Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverTitle } from "@/components/popover";
-import { TopbarButton } from "@/components/navigation";
+import { Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverTitle } from "@/components/ui/popover";
+import { TopbarButton } from "@/components/ui/navigation";
 import { LogOut, CircleUser, ShieldCheck } from "lucide-react";
 
 export function AuthenticatedLayout() {

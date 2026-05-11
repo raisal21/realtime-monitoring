@@ -6,7 +6,7 @@ import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import Terrain from "@/components/ui/terrain";
 import type { TerrainPreset } from "@/components/ui/terrain";
 import { TopbarButton } from "@/components/navigation";
-import { UniversalTopbar } from "@/components/shell/UniversalTopbar";
+import { UniversalTopbar } from "@/components/app-shell/UniversalTopbar";
 import AuthCard from "@/components/auth/AuthCard";
 import { useAuth } from "@/hooks/useAuth";
 

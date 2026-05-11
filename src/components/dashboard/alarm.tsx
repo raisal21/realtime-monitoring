@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 // Imports from core
 import { Badge } from "@/components/core";
 import { Button } from "@/components/core";
-import { useSettings } from "@/stores/app-store";
+import { useSettings } from "@/store/app-store";
 
 /* ============================================================================
    3. ALARM SYSTEM

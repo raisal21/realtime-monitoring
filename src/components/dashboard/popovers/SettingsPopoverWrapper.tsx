@@ -1,4 +1,4 @@
-import { useUi } from "@/stores/app-store";
+import { useUi } from "@/store/app-store";
 import {
   Popover,
   PopoverTrigger,

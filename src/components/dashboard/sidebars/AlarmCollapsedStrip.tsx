@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { TriangleAlert, ChevronLeft } from "lucide-react";
-import { useUi } from "@/stores/app-store";
+import { useUi } from "@/store/app-store";
 import { FEED_ITEMS } from "@/data/dashboard-static";
 import { cn } from "@/lib/utils";
 

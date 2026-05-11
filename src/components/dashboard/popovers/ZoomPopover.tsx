@@ -8,7 +8,7 @@ import {
   BarChart2,
   CalendarRange,
 } from "lucide-react";
-import { useChart } from "@/stores/app-store";
+import { useChart } from "@/store/app-store";
 import {
   RANGE_PRESETS_QUICK,
   WELL_SESSION,

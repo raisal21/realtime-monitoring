@@ -3,7 +3,7 @@ import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
-import { useSettings, FS_SCALE, TRACKS_META } from "@/stores/app-store";
+import { useSettings, FS_SCALE, TRACKS_META } from "@/store/app-store";
 import {
   TRACK_TRACES,
   WELL_SESSION,

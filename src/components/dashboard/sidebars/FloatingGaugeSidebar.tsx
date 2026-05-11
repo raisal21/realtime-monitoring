@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { ChevronRight } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
-import { useUi, useSettings, FS_SCALE } from "@/stores/app-store";
+import { useUi, useSettings, FS_SCALE } from "@/store/app-store";
 import { GAUGES } from "@/data/dashboard-static";
 import { IconButton } from "@/components/form";
 import { getChartColors } from "@/lib/echarts-theme";

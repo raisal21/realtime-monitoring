@@ -4,7 +4,7 @@ import {
   type Theme,
   type Density,
   type FontSize,
-} from "@/stores/app-store";
+} from "@/store/app-store";
 import type { UnitSystem } from "@/lib/units";
 import { THEMES } from "@/data/dashboard-static";
 import {

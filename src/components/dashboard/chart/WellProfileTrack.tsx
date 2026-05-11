@@ -9,7 +9,7 @@ import {
 } from "@/data/dashboard-static";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
-import { useSettings, FS_SCALE } from "@/stores/app-store";
+import { useSettings, FS_SCALE } from "@/store/app-store";
 import { formatDepth } from "@/lib/units";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";

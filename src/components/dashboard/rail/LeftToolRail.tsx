@@ -1,7 +1,7 @@
 import { Search, Clock, Ruler, ChevronsLeft, ChevronsRight, LayoutGrid, Gauge as GaugeIcon, TriangleAlert } from "lucide-react";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
-import { useChart, type ChartMode } from "@/stores/app-store";
+import { useChart, type ChartMode } from "@/store/app-store";
 import { Popover, PopoverTrigger } from "@/components/popover";
 import { RailSection } from "@/components/display";
 import { RadioCard, RadioCardGroup } from "@/components/form";

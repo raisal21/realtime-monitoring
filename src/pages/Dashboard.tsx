@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
-import { useChart } from "@/stores/app-store";
+import { useChart } from "@/store/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
 import { Footer } from "@/components/dashboard/shell/Footer";

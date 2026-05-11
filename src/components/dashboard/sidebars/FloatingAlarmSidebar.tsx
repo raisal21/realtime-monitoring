@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
-import { useUi } from "@/stores/app-store";
+import { useUi } from "@/store/app-store";
 import { FEED_ITEMS } from "@/data/dashboard-static";
 import { IconButton } from "@/components/form";
-import { CriticalBanner } from "@/components/alarm";
-import { FilterChip, FeedItem } from "@/components/alarm";
+import { CriticalBanner } from "@/components/dashboard/alarm";
+import { FilterChip, FeedItem } from "@/components/dashboard/alarm";
 import { cn } from "@/lib/utils";
 
 const ALARM_SIDEBAR_WIDTH = 300;

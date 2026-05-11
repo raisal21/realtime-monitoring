@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef } from "react";
-import { useSettings } from "@/stores/app-store";
+import { useSettings } from "@/store/app-store";
 import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
 import { cn } from "@/lib/utils";
 

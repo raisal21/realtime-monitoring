@@ -1,57 +1,35 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { Button, type ButtonProps } from "@/components/ui/core";
 
 /* ============================================================================
    4. NAVIGATION SHELL
    ============================================================================ */
 
 // ─── 4.1 TOPBAR BUTTON ────────────────────────────────────────────────
-const topbarButtonVariants = cva(
-  [
-    "relative flex items-center justify-center",
-    "w-[30px] h-[30px] rounded-(--radius-badge)",
-    "border border-transparent cursor-pointer",
-    "text-fs-14 text-(--theme-fg-muted)",
-    "transition-all duration-150",
-    "hover:bg-(--theme-elevated) hover:border-(--theme-border) hover:text-(--theme-fg)",
-    "outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent)",
-  ].join(" "),
-  {
-    variants: {
-      intent: {
-        default: "",
-        alarm: [
-          "text-(--theme-critical)",
-          "border-[color-mix(in_srgb,var(--theme-critical)_30%,transparent)]",
-          "bg-[color-mix(in_srgb,var(--theme-critical)_10%,transparent)]",
-          "hover:bg-[color-mix(in_srgb,var(--theme-critical)_20%,transparent)]",
-          "hover:border-(--theme-critical)",
-          "animate-[topbar-alarm-pulse_2s_ease-in-out_infinite]",
-        ].join(" "),
-      },
-    },
-    defaultVariants: { intent: "default" },
-  },
-);
+// Thin wrapper around core Button for topbar use.
+// Defaults to ghost + icon size. For text labels, override size (e.g. size="sm").
+// Set alarm to true for critical-colored pulsing alarm button.
 
-export interface TopbarButtonProps
-  extends
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof topbarButtonVariants> {
+export interface TopbarButtonProps extends ButtonProps {
   badgeCount?: number;
+  alarm?: boolean;
 }
 
-export const TopbarButton = ({
-  intent,
-  badgeCount,
-  className,
-  children,
-  ...props
-}: TopbarButtonProps) => (
-  <button
-    type="button"
-    className={cn(topbarButtonVariants({ intent }), className)}
+export const TopbarButton = React.forwardRef<
+  HTMLButtonElement,
+  TopbarButtonProps
+>(({ intent = "ghost", size = "icon", alarm, badgeCount, className, children, ...props }, ref) => (
+  <Button
+    ref={ref}
+    intent={alarm ? "danger" : intent}
+    size={size}
+    className={cn(
+      "rounded-(--radius-badge)",
+      alarm && "animate-[topbar-alarm-pulse_2s_ease-in-out_infinite]",
+      className,
+    )}
     {...props}
   >
     {children}
@@ -69,8 +47,9 @@ export const TopbarButton = ({
         {badgeCount > 9 ? "9+" : badgeCount}
       </span>
     )}
-  </button>
-);
+  </Button>
+));
+TopbarButton.displayName = "TopbarButton";
 
 // ─── 4.2 BREADCRUMB ITEM ──────────────────────────────────────────────
 const breadcrumbItemVariants = cva(

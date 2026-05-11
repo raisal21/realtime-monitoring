@@ -3,6 +3,7 @@ import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 import { Check, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button as BaseButton } from "@base-ui/react/button";
 
 // Imports from core
 import { TraceColor, type TraceColorProps } from "@/components/ui/core";
@@ -265,17 +266,17 @@ const traceToggleVariants = cva(
   },
 );
 
-export interface TraceToggleProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface TraceToggleProps
+  extends React.ComponentPropsWithoutRef<typeof BaseButton> {
   on?: boolean;
 }
 
-export const TraceToggle = ({
-  on = true,
-  className,
-  ...props
-}: TraceToggleProps) => (
-  <button
-    type="button"
+export const TraceToggle = React.forwardRef<
+  HTMLButtonElement,
+  TraceToggleProps
+>(({ on = true, className, ...props }, ref) => (
+  <BaseButton
+    ref={ref}
     className={cn(traceToggleVariants({ on }), className)}
     aria-label={on ? "Hide trace" : "Show trace"}
     aria-pressed={on}
@@ -286,8 +287,9 @@ export const TraceToggle = ({
     ) : (
       <Minus size={9} strokeWidth={2.5} />
     )}
-  </button>
-);
+  </BaseButton>
+));
+TraceToggle.displayName = "TraceToggle";
 
 // ─── 8.8 GAUGE CARD COMPACT ───────────────────────────────────────────
 const gaugeCardCompactVariants = cva(

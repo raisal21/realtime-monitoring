@@ -48,11 +48,12 @@ export default function Auth({
             hideConnectionStatus
             profileSlot={
               <TopbarButton
+                size="sm"
                 onClick={handleLoginClick}
                 title="Login"
                 aria-label="Scroll to login form"
               >
-                <Lock size={16} strokeWidth={2} />
+                <Lock size={14} strokeWidth={2} />
                 <span className="ml-1">Login</span>
               </TopbarButton>
             }

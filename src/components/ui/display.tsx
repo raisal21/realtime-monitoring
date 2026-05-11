@@ -2,6 +2,7 @@ import * as React from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { Button as BaseButton } from "@base-ui/react/button";
 
 // Imports from core
 import { TraceColor, type TraceColorProps } from "@/components/ui/core";
@@ -96,22 +97,21 @@ const rangePresetButtonVariants = cva(
 
 export interface RangePresetButtonProps
   extends
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    React.ComponentPropsWithoutRef<typeof BaseButton>,
     VariantProps<typeof rangePresetButtonVariants> {}
 
-export const RangePresetButton = ({
-  active,
-  fullWidth,
-  className,
-  ...props
-}: RangePresetButtonProps) => (
-  <button
-    type="button"
+export const RangePresetButton = React.forwardRef<
+  HTMLButtonElement,
+  RangePresetButtonProps
+>(({ active, fullWidth, className, ...props }, ref) => (
+  <BaseButton
+    ref={ref}
     className={cn(rangePresetButtonVariants({ active, fullWidth }), className)}
     aria-pressed={active ?? undefined}
     {...props}
   />
-);
+));
+RangePresetButton.displayName = "RangePresetButton";
 
 // ─── 8.7 TRACK FOOTER ROW ─────────────────────────────────────────────
 // Single legend row in a track footer.

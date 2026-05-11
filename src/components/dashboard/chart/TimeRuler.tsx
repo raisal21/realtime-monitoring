@@ -2,7 +2,9 @@ import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import {
-  WELL_SESSION,
+  SESSION_CURSOR_DEPTH,
+  SESSION_DEPTH_RANGE,
+  SESSION_TIME_RANGE,
   PRESET_TO_MINUTES,
   sessionMinuteToDate,
   depthRangeToTimeRange,
@@ -44,9 +46,9 @@ function getEffectiveRange(
   // onto the time axis so the time ruler reflects the same visible span as
   // the depth ruler, log tracks, and well-profile slider.
   if (liveMode) {
-    const cur = WELL_SESSION.cursor.depthM;
+    const cur = SESSION_CURSOR_DEPTH;
     const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
-    const dStart = Math.max(WELL_SESSION.depthAxis.range.min, cur - span);
+    const dStart = Math.max(SESSION_DEPTH_RANGE.min, cur - span);
     return (
       depthRangeToTimeRange(dStart, cur) ?? { min: sessionMin, max: sessionMax }
     );
@@ -76,7 +78,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const echartsRef = useRef<ReactECharts>(null);
   const axisPointerActive = useRef(false);
 
-  const { min: sessionMin, max: sessionMax } = WELL_SESSION.timeAxis.range;
+  const { min: sessionMin, max: sessionMax } = SESSION_TIME_RANGE;
   const yRange = getEffectiveRange(
     isPrimary,
     chart.liveMode,

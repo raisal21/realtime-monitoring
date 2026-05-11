@@ -11,7 +11,7 @@ import { parseServerMessage } from "@/domain/message.schema";
 import { log } from "@/utils/logger";
 import { StreamDef, FAST_RETRY_MS } from "@/domain/constants";
 import type { ConnectResult } from "./rig-client";
-import type { ServerMessage, ConnectionStatus } from "@/domain/message.types";
+import type { ConnectionStatus } from "@/domain/message.types";
 import { readDrillBuff, readGeoBuff } from "@/services/binary-parser";
 import { globalRigStore } from "@/store/index-store";
 
@@ -22,8 +22,6 @@ import { globalRigStore } from "@/store/index-store";
 type LoopResult = { retryable: true } | { retryable: false };
 
 export type ConnectionManagerOptions = {
-  onMessage?: (msg: ServerMessage) => void;
-  onStatusChange?: (status: ConnectionStatus) => void;
   getClientId?: () => string | null;
   onClientIdRegistered?: (clientId: string) => void;
 };
@@ -50,8 +48,7 @@ function sleep(ms: number): Promise<void> {
 export function createConnectionManager(
   options: ConnectionManagerOptions = {},
 ): ConnectionManager {
-  const { onMessage, onStatusChange, getClientId, onClientIdRegistered } =
-    options;
+  const { getClientId, onClientIdRegistered } = options;
 
   const backoff = createBackoff();
   const client = createRigClient();
@@ -63,7 +60,7 @@ export function createConnectionManager(
 
   function setStatus(status: ConnectionStatus): void {
     log.debug(`[CONNECTION] Status → ${status}`);
-    onStatusChange?.(status);
+    globalRigStore.getState().updateConnectionStatus(status);
   }
 
   // ---------------------------------------------------------------------------
@@ -90,10 +87,20 @@ export function createConnectionManager(
 
         const msg = parsed.data;
 
+        if (msg.messageType === "ERROR") {
+          globalRigStore.getState().pushToast({
+            tone: "error",
+            code: msg.error.code,
+            message: msg.error.message,
+          });
+          continue;
+        }
+
         if (msg.messageType === "ALARM_RAISED") {
           const { alarm } = msg.payload;
           globalRigStore.getState().registerAlarm({
             id: alarm.id,
+            code: alarm.code,
             severity: alarm.severity,
             message: alarm.message,
             timestamp: alarm.raisedAt,
@@ -133,10 +140,19 @@ export function createConnectionManager(
           log.warn(
             `[CONNECTION] CLOSING — code=${closing.code} retryable=${closing.retryable}`,
           );
+          globalRigStore.getState().pushToast({
+            tone: "warning",
+            code: closing.code,
+            message: closing.reason,
+          });
+          if (!closing.retryable) {
+            globalRigStore.getState().setError({
+              code: closing.code,
+              reason: closing.reason,
+            });
+          }
           return { retryable: closing.retryable };
         }
-
-        onMessage?.(msg);
       } else if (value instanceof ArrayBuffer) {
         log.debug(
           `[CONNECTION] Binary frame received — ${value.byteLength} bytes`,
@@ -174,11 +190,16 @@ export function createConnectionManager(
 
     const result: ConnectResult = await connect(client, {
       clientId: currentClientId,
-      streams: Object.values(StreamDef),
     });
 
     if (!result.ok) {
       log.warn(`[CONNECTION] Negotiation failed — code=${result.code}`);
+      if (!result.retryable) {
+        globalRigStore.getState().setError({
+          code: result.code,
+          reason: "Handshake rejected",
+        });
+      }
       return { retryable: result.retryable };
     }
 
@@ -247,6 +268,10 @@ export function createConnectionManager(
         const next = backoff.next();
         if (!next.shouldRetry) {
           log.warn(`[CONNECTION] Backoff exhausted — reason=${next.reason}`);
+          globalRigStore.getState().setError({
+            code: "BACKOFF_EXHAUSTED",
+            reason: next.reason,
+          });
           setStatus("ERROR");
           return;
         }

@@ -6,7 +6,6 @@ import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE, TRACKS_META } from "@/store/app-store";
 import {
   TRACK_TRACES,
-  WELL_SESSION,
   PRESET_TO_MINUTES,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
@@ -14,6 +13,10 @@ import { Badge } from "@/components/ui/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
 import { formatDepth, formatQuantityBounds } from "@/lib/units";
 import { cn } from "@/lib/utils";
+import { LIVE_WELL_ID } from "@/data/wells";
+import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import type { GlobalRigState } from "@/store/store.types";
+import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
 
 interface LogTrackProps {
   trackId: keyof typeof TRACK_TRACES;
@@ -22,7 +25,6 @@ interface LogTrackProps {
   stream: "drill" | "geo";
 }
 
-// Derive display min/max/unit from a trace entry + unitSystem.
 type TraceEntry = typeof TRACK_TRACES[keyof typeof TRACK_TRACES][number];
 
 function traceAxisDisplay(
@@ -148,8 +150,24 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact, 
   );
 }
 
+function getStreamSlice(
+  state: GlobalRigState,
+  stream: "drill" | "geo",
+): ReadonlyArray<DrillUpdate | GeoUpdate> {
+  return stream === "drill" ? state.drillStream : state.geoStream;
+}
+
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
-  const chart = useStore(globalRigStore, (s) => s.chart);
+  const mode = useStore(globalRigStore, (s) => s.chart.mode);
+  const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
+  const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
+  const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
+  const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
+  const trackWidths = useStore(globalRigStore, (s) => s.chart.trackWidths);
+  const traceVisibility = useStore(
+    globalRigStore,
+    (s) => s.chart.traceVisibility,
+  );
   const setLogTrackRange = useStore(
     globalRigStore,
     (s) => s.setLogTrackRange,
@@ -158,32 +176,19 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     globalRigStore,
     (s) => s.toggleTraceVisibility,
   );
+  const status = useStore(globalRigStore, (s) => s.status);
+  const { well } = useCurrentWell();
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
   const traces = TRACK_TRACES[trackId];
   const tc = getTraceColors();
 
-  const sessionRange = chart.mode === "depth" ? WELL_SESSION.depthAxis.range : WELL_SESSION.timeAxis.range;
-  let yRange: { min: number; max: number };
-  if (chart.liveMode) {
-    if (chart.mode === "depth") {
-      const cur = WELL_SESSION.cursor.depthM;
-      const span = chart.rangePreset ? presetToDepthSpanM(chart.rangePreset) : 30;
-      yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
-    } else {
-      const span = chart.rangePreset ? PRESET_TO_MINUTES[chart.rangePreset] ?? 60 : 60;
-      yRange = { min: Math.max(sessionRange.min, sessionRange.max - span), max: sessionRange.max };
-    }
-  } else {
-    // Log-track scope first (set by ruler slider), fall back to ruler scope
-    // (set by well-profile slider / Date+Time Apply), finally session bounds.
-    yRange = chart.logTrackRange ?? chart.rulerRange ?? { min: sessionRange.min, max: sessionRange.max };
-  }
+  const isLive = well?.id === LIVE_WELL_ID;
+  const showLive = isLive && status === "ONLINE";
 
-  const echartsRef = useRef<ReactECharts>(null);
-  const wasRemote = useRef(false);
+  const chartRef = useRef<ReactECharts>(null);
+  const pendingRaf = useRef<number | null>(null);
 
-  // Resolved display values per trace (reacts to unitSystem changes).
   const traceDisplays = useMemo(
     () => resolveTraceDisplays(traces, settings.unitSystem),
     [traces, settings.unitSystem],
@@ -200,50 +205,32 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     }
   }, [setLogTrackRange]);
 
-  useEffect(() => {
-    const ec = echartsRef.current?.getEchartsInstance();
-    if (!ec) return;
-
-    const { crosshairValue } = chart;
-
-    if (crosshairValue !== null) {
-      const localTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
-      if (!localTraces.length) return;
-
-      const firstTrace = traceDisplays.get(localTraces[0].trace);
-      if (!firstTrace) return;
-
-      const logValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
-      const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [firstTrace.axisMin, logValue]);
-      if (!coords) return;
-
-      const pixelX = ec.getWidth() / 2;
-      const pixelY = (coords as number[])[1];
-      ec.dispatchAction({ type: "showTip", x: pixelX, y: pixelY });
-
-      if (!wasRemote.current) {
-        ec.setOption({ tooltip: { axisPointer: { label: { show: false } } } });
-        wasRemote.current = true;
-      }
-    } else if (wasRemote.current) {
-      ec.getZr().trigger('globalout', {});
-      ec.setOption({ tooltip: { axisPointer: { label: { show: true } } } });
-      wasRemote.current = false;
-    }
-  }, [chart.crosshairValue, chart.traceVisibility, traces, yRange.min, yRange.max, traceDisplays]);
-
-  const option = useMemo((): EChartsOption => {
+  const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
-    const tc = getTraceColors();
-    const mode = chart.mode;
+    const tcL = getTraceColors();
     const unitSystem = settings.unitSystem;
+    const visibleTraces = traces.filter((t) => traceVisibility[t.trace]);
 
-    const visibleTraces = traces.filter((t) => chart.traceVisibility[t.trace]);
-    const trackData = WELL_SESSION.traces[trackId] as Record<string, readonly number[]>;
+    const streamData = getStreamSlice(globalRigStore.getState(), stream);
 
-    const yPoints = mode === "depth" ? WELL_SESSION.depthPoints : WELL_SESSION.timePoints;
+    let yRange: { min: number; max: number };
+    if (mode === "depth") {
+      const last = streamData.length ? streamData[streamData.length - 1].depth : 0;
+      const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
+      yRange = liveMode
+        ? { min: Math.max(0, last - span), max: last + 1 }
+        : (logTrackRange ?? rulerRange ?? { min: Math.max(0, last - span), max: last + 1 });
+    } else {
+      const lastTs = streamData.length
+        ? streamData[streamData.length - 1].timestamp
+        : Date.now();
+      const span = rangePreset ? (PRESET_TO_MINUTES[rangePreset] ?? 60) : 60;
+      const spanMs = span * 60_000;
+      yRange = liveMode
+        ? { min: lastTs - spanMs, max: lastTs }
+        : (logTrackRange ?? rulerRange ?? { min: lastTs - spanMs, max: lastTs });
+    }
 
-    // Conversion factors from canonical metric → display units.
     const convertVal = (t: typeof visibleTraces[number], v: number): number => {
       if (t.kind === "scalar") return v;
       if (t.kind === "load" && unitSystem === "imperial") return v / 4.4482216;
@@ -252,10 +239,17 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       return v;
     };
 
+    const yOf = (pt: DrillUpdate | GeoUpdate): number =>
+      mode === "depth" ? pt.depth : pt.timestamp;
+
     const series = visibleTraces.map((t, idx) => {
-      const values = trackData[t.trace] ?? [];
-      const data = values.map((val, i) => [convertVal(t, val), yPoints[i]]);
-      const color = tc[t.trace as keyof typeof tc] || c.fgMuted;
+      const data: [number, number][] = [];
+      for (const pt of streamData) {
+        const raw = (pt as unknown as Record<string, number | undefined>)[t.trace];
+        if (typeof raw !== "number") continue;
+        data.push([convertVal(t, raw), yOf(pt)]);
+      }
+      const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
       return {
         type: "line" as const,
         xAxisIndex: idx,
@@ -352,7 +346,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
               const t = visibleTraces[i];
               if (!t) return "";
               const d = traceDisplays.get(t.trace)!;
-              const color = tc[t.trace as keyof typeof tc] || c.fgMuted;
+              const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
               return `<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${p.value[0].toFixed(1)}</span> <span style="color:${c.fgDim}">${d.unit}</span>`;
             })
             .filter(Boolean)
@@ -361,10 +355,54 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       },
       series,
     };
-  }, [traces, chart.traceVisibility, chart.mode, yRange.min, yRange.max, settings.theme, settings.unitSystem, fsScale, traceDisplays, trackId]);
+  }, [
+    traces,
+    traceVisibility,
+    mode,
+    liveMode,
+    rangePreset,
+    logTrackRange,
+    rulerRange,
+    settings.unitSystem,
+    settings.theme,
+    fsScale,
+    traceDisplays,
+    stream,
+  ]);
+
+  useEffect(() => {
+    if (!showLive) return;
+    const ec = chartRef.current?.getEchartsInstance();
+    if (!ec) return;
+
+    ec.setOption(buildOption(), { lazyUpdate: true });
+
+    const flush = () => {
+      pendingRaf.current = null;
+      const inst = chartRef.current?.getEchartsInstance();
+      if (!inst) return;
+      inst.setOption(buildOption(), { lazyUpdate: true });
+    };
+
+    const unsubscribe = globalRigStore.subscribe(
+      (s) => (stream === "drill" ? s.drillStream : s.geoStream),
+      () => {
+        if (pendingRaf.current !== null) return;
+        pendingRaf.current = requestAnimationFrame(flush);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      if (pendingRaf.current !== null) {
+        cancelAnimationFrame(pendingRaf.current);
+        pendingRaf.current = null;
+      }
+    };
+  }, [stream, buildOption, showLive]);
 
   const trackMeta = TRACKS_META.find((t) => t.id === trackId);
-  const trackWidth = trackMeta ? (chart.trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;
+  const trackWidth = trackMeta ? (trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;
 
   return (
     <div
@@ -386,22 +424,39 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       <TrackHeader
         traces={traces}
         traceColors={tc}
-        traceVisibility={chart.traceVisibility}
+        traceVisibility={traceVisibility}
         onToggle={(trace) => toggleTraceVisibility(trace)}
         compact={settings.density === "compact"}
         unitSystem={settings.unitSystem}
       />
 
       <div className="relative flex-1 overflow-hidden">
-        <ReactECharts
-          ref={echartsRef}
-          option={option}
-          style={{ width: "100%", height: "100%" }}
-          opts={{ renderer: "canvas" }}
-          notMerge
-          onEvents={{ datazoom: handleDataZoom }}
-        />
+        {!isLive ? (
+          <ChartPlaceholder text="No live feed for this well" />
+        ) : status !== "ONLINE" ? (
+          <ChartPlaceholder text="Connecting…" />
+        ) : (
+          <ReactECharts
+            ref={chartRef}
+            option={{}}
+            style={{ width: "100%", height: "100%" }}
+            opts={{ renderer: "canvas" }}
+            notMerge={false}
+            lazyUpdate
+            onEvents={{ datazoom: handleDataZoom }}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+function ChartPlaceholder({ text }: { text: string }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
+        {text}
+      </span>
     </div>
   );
 }

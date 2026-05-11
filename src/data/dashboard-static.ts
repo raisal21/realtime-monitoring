@@ -56,66 +56,77 @@ export const GAUGES: Array<{
   label: string;
   quantity: Quantity;
   status: "ok" | "warning" | "critical";
+  stream: "drill" | "geo";
 }> = [
   {
     id: "rpm",
     label: "RPM",
     quantity: { kind: "scalar", value: 120, unit: "rpm" },
     status: "ok" as const,
+    stream: "drill",
   },
   {
     id: "wob",
     label: "WOB",
     quantity: { kind: "load", valueKN: 86.3 },
     status: "ok" as const,
+    stream: "drill",
   },
   {
     id: "torque",
     label: "Torque",
     quantity: { kind: "scalar", value: 4.60, unit: "klbf·ft" },
     status: "ok" as const,
+    stream: "drill",
   },
   {
     id: "spp",
     label: "SPP",
     quantity: { kind: "pressure", valueBar: 184.8 },
     status: "ok" as const,
+    stream: "drill",
   },
   {
     id: "hkld",
     label: "HKLD",
     quantity: { kind: "load", valueKN: 891.0 },
     status: "ok" as const,
+    stream: "drill",
   },
   {
     id: "gamma",
     label: "Gamma",
     quantity: { kind: "scalar", value: 47, unit: "gAPI" },
     status: "ok" as const,
+    stream: "geo",
   },
   {
     id: "rop",
     label: "ROP",
     quantity: { kind: "rop", valueMHr: 6.6 },
     status: "ok" as const,
+    stream: "geo",
   },
   {
     id: "h2s",
     label: "H2S",
     quantity: { kind: "scalar", value: 5.1, unit: "ppm" },
     status: "ok" as const,
+    stream: "geo",
   },
   {
     id: "inc",
     label: "Inc",
     quantity: { kind: "scalar", value: 22.2, unit: "°" },
     status: "ok" as const,
+    stream: "geo",
   },
   {
     id: "azi",
     label: "Azi",
     quantity: { kind: "scalar", value: 145, unit: "°" },
     status: "ok" as const,
+    stream: "geo",
   },
 ];
 
@@ -592,6 +603,13 @@ export const WELL_SESSION = {
     },
   },
 };
+
+// Decomposed exports so chart/ruler components never need to import WELL_SESSION.
+export const SESSION_DEPTH_RANGE = WELL_SESSION.depthAxis.range;
+export const SESSION_TIME_RANGE = WELL_SESSION.timeAxis.range;
+export const SESSION_CURSOR_DEPTH = WELL_SESSION.cursor.depthM;
+export const WELL_PROFILE_MAX_DEPTH_M = WELL_SESSION.wellProfile.maxDepthM;
+export const SESSION_FLOW_SAMPLES = WELL_SESSION.flow;
 
 // ─── Well profile date bounds ───────────────────────────────────────────
 // Parsed from WELL_PROFILE_DATA for use in date pickers.

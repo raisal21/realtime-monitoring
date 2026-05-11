@@ -74,3 +74,5 @@ export function getWellName(id: string): string {
 export function getWellById(id: string): Well | undefined {
   return WELLS.find((w) => w.id === id);
 }
+
+export const LIVE_WELL_ID = "ga-01";

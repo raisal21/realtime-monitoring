@@ -1,11 +1,15 @@
 import { AlarmTicker } from "@/components/dashboard/shell/AlarmTicker";
 import { FIELD_INFO } from "@/data/dashboard-static";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import { useAuth } from "@/hooks/useAuth";
+import { ROLE_FEATURES } from "@/config/role";
 import { cn } from "@/lib/utils";
 import PulseR from "@/components/brand/PulseR";
 
 export function Footer() {
   const { well } = useCurrentWell();
+  const { role } = useAuth();
+  const showTicker = role ? ROLE_FEATURES[role].alarmTicker : false;
 
   return (
     <footer
@@ -23,10 +27,10 @@ export function Footer() {
         )}
       >
         <PulseR size={10} />
-        RTDC v0.2.0-alpha · {well.name} · {FIELD_INFO.field} · © 2026
+        RTDC v0.2.0-alpha · {well?.name ?? "—"} · {FIELD_INFO.field} · © 2026
       </span>
 
-      <AlarmTicker />
+      {showTicker && <AlarmTicker />}
     </footer>
   );
 }

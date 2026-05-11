@@ -4,7 +4,7 @@ import { useLocation, useParams, Link } from "react-router-dom";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useOptionalCurrentWell } from "@/contexts/CurrentWellContext";
-import { getWellName } from "@/data/wells";
+import { getWellById } from "@/data/wells";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { TopbarButton } from "@/components/ui/navigation";
 import { BreadcrumbItem } from "@/components/ui/navigation";
@@ -12,6 +12,7 @@ import { ConnectionStatus } from "@/components/ui/status-bar";
 import { cn } from "@/lib/utils";
 import { SettingsPopoverContent } from "@/components/dashboard/popovers/SettingsPopover";
 import PulseRLockup from "@/components/brand/PulseRLockup";
+import { MAX_RETRY_ATTEMPTS } from "@/domain/constants";
 
 interface UniversalTopbarProps {
   hideBreadcrumbs?: boolean;
@@ -32,6 +33,10 @@ export function UniversalTopbar({
     globalRigStore,
     (s) => s.setSettingsPopover,
   );
+  const connectionStatus = useStore(globalRigStore, (s) => s.status);
+  const delayMs = useStore(globalRigStore, (s) => s.delayMs);
+  const attempt = useStore(globalRigStore, (s) => s.attempt);
+  const triggerRetry = useStore(globalRigStore, (s) => s.triggerRetry);
   const location = useLocation();
   const params = useParams<{ wellId?: string }>();
 
@@ -39,10 +44,11 @@ export function UniversalTopbar({
   const isDashboardPage = location.pathname.startsWith("/dashboard");
 
   const ctx = useOptionalCurrentWell();
-  const activeWellId = ctx?.wellId ?? params.wellId;
-  const wellName = activeWellId ? getWellName(activeWellId) : "";
+  const activeWellId = ctx?.wellId ?? params.wellId ?? null;
+  const wellName = activeWellId ? (getWellById(activeWellId)?.name ?? null) : null;
 
-  const showWellInBreadcrumb = isDashboardPage || (isWellsPage && !!ctx?.wellId);
+  const showWellInBreadcrumb =
+    (isDashboardPage || (isWellsPage && !!ctx?.wellId)) && !!wellName;
   const showDashboardInBreadcrumb = isDashboardPage;
 
   const defaultProfile = (
@@ -124,9 +130,39 @@ export function UniversalTopbar({
 
       <div className="flex-1" />
 
-      {!hideConnectionStatus && (
-        <ConnectionStatus status="online" className="mr-3" />
-      )}
+      {!hideConnectionStatus && (() => {
+        const variant = connectionStatus.toLowerCase() as
+          | "offline"
+          | "connecting"
+          | "online"
+          | "reconnecting"
+          | "error";
+        const tooltip =
+          variant === "reconnecting" && delayMs !== null
+            ? `Reconnecting in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt ?? 0}/${MAX_RETRY_ATTEMPTS})`
+            : variant === "error"
+              ? "Click to retry"
+              : undefined;
+        const pill = (
+          <ConnectionStatus
+            status={variant}
+            className="mr-3"
+            title={tooltip}
+          />
+        );
+        return variant === "error" ? (
+          <button
+            type="button"
+            onClick={triggerRetry}
+            className="cursor-pointer"
+            aria-label="Retry connection"
+          >
+            {pill}
+          </button>
+        ) : (
+          pill
+        );
+      })()}
 
       <div className="flex items-center gap-1 pl-3 border-l border-(--theme-border)">
         {defaultSettings}

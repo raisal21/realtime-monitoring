@@ -1,6 +1,10 @@
-import React, { useMemo, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
+import { useStore } from "zustand";
 import { useSettings } from "@/store/app-store";
-import { FEED_ITEMS, TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
+import { globalRigStore } from "@/store/index-store";
+import { TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
+import { useAuth } from "@/hooks/useAuth";
+import { ROLE_FEATURES } from "@/config/role";
 import { cn } from "@/lib/utils";
 
 let audioCtx: AudioContext | null = null;
@@ -26,28 +30,25 @@ function playAlarmSound() {
 
 export function AlarmTicker() {
   const { state: settings } = useSettings();
+  const { role } = useAuth();
+  const alarmSoundEnabled = role ? ROLE_FEATURES[role].alarmSound : false;
   const intervalRef = useRef<number | null>(null);
   const hasAlarmsRef = useRef<boolean>(false);
 
-  const unackedAlarms = useMemo(
-    () =>
-      FEED_ITEMS.filter(
-        (f) =>
-          f.state === "unacked" &&
-          (f.severity === "critical" || f.severity === "warning"),
-      ),
-    [],
+  const alarmRegistry = useStore(globalRigStore, (s) => s.alarmRegistry);
+  const unackedAlarms = Array.from(alarmRegistry.values()).filter(
+    (a) => a.severity === "CRITICAL" || a.severity === "WARNING",
   );
   const hasAlarms = unackedAlarms.length > 0;
 
   useEffect(() => {
     hasAlarmsRef.current = hasAlarms;
 
-    if (settings.soundEnabled && hasAlarms) {
+    if (settings.soundEnabled && hasAlarms && alarmSoundEnabled) {
       playAlarmSound();
       if (!intervalRef.current) {
         intervalRef.current = window.setInterval(() => {
-          if (hasAlarmsRef.current && settings.soundEnabled) {
+          if (hasAlarmsRef.current && settings.soundEnabled && alarmSoundEnabled) {
             playAlarmSound();
           }
         }, 2000);
@@ -65,7 +66,7 @@ export function AlarmTicker() {
         intervalRef.current = null;
       }
     };
-  }, [hasAlarms, settings.soundEnabled]);
+  }, [hasAlarms, settings.soundEnabled, alarmSoundEnabled]);
 
   const renderAlarmEntries = (keyPrefix: string) =>
     unackedAlarms.map((alarm, i) => (
@@ -73,16 +74,16 @@ export function AlarmTicker() {
         <span
           className={cn(
             "inline-flex items-center gap-1.5",
-            alarm.severity === "critical"
+            alarm.severity === "CRITICAL"
               ? "text-(--theme-critical)"
               : "text-(--theme-warning)",
           )}
         >
           <span className={cn(
             "font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.04em]",
-            alarm.severity === "critical" ? "crit" : "warn"
+            alarm.severity === "CRITICAL" ? "crit" : "warn"
           )}>
-            {alarm.severity === "critical" ? "CRITICAL" : "WARNING"}:{" "}
+            {alarm.severity === "CRITICAL" ? "CRITICAL" : "WARNING"}:{" "}
             {alarm.message}
           </span>
         </span>

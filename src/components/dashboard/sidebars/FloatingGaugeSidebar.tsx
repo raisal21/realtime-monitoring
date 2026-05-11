@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
 import { useUi, useSettings, FS_SCALE } from "@/store/app-store";
 import { GAUGES } from "@/data/dashboard-static";
 import { IconButton } from "@/components/ui/form";
@@ -9,9 +11,15 @@ import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 import {
   type UnitSystem,
+  type Quantity,
   formatQuantity,
   formatQuantityBounds,
 } from "@/lib/units";
+import { useAuth } from "@/hooks/useAuth";
+import { ROLE_STREAMS } from "@/config/role";
+import { StreamDef } from "@/domain/constants";
+import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import { LIVE_WELL_ID } from "@/data/wells";
 
 const GAUGE_SIDEBAR_WIDTH = 260;
 
@@ -25,7 +33,6 @@ interface GaugeConfig {
   max: number;
 }
 
-// Canonical metric bounds per gauge id. Mirrors TRACK_TRACES semantics.
 const GAUGE_BOUNDS: Record<string, {
   kind: "load" | "pressure" | "rop" | "scalar";
   min: number;
@@ -44,71 +51,152 @@ const GAUGE_BOUNDS: Record<string, {
   azi:    { kind: "scalar", min: 0, max: 360, unit: "°" },
 };
 
-function buildGaugeMap(
-  unitSystem: UnitSystem,
-): Record<string, GaugeConfig> {
-  const out: Record<string, GaugeConfig> = {};
-
-  for (const g of GAUGES) {
-    const bounds = GAUGE_BOUNDS[g.id] ?? { kind: "scalar" as const, min: 0, max: 100, unit: "" };
-    const display = formatQuantity(g.quantity, unitSystem);
-
-    let minMax: { min: number; max: number; unit: string };
-    if (bounds.kind === "scalar") {
-      minMax = { min: bounds.min, max: bounds.max, unit: bounds.unit ?? "" };
-    } else {
-      minMax = formatQuantityBounds(
-        { kind: bounds.kind },
-        bounds.min,
-        bounds.max,
-        unitSystem,
-      );
-    }
-
-    out[g.id] = {
-      id: g.id,
-      label: g.label,
-      value: display.value,
-      unit: display.unit,
-      status: g.status,
-      min: minMax.min,
-      max: minMax.max,
-    };
+function quantityWithValue(q: Quantity, v: number): Quantity {
+  switch (q.kind) {
+    case "scalar":   return { ...q, value: v };
+    case "load":     return { ...q, valueKN: v };
+    case "pressure": return { ...q, valueBar: v };
+    case "rop":      return { ...q, valueMHr: v };
+    case "depth":    return { ...q, valueM: v };
   }
-
-  return out;
 }
 
-// Status background helpers — background tint only, no colored border.
-// Left accent stripe via inset box-shadow as a secondary non-color cue (accessibility).
+function buildGaugeConfig(
+  g: typeof GAUGES[number],
+  liveValue: number | undefined,
+  unitSystem: UnitSystem,
+): GaugeConfig {
+  const bounds = GAUGE_BOUNDS[g.id] ?? { kind: "scalar" as const, min: 0, max: 100, unit: "" };
+  const quantity = liveValue !== undefined
+    ? quantityWithValue(g.quantity, liveValue)
+    : g.quantity;
+  const display = formatQuantity(quantity, unitSystem);
+
+  let minMax: { min: number; max: number; unit: string };
+  if (bounds.kind === "scalar") {
+    minMax = { min: bounds.min, max: bounds.max, unit: bounds.unit ?? "" };
+  } else {
+    minMax = formatQuantityBounds(
+      { kind: bounds.kind },
+      bounds.min,
+      bounds.max,
+      unitSystem,
+    );
+  }
+
+  return {
+    id: g.id,
+    label: g.label,
+    value: display.value,
+    unit: display.unit,
+    status: g.status,
+    min: minMax.min,
+    max: minMax.max,
+  };
+}
+
 function statusBg(status: GaugeConfig["status"]) {
   if (status === "critical") return "bg-[color-mix(in_srgb,var(--theme-critical)_12%,var(--theme-surface))] shadow-[inset_3px_0_0_var(--theme-critical)] animate-[gauge-critical-pulse_2.2s_ease-in-out_infinite]";
   if (status === "warning")  return "bg-[color-mix(in_srgb,var(--theme-warning)_8%,var(--theme-surface))] shadow-[inset_3px_0_0_var(--theme-warning)]";
   return "bg-(--theme-surface)";
 }
 
-// ─── Radial gauge (ECharts) ──────────────────────────────────────────────────
+function streamToCode(s: "drill" | "geo"): StreamDef {
+  return s === "drill" ? StreamDef.DRILL : StreamDef.GEO;
+}
 
-function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme: string; fsScale: number }) {
+function getLatestValueForGauge(gaugeId: string, stream: "drill" | "geo"): number | undefined {
+  const state = globalRigStore.getState();
+  const slice = stream === "drill" ? state.drillStream : state.geoStream;
+  if (!slice.length) return undefined;
+  const latest = slice[slice.length - 1] as unknown as Record<string, number | undefined>;
+  const v = latest[gaugeId];
+  return typeof v === "number" ? v : undefined;
+}
+
+// Subscribes to the appropriate stream slice; coalesces with rAF; returns
+// the latest canonical-metric value for the named gauge.
+function useLiveGaugeValue(
+  gaugeId: string,
+  stream: "drill" | "geo",
+  enabled: boolean,
+): number | undefined {
+  const [val, setVal] = useState<number | undefined>(() =>
+    enabled ? getLatestValueForGauge(gaugeId, stream) : undefined,
+  );
+  const pending = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setVal(undefined);
+      return;
+    }
+    const flush = () => {
+      pending.current = null;
+      const v = getLatestValueForGauge(gaugeId, stream);
+      if (v !== undefined) setVal(v);
+    };
+    const unsub = globalRigStore.subscribe(
+      (s) => (stream === "drill" ? s.drillStream : s.geoStream),
+      () => {
+        if (pending.current !== null) return;
+        pending.current = requestAnimationFrame(flush);
+      },
+    );
+    flush();
+    return () => {
+      unsub();
+      if (pending.current !== null) {
+        cancelAnimationFrame(pending.current);
+        pending.current = null;
+      }
+    };
+  }, [gaugeId, stream, enabled]);
+
+  return val;
+}
+
+// ─── Radial gauge (ECharts, imperative setOption per rAF) ────────────────────
+
+function RadialGaugeCard({
+  gauge,
+  source,
+  showLive,
+  theme,
+  unitSystem,
+  fsScale,
+}: {
+  gauge: typeof GAUGES[number];
+  source: "drill" | "geo";
+  showLive: boolean;
+  theme: string;
+  unitSystem: UnitSystem;
+  fsScale: number;
+}) {
+  const chartRef = useRef<ReactECharts>(null);
+  const pending = useRef<number | null>(null);
+
   const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
-    const numVal = parseFloat(gauge.value.replace(/,/g, ""));
+    const liveValue = showLive ? getLatestValueForGauge(gauge.id, source) : undefined;
+    const cfg = buildGaugeConfig(gauge, liveValue, unitSystem);
+    const numVal = parseFloat(cfg.value.replace(/,/g, ""));
 
     const statusColor =
-      gauge.status === "critical" ? c.critical
-      : gauge.status === "warning" ? c.warning
+      cfg.status === "critical" ? c.critical
+      : cfg.status === "warning" ? c.warning
       : c.ok;
 
     return {
-      animation: gauge.status !== "critical",
+      animation: cfg.status !== "critical",
       backgroundColor: "transparent",
       series: [
         {
           type: "gauge",
           startAngle: 210,
           endAngle: -30,
-          min: gauge.min,
-          max: gauge.max,
+          min: cfg.min,
+          max: cfg.max,
           radius: "88%",
           center: ["50%", "64%"],
           pointer: {
@@ -139,7 +227,7 @@ function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme:
           detail: {
             show: true,
             offsetCenter: [0, "28%"],
-            formatter: `{value}\n{unit|${gauge.unit}}`,
+            formatter: `{value}\n{unit|${cfg.unit}}`,
             rich: {
               unit: {
                 fontSize: 9 * fsScale,
@@ -150,8 +238,8 @@ function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme:
             },
             fontSize: 17 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
-            color: gauge.status === "critical" ? c.critical
-                 : gauge.status === "warning"  ? c.warning
+            color: cfg.status === "critical" ? c.critical
+                 : cfg.status === "warning"  ? c.warning
                  : c.fg,
             fontWeight: "bold",
           },
@@ -163,14 +251,14 @@ function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme:
             fontWeight: 700,
             color: c.fgMuted,
           },
-          data: [{ value: numVal, name: gauge.label }],
+          data: [{ value: numVal, name: cfg.label }],
         },
         {
           type: "gauge",
           startAngle: 210,
           endAngle: -30,
-          min: gauge.min,
-          max: gauge.max,
+          min: cfg.min,
+          max: cfg.max,
           radius: "68%",
           center: ["50%", "64%"],
           pointer: { show: false },
@@ -191,43 +279,87 @@ function RadialGaugeCard({ gauge, theme, fsScale }: { gauge: GaugeConfig; theme:
         },
       ],
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gauge, theme, fsScale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gauge, source, showLive, theme, unitSystem, fsScale]);
+
+  useEffect(() => {
+    const ec = chartRef.current?.getEchartsInstance();
+    if (!ec) return;
+    ec.setOption(buildOption(), { lazyUpdate: true });
+    if (!showLive) return;
+
+    const flush = () => {
+      pending.current = null;
+      const inst = chartRef.current?.getEchartsInstance();
+      if (!inst) return;
+      inst.setOption(buildOption(), { lazyUpdate: true });
+    };
+    const unsub = globalRigStore.subscribe(
+      (s) => (source === "drill" ? s.drillStream : s.geoStream),
+      () => {
+        if (pending.current !== null) return;
+        pending.current = requestAnimationFrame(flush);
+      },
+    );
+    return () => {
+      unsub();
+      if (pending.current !== null) {
+        cancelAnimationFrame(pending.current);
+        pending.current = null;
+      }
+    };
+  }, [source, showLive, buildOption]);
+
+  const initialCfg = buildGaugeConfig(gauge, undefined, unitSystem);
 
   return (
     <div
       className={cn(
         "overflow-hidden border border-(--theme-border) rounded-(--radius-badge)",
-        statusBg(gauge.status),
+        statusBg(initialCfg.status),
       )}
       style={{ height: 118 }}
       role="img"
-      aria-label={`${gauge.label}: ${gauge.value} ${gauge.unit} — ${gauge.status}`}
+      aria-label={`${initialCfg.label}`}
     >
       <ReactECharts
-        option={buildOption()}
+        ref={chartRef}
+        option={{}}
         style={{ width: "100%", height: "100%" }}
         opts={{ renderer: "canvas" }}
-        notMerge
+        notMerge={false}
+        lazyUpdate
       />
     </div>
   );
 }
 
-// ─── Flat value card (ROP, H2S, Gamma) ───────────────────────────────────────
+// ─── Value card (rop, h2s, gamma) — state-based ──────────────────────────────
 
-function ValueCard({ gauge }: { gauge: GaugeConfig }) {
-  const numVal = parseFloat(gauge.value.replace(/,/g, ""));
-  const pct = Math.min(100, (numVal / gauge.max) * 100);
+function ValueCard({
+  gauge,
+  source,
+  showLive,
+  unitSystem,
+}: {
+  gauge: typeof GAUGES[number];
+  source: "drill" | "geo";
+  showLive: boolean;
+  unitSystem: UnitSystem;
+}) {
+  const liveValue = useLiveGaugeValue(gauge.id, source, showLive);
+  const cfg = buildGaugeConfig(gauge, liveValue, unitSystem);
+  const numVal = parseFloat(cfg.value.replace(/,/g, ""));
+  const pct = Math.min(100, (numVal / cfg.max) * 100);
 
   const barColor =
-    gauge.status === "critical" ? "var(--theme-critical)"
-    : gauge.status === "warning" ? "var(--theme-warning)"
+    cfg.status === "critical" ? "var(--theme-critical)"
+    : cfg.status === "warning" ? "var(--theme-warning)"
     : "var(--theme-ok)";
 
   const valueColor =
-    gauge.status === "critical" ? "var(--theme-critical)"
-    : gauge.status === "warning" ? "var(--theme-warning)"
+    cfg.status === "critical" ? "var(--theme-critical)"
+    : cfg.status === "warning" ? "var(--theme-warning)"
     : "var(--theme-fg)";
 
   return (
@@ -235,20 +367,20 @@ function ValueCard({ gauge }: { gauge: GaugeConfig }) {
       className={cn(
         "flex flex-col justify-between px-2.5 py-2",
         "border border-(--theme-border) rounded-(--radius-badge)",
-        statusBg(gauge.status),
+        statusBg(cfg.status),
       )}
       style={{ height: 80 }}
       role="status"
-      aria-label={`${gauge.label}: ${gauge.value} ${gauge.unit} — ${gauge.status}`}
+      aria-label={`${cfg.label}: ${cfg.value} ${cfg.unit} — ${cfg.status}`}
     >
       <div className="flex items-center justify-between">
-        <span className="label-mono">{gauge.label}</span>
+        <span className="label-mono">{cfg.label}</span>
         <span
           className="font-['Share_Tech_Mono',monospace] text-fs-9 uppercase tracking-wider"
           style={{ color: barColor }}
           aria-hidden="true"
         >
-          {gauge.status !== "ok" ? gauge.status : ""}
+          {cfg.status !== "ok" ? cfg.status : ""}
         </span>
       </div>
 
@@ -257,9 +389,9 @@ function ValueCard({ gauge }: { gauge: GaugeConfig }) {
           className="font-['Share_Tech_Mono',monospace] text-fs-24 leading-none font-bold tabular-nums"
           style={{ color: valueColor }}
         >
-          {gauge.value}
+          {cfg.value}
         </span>
-        <span className="unit-label">{gauge.unit}</span>
+        <span className="unit-label">{cfg.unit}</span>
       </div>
 
       <div className="h-[2px] bg-(--theme-border) rounded-full overflow-hidden" aria-hidden="true">
@@ -272,13 +404,29 @@ function ValueCard({ gauge }: { gauge: GaugeConfig }) {
   );
 }
 
-// ─── Compass card (Inc + Azi) ─────────────────────────────────────────────────
+// ─── Compass card (inc + azi) ────────────────────────────────────────────────
 
-function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig; fsScale: number }) {
+function CompassCard({
+  incGauge,
+  aziGauge,
+  showLive,
+  unitSystem,
+  fsScale,
+}: {
+  incGauge: typeof GAUGES[number];
+  aziGauge: typeof GAUGES[number];
+  showLive: boolean;
+  unitSystem: UnitSystem;
+  fsScale: number;
+}) {
+  const incLive = useLiveGaugeValue("inc", "geo", showLive);
+  const aziLive = useLiveGaugeValue("azi", "geo", showLive);
+  const inc = buildGaugeConfig(incGauge, incLive, unitSystem);
+  const azi = buildGaugeConfig(aziGauge, aziLive, unitSystem);
+
   const incVal = parseFloat(inc.value);
   const aziVal = parseFloat(azi.value.replace(/,/g, ""));
 
-  // SVG compass: azimuth 0=N clockwise. SVG 0° = east, so offset by -90.
   const aziRad = ((aziVal - 90) * Math.PI) / 180;
   const cx = 30;
   const cy = 30;
@@ -288,7 +436,6 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
   const pxTail = cx - 7 * Math.cos(aziRad);
   const pyTail = cy - 7 * Math.sin(aziRad);
 
-  // Inc tilt arc: semicircle from left (180°) to right (0°)
   const toRad = (d: number) => (d * Math.PI) / 180;
   const arcR = 20;
   const arcCx = 30;
@@ -313,16 +460,13 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
       className="flex border border-(--theme-border) rounded-(--radius-badge) bg-(--theme-surface) overflow-hidden"
       style={{ height: 108 }}
     >
-      {/* Azimuth compass */}
       <div
         className="flex-1 flex flex-col items-center justify-center gap-1 border-r border-(--theme-border-subtle) py-2"
         role="img"
         aria-label={`Azimuth: ${aziVal.toFixed(0)} degrees`}
       >
         <svg width="62" height="62" viewBox="0 0 60 60" aria-hidden="true">
-          {/* Outer ring */}
           <circle cx={cx} cy={cy} r={r + 3} fill="none" stroke="var(--theme-fg-dim)" strokeWidth="0.75" />
-          {/* Tick marks */}
           {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
             const angle = ((deg - 90) * Math.PI) / 180;
             const isMajor = deg % 90 === 0;
@@ -339,16 +483,12 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
               />
             );
           })}
-          {/* Cardinal labels */}
           <text x={cx} y={cy - r - 7} textAnchor="middle" dominantBaseline="middle" fontSize={7 * fsScale} fontWeight="700" fill="var(--theme-fg)" fontFamily="Share Tech Mono, monospace">N</text>
           <text x={cx} y={cy + r + 8} textAnchor="middle" dominantBaseline="middle" fontSize={6 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">S</text>
           <text x={cx + r + 8} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={6 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">E</text>
           <text x={cx - r - 8} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize={6 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">W</text>
-          {/* Tail (opposite direction) */}
           <line x1={cx} y1={cy} x2={pxTail} y2={pyTail} stroke="var(--theme-fg-dim)" strokeWidth="1" strokeLinecap="round" />
-          {/* Pointer */}
           <line x1={cx} y1={cy} x2={pxEnd} y2={pyEnd} stroke="var(--theme-accent)" strokeWidth="2" strokeLinecap="round" />
-          {/* Center pivot */}
           <circle cx={cx} cy={cy} r="2.5" fill="var(--theme-accent)" />
         </svg>
         <span className="font-['Share_Tech_Mono',monospace] text-fs-11 text-(--theme-fg) tabular-nums leading-none font-semibold">
@@ -357,14 +497,12 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
         <span className="label-mono">AZI</span>
       </div>
 
-      {/* Inclination tilt meter */}
       <div
         className="flex-1 flex flex-col items-center justify-center gap-1 py-2"
         role="img"
         aria-label={`Inclination: ${incVal.toFixed(1)} degrees`}
       >
         <svg width="62" height="46" viewBox="0 0 60 46" aria-hidden="true">
-          {/* Background arc */}
           <path
             d={describeArc(180, 0)}
             fill="none"
@@ -372,7 +510,6 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
             strokeWidth="4"
             strokeLinecap="round"
           />
-          {/* Value arc */}
           {incPct > 0 && (
             <path
               d={describeArc(180, arcEndDeg)}
@@ -382,7 +519,6 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
               strokeLinecap="round"
             />
           )}
-          {/* Endpoint dot */}
           {incPct > 0 && (
             <circle
               cx={arcCx + arcR * Math.cos(toRad(arcEndDeg))}
@@ -391,7 +527,6 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
               fill="var(--theme-accent)"
             />
           )}
-          {/* Scale labels */}
           <text x="5" y={arcCy + 12} textAnchor="middle" fontSize={7 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">0</text>
           <text x="55" y={arcCy + 12} textAnchor="middle" fontSize={7 * fsScale} fill="var(--theme-fg-dim)" fontFamily="Share Tech Mono, monospace">90</text>
         </svg>
@@ -404,8 +539,6 @@ function CompassCard({ inc, azi, fsScale }: { inc: GaugeConfig; azi: GaugeConfig
   );
 }
 
-// ─── Section label ─────────────────────────────────────────────────────────────
-
 function SectionLabel({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 mt-1 mb-0.5">
@@ -415,22 +548,43 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-// ─── Main sidebar ─────────────────────────────────────────────────────────────
+function GaugePlaceholder({ text }: { text: string }) {
+  return (
+    <div className="flex-1 flex items-center justify-center px-4 py-8">
+      <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em] text-center">
+        {text}
+      </span>
+    </div>
+  );
+}
 
 export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number }) {
   const { dispatch } = useUi();
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
+  const { role } = useAuth();
+  const status = useStore(globalRigStore, (s) => s.status);
+  const { well } = useCurrentWell();
 
-  const gaugeMap = useMemo(
-    () => buildGaugeMap(settings.unitSystem),
-    [settings.unitSystem],
-  );
+  const isLive = well?.id === LIVE_WELL_ID;
+  const showLive = isLive && status === "ONLINE";
+  const allowedStreams = role ? ROLE_STREAMS[role] : null;
+
+  const filteredGauges = useMemo(() => {
+    if (!allowedStreams) return [];
+    return GAUGES.filter((g) => allowedStreams.has(streamToCode(g.stream)));
+  }, [allowedStreams]);
+
+  const byId = useMemo(() => {
+    const m = new Map<string, typeof GAUGES[number]>();
+    for (const g of filteredGauges) m.set(g.id, g);
+    return m;
+  }, [filteredGauges]);
 
   const radialIds = ["rpm", "wob", "spp", "hkld", "torque"] as const;
   const valueIds  = ["rop", "h2s", "gamma"] as const;
-  const incGauge  = gaugeMap["inc"];
-  const aziGauge  = gaugeMap["azi"];
+  const incGauge  = byId.get("inc");
+  const aziGauge  = byId.get("azi");
 
   return (
     <aside
@@ -460,28 +614,64 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
         </IconButton>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 flex flex-col gap-1.5">
+      {!isLive ? (
+        <GaugePlaceholder text="No live feed for this well" />
+      ) : status !== "ONLINE" ? (
+        <GaugePlaceholder text="Connecting…" />
+      ) : (
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 flex flex-col gap-1.5">
+          {radialIds.some((id) => byId.has(id)) && (
+            <SectionLabel label="Drill / Hydraulics" />
+          )}
+          <div className="grid grid-cols-2 gap-1.5">
+            {radialIds
+              .map((id) => byId.get(id))
+              .filter((g): g is typeof GAUGES[number] => !!g)
+              .map((g) => (
+                <RadialGaugeCard
+                  key={g.id}
+                  gauge={g}
+                  source={g.stream}
+                  showLive={showLive}
+                  theme={settings.theme}
+                  unitSystem={settings.unitSystem}
+                  fsScale={fsScale}
+                />
+              ))}
+          </div>
 
-        <SectionLabel label="Drill / Hydraulics" />
-        <div className="grid grid-cols-2 gap-1.5">
-          {radialIds.map((id) => (
-            <RadialGaugeCard key={id} gauge={gaugeMap[id]} theme={settings.theme} fsScale={fsScale} />
-          ))}
+          {valueIds.some((id) => byId.has(id)) && (
+            <SectionLabel label="Rates / Geo" />
+          )}
+          <div className="grid grid-cols-2 gap-1.5">
+            {valueIds
+              .map((id) => byId.get(id))
+              .filter((g): g is typeof GAUGES[number] => !!g)
+              .map((g) => (
+                <ValueCard
+                  key={g.id}
+                  gauge={g}
+                  source={g.stream}
+                  showLive={showLive}
+                  unitSystem={settings.unitSystem}
+                />
+              ))}
+          </div>
+
+          {incGauge && aziGauge && (
+            <>
+              <SectionLabel label="Directional" />
+              <CompassCard
+                incGauge={incGauge}
+                aziGauge={aziGauge}
+                showLive={showLive}
+                unitSystem={settings.unitSystem}
+                fsScale={fsScale}
+              />
+            </>
+          )}
         </div>
-
-        <SectionLabel label="Rates / Geo" />
-        <div className="grid grid-cols-2 gap-1.5">
-          {valueIds.map((id) => (
-            <ValueCard key={id} gauge={gaugeMap[id]} />
-          ))}
-        </div>
-
-        <SectionLabel label="Directional" />
-        {incGauge && aziGauge && (
-          <CompassCard inc={incGauge} azi={aziGauge} fsScale={fsScale} />
-        )}
-
-      </div>
+      )}
     </aside>
   );
 }

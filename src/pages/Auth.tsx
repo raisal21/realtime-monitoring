@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Lock } from "lucide-react";
 import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import Terrain from "@/components/ui/Terrain";
@@ -8,7 +8,9 @@ import type { TerrainPreset } from "@/components/ui/Terrain";
 import { TopbarButton } from "@/components/ui/navigation";
 import { UniversalTopbar } from "@/components/app-shell/UniversalTopbar";
 import AuthCard from "@/components/auth/AuthCard";
+import ControlRoomPopover from "@/components/auth/ControlRoomPopover";
 import { useAuth } from "@/hooks/useAuth";
+import type { Role } from "@/hooks/auth.types";
 
 interface AuthProps {
   onSignIn?: () => void;
@@ -24,14 +26,15 @@ export default function Auth({
   const { login, isAuthenticated } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const [pendingRole, setPendingRole] = useState<Role>("driller");
 
   const from =
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/wells";
 
   if (isAuthenticated) return <Navigate to={from} replace />;
 
-  const handleSignIn = () => {
-    login();
+  const handleSignIn = (email: string) => {
+    login(email, pendingRole);
     onSignIn?.();
     navigate(from, { replace: true });
   };
@@ -47,15 +50,21 @@ export default function Auth({
             hideBreadcrumbs
             hideConnectionStatus
             profileSlot={
-              <TopbarButton
-                size="sm"
-                onClick={handleLoginClick}
-                title="Login"
-                aria-label="Scroll to login form"
-              >
-                <Lock size={14} strokeWidth={2} />
-                <span className="ml-1">Login</span>
-              </TopbarButton>
+              <div className="flex items-center gap-rt-gap-sm">
+                <ControlRoomPopover
+                  value={pendingRole}
+                  onChange={setPendingRole}
+                />
+                <TopbarButton
+                  size="sm"
+                  onClick={handleLoginClick}
+                  title="Login"
+                  aria-label="Scroll to login form"
+                >
+                  <Lock size={14} strokeWidth={2} />
+                  <span className="ml-1">Login</span>
+                </TopbarButton>
+              </div>
             }
           />
 

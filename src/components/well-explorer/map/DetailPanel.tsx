@@ -1,8 +1,13 @@
 import { useNavigate } from "react-router-dom";
+import { useStore } from "zustand";
 import { cn } from "@/lib/utils";
 import { Surface, StatusDot, Button } from "@/components/ui/core";
 import { ValueReadout } from "@/components/ui/telemetry";
 import type { Well } from "@/data/wells";
+import { LIVE_WELL_ID } from "@/data/wells";
+import { globalRigStore } from "@/store/index-store";
+import { useSettings } from "@/store/app-store";
+import { formatDepth } from "@/lib/units";
 import { WELL_TYPE_COLOR, WELL_TYPE_LABEL, STATUS_LABEL, STATUS_DOT } from "../lib/constants";
 
 interface DetailPanelProps {
@@ -12,8 +17,18 @@ interface DetailPanelProps {
 
 export function DetailPanel({ well, onClose }: DetailPanelProps) {
   const navigate = useNavigate();
+  const { state: settings } = useSettings();
+  const latestDrillDepth = useStore(
+    globalRigStore,
+    (s) => (s.drillStream.length ? s.drillStream[s.drillStream.length - 1].depth : null),
+  );
   const isActive = well.status === "drilling";
   const barColor = WELL_TYPE_COLOR[well.wellType];
+
+  const isLiveWell = well.id === LIVE_WELL_ID;
+  const liveDepth = isLiveWell && latestDrillDepth !== null
+    ? formatDepth(latestDrillDepth, settings.unitSystem)
+    : null;
 
   return (
     <div
@@ -62,7 +77,12 @@ export function DetailPanel({ well, onClose }: DetailPanelProps) {
         {well.phase === "drilling" ? (
           <div className="grid grid-cols-3 gap-[8px] px-[10px] py-[6px] border-b border-(--theme-border)">
             <div className="flex flex-col gap-[1px]">
-              <ValueReadout value={well.currentDepth} size="md" status="ok" />
+              <ValueReadout
+              value={liveDepth?.value ?? well.currentDepth}
+              unit={liveDepth?.unit}
+              size="md"
+              status="ok"
+            />
               <span className="label-mono">Depth</span>
             </div>
             <div className="flex flex-col gap-[1px]">

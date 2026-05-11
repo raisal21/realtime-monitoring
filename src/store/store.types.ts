@@ -8,6 +8,7 @@ import { StreamDef } from "@/domain/constants";
 import type { UiSlice } from "./slices/ui-slice";
 import type { ChartSlice } from "./slices/chart-slice";
 import type { SettingsSlice } from "./slices/settings-slice";
+import type { ToastSlice } from "./slices/toast-slice";
 
 export interface GlobalRigState
   extends ConnectionSlice,
@@ -16,7 +17,8 @@ export interface GlobalRigState
     SubscriptionSlice,
     UiSlice,
     ChartSlice,
-    SettingsSlice {}
+    SettingsSlice,
+    ToastSlice {}
 
 export interface ConnectionError {
   code: string;
@@ -68,6 +70,7 @@ export interface TelemetrySlice {
 
 export interface AlarmEntity {
   id: string;
+  code: string;
   severity: AlarmSeverity;
   message: string;
   timestamp: number;
@@ -79,7 +82,6 @@ export interface AlarmSlice {
 
   ackAlarm: (id: string, operatorName: string, role: string) => void;
   resolveAlarm: (id: string) => void;
-  clearAllAlarms: () => void;
 }
 
 export interface SubscriptionSlice {

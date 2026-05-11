@@ -2,7 +2,10 @@ import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import {
-  WELL_SESSION,
+  SESSION_CURSOR_DEPTH,
+  SESSION_DEPTH_RANGE,
+  SESSION_TIME_RANGE,
+  SESSION_FLOW_SAMPLES,
   PRESET_TO_MINUTES,
   presetToDepthSpanM,
 } from "@/data/dashboard-static";
@@ -22,7 +25,7 @@ const minutesToHHMM = (min: number) => {
 
 const FLOW_SCALE = Math.max(
   10,
-  Math.ceil(Math.max(...WELL_SESSION.flow.map((d) => Math.abs(d.flow))) * 1.15),
+  Math.ceil(Math.max(...SESSION_FLOW_SAMPLES.map((d) => Math.abs(d.flow))) * 1.15),
 );
 
 export function FlowRuler() {
@@ -40,12 +43,12 @@ export function FlowRuler() {
   // the active ruler (Time / Depth) under live, preset, and zoom states.
   const sessionRange =
     mode === "depth"
-      ? WELL_SESSION.depthAxis.range
-      : WELL_SESSION.timeAxis.range;
+      ? SESSION_DEPTH_RANGE
+      : SESSION_TIME_RANGE;
   let yRange: { min: number; max: number };
   if (liveMode) {
     if (mode === "depth") {
-      const cur = WELL_SESSION.cursor.depthM;
+      const cur = SESSION_CURSOR_DEPTH;
       const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
       yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
     } else {
@@ -63,7 +66,7 @@ export function FlowRuler() {
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
-    const samples = WELL_SESSION.flow;
+    const samples = SESSION_FLOW_SAMPLES;
 
     // Filter samples by visible window. Depth is non-monotonic (drill / trip
     // cycles can revisit the same depth band), so multiple samples may hit

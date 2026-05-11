@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { ChevronRight } from "lucide-react";
+import { useStore } from "zustand";
 import { useUi } from "@/store/app-store";
-import { FEED_ITEMS } from "@/data/dashboard-static";
+import { globalRigStore } from "@/store/index-store";
 import { IconButton } from "@/components/ui/form";
 import { CriticalBanner } from "@/components/dashboard/alarm";
 import { FilterChip, FeedItem } from "@/components/dashboard/alarm";
@@ -9,20 +10,25 @@ import { cn } from "@/lib/utils";
 
 const ALARM_SIDEBAR_WIDTH = 300;
 
+function fmtTime(ts: number): string {
+  return new Date(ts).toTimeString().slice(0, 8);
+}
+
 export function FloatingAlarmSidebar() {
   const { state: ui, dispatch } = useUi();
+  const alarmRegistry = useStore(globalRigStore, (s) => s.alarmRegistry);
 
   const visibleItems = useMemo(() => {
-    return FEED_ITEMS.filter((f) => {
-      if (f.severity === "critical") return ui.alarmFilters.critical;
-      if (f.severity === "warning") return ui.alarmFilters.warning;
-      if (f.severity === "info") return ui.alarmFilters.info;
+    return Array.from(alarmRegistry.values()).filter((f) => {
+      if (f.severity === "CRITICAL") return ui.alarmFilters.critical;
+      if (f.severity === "WARNING") return ui.alarmFilters.warning;
+      if (f.severity === "INFO") return ui.alarmFilters.info;
       return true;
     });
-  }, [ui.alarmFilters]);
+  }, [alarmRegistry, ui.alarmFilters]);
 
-  const criticalUnacked = FEED_ITEMS.find(
-    (f) => f.severity === "critical" && f.state === "unacked",
+  const criticalUnacked = Array.from(alarmRegistry.values()).find(
+    (f) => f.severity === "CRITICAL",
   );
 
   return (
@@ -38,12 +44,12 @@ export function FloatingAlarmSidebar() {
       {criticalUnacked && (
         <CriticalBanner
           title={criticalUnacked.message}
-          subtitle={`${criticalUnacked.meta} · ${criticalUnacked.timestamp}`}
+          subtitle={fmtTime(criticalUnacked.timestamp)}
         />
       )}
 
       <div className="flex items-center gap-1.5 px-rt-pad-sm py-rt-pad-sm border-b border-(--theme-border) flex-shrink-0">
-        <span className="section-heading flex-1">Alarms & Notes</span>
+        <span className="section-heading flex-1">Alarms &amp; Notes</span>
         <FilterChip
           intent="critical"
           active={ui.alarmFilters.critical}
@@ -76,7 +82,7 @@ export function FloatingAlarmSidebar() {
           size="sm"
           onClick={() => dispatch({ type: "TOGGLE_ALARM_SIDEBAR" })}
           aria-label="Collapse alarms sidebar"
-          title="Collapse (Cmd+/)"
+          title="Collapse (Cmd+/ )"
         >
           <ChevronRight size={12} strokeWidth={2} />
         </IconButton>
@@ -86,11 +92,10 @@ export function FloatingAlarmSidebar() {
         {visibleItems.map((item) => (
           <FeedItem
             key={item.id}
-            severity={item.severity}
-            state={item.state}
+            severity={item.severity.toLowerCase() as "critical" | "warning" | "info"}
+            state="unacked"
             message={item.message}
-            meta={item.meta}
-            timestamp={item.timestamp}
+            timestamp={fmtTime(item.timestamp)}
             onAck={() => dispatch({ type: "OPEN_ACK_MODAL", alarmId: item.id })}
             onDetails={() => {}}
           />
@@ -98,7 +103,7 @@ export function FloatingAlarmSidebar() {
         {visibleItems.length === 0 && (
           <div className="px-4 py-6 text-center">
             <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim)">
-              No alarms match current filters
+              No active alarms
             </span>
           </div>
         )}

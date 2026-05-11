@@ -1,6 +1,9 @@
 import { Clock, Bell } from "lucide-react";
 import { useClock, useResizeObserver } from "@/hooks/dashboard-hooks";
-import { WELL_SESSION, FEED_ITEMS, FIELD_INFO } from "@/data/dashboard-static";
+import { FIELD_INFO } from "@/data/dashboard-static";
+import { LIVE_WELL_ID } from "@/data/wells";
+import { useStore } from "zustand";
+import { globalRigStore } from "@/store/index-store";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
 import { PAD_NAMES } from "@/data/pads";
 import { useSettings, useUi } from "@/store/app-store";
@@ -16,21 +19,19 @@ export function DashboardSubheader() {
   const [ref, width] = useResizeObserver<HTMLDivElement>();
   const { well } = useCurrentWell();
 
-  const wellLabel = well.name;
-  const padLabel = PAD_NAMES[well.padId] ?? well.padId;
-  const regionLabel = well.region ?? FIELD_INFO.region;
+  const wellLabel = well?.name ?? "—";
+  const padLabel = well ? (PAD_NAMES[well.padId] ?? well.padId) : "—";
+  const regionLabel = well?.region ?? FIELD_INFO.region;
 
+  const alarmRegistry = useStore(globalRigStore, (s) => s.alarmRegistry);
   const unackedCritical = useMemo(
     () =>
-      FEED_ITEMS.filter(
-        (f) => f.state === "unacked" && f.severity === "critical",
+      Array.from(alarmRegistry.values()).filter(
+        (a) => a.severity === "CRITICAL",
       ).length,
-    [],
+    [alarmRegistry],
   );
-  const totalUnacked = useMemo(
-    () => FEED_ITEMS.filter((f) => f.state === "unacked").length,
-    [],
-  );
+  const totalUnacked = alarmRegistry.size;
 
   // In compact mode we always drop the secondary region label, even if there's room.
   const showFullLabel = width >= 640 && settings.density !== "compact";
@@ -75,13 +76,7 @@ export function DashboardSubheader() {
         <span className="label-mono">UTC</span>
       </div>
 
-      <div className="flex items-center gap-1.5 flex-shrink-0 pl-4 border-l border-(--theme-border)">
-        <span className="label-mono">Live Depth</span>
-        {(() => {
-          const d = formatDepth(WELL_SESSION.cursor.depthM, settings.unitSystem);
-          return <ValueReadout value={d.value} unit={`${d.unit} MD`} size="md" status="info" />;
-        })()}
-      </div>
+      <LiveDepthReadout unitSystem={settings.unitSystem} wellId={well?.id ?? null} />
 
       <div className="flex items-center gap-1 flex-shrink-0 pl-3 border-l border-(--theme-border)">
         <button
@@ -121,6 +116,36 @@ export function DashboardSubheader() {
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+function LiveDepthReadout({
+  unitSystem,
+  wellId,
+}: {
+  unitSystem: "metric" | "imperial";
+  wellId: string | null;
+}) {
+  const latestDepth = useStore(
+    globalRigStore,
+    (s) => (s.drillStream.length ? s.drillStream[s.drillStream.length - 1].depth : null),
+  );
+
+  const d =
+    wellId === LIVE_WELL_ID && latestDepth !== null
+      ? formatDepth(latestDepth, unitSystem)
+      : null;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-shrink-0 pl-4 border-l border-(--theme-border)">
+      <span className="label-mono">Live Depth</span>
+      <ValueReadout
+        value={d?.value ?? "—"}
+        unit={d ? `${d.unit} MD` : undefined}
+        size="md"
+        status="info"
+      />
     </div>
   );
 }

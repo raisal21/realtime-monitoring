@@ -8,7 +8,7 @@ import PulseRLockup from "@/components/brand/PulseRLockup";
 import PulseR from "@/components/brand/PulseR";
 
 export interface AuthCardProps {
-  onSignIn?: () => void;
+  onSignIn?: (email: string) => void;
   formRef?: React.Ref<HTMLFormElement>;
   firstInputRef?: React.Ref<HTMLInputElement>;
 }

@@ -1,15 +1,53 @@
-import { Outlet, useNavigate, useParams } from "react-router-dom";
+import { useEffect } from "react";
+import { useStore } from "zustand";
+import { Outlet, useNavigate } from "react-router-dom";
 import { CurrentWellProvider } from "@/contexts/CurrentWellContext";
 import { UniversalTopbar } from "@/components/app-shell/UniversalTopbar";
 import { useAuth } from "@/hooks/useAuth";
 import { Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverTitle } from "@/components/ui/popover";
 import { TopbarButton } from "@/components/ui/navigation";
 import { LogOut, CircleUser, ShieldCheck } from "lucide-react";
+import { createConnectionManager } from "@/services/connection-manager";
+import { globalRigStore } from "@/store/index-store";
+import { ROLE_STREAMS } from "@/config/role";
+import { ErrorBanner } from "@/components/app-shell/ErrorBanner";
+import { Toast } from "@/components/ui/Toast";
 
 export function AuthenticatedLayout() {
-  const { logout } = useAuth();
+  const { logout, role } = useAuth();
   const navigate = useNavigate();
-  const { wellId } = useParams<{ wellId?: string }>();
+  const status = useStore(globalRigStore, (s) => s.status);
+
+  useEffect(() => {
+    const mgr = createConnectionManager({
+      getClientId: () => globalRigStore.getState().clientId,
+      onClientIdRegistered: (id) =>
+        globalRigStore.getState().registerClient(id),
+    });
+
+    globalRigStore.getState().setSender(mgr.send);
+    globalRigStore.getState().setRetrier(mgr.retry);
+    mgr.start();
+
+    return () => {
+      mgr.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status !== "ONLINE" || !role) return;
+
+    const streams = ROLE_STREAMS[role];
+    for (const stream of streams) {
+      globalRigStore.getState().subscribe(stream);
+    }
+
+    return () => {
+      for (const stream of streams) {
+        globalRigStore.getState().unsubscribe(stream);
+      }
+    };
+  }, [role, status]);
 
   const handleLogout = () => {
     logout();
@@ -47,13 +85,15 @@ export function AuthenticatedLayout() {
   );
 
   return (
-    <CurrentWellProvider wellId={wellId}>
+    <CurrentWellProvider>
       <div className="flex flex-col h-screen overflow-hidden">
         <UniversalTopbar profileSlot={profileSlot} />
+        <ErrorBanner />
         <div className="flex-1 overflow-hidden">
           <Outlet />
         </div>
       </div>
+      <Toast />
     </CurrentWellProvider>
   );
 }

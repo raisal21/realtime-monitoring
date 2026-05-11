@@ -1,24 +1,19 @@
-import { useMemo } from "react";
 import { TriangleAlert, ChevronLeft } from "lucide-react";
+import { useStore } from "zustand";
 import { useUi } from "@/store/app-store";
-import { FEED_ITEMS } from "@/data/dashboard-static";
+import { globalRigStore } from "@/store/index-store";
 import { cn } from "@/lib/utils";
 
 const STRIP_WIDTH = 32;
 
 export function AlarmCollapsedStrip() {
   const { dispatch } = useUi();
-  const unackedCritical = useMemo(
-    () =>
-      FEED_ITEMS.filter(
-        (f) => f.state === "unacked" && f.severity === "critical",
-      ).length,
-    [],
-  );
-  const totalUnacked = useMemo(
-    () => FEED_ITEMS.filter((f) => f.state === "unacked").length,
-    [],
-  );
+  const alarmRegistry = useStore(globalRigStore, (s) => s.alarmRegistry);
+
+  const unackedCritical = Array.from(alarmRegistry.values()).filter(
+    (a) => a.severity === "CRITICAL",
+  ).length;
+  const totalUnacked = alarmRegistry.size;
 
   return (
     <button
@@ -36,7 +31,7 @@ export function AlarmCollapsedStrip() {
       )}
       style={{ width: STRIP_WIDTH }}
       aria-label="Expand alarms sidebar"
-      title="Expand alarms (Cmd+/)"
+      title="Expand alarms (Cmd+/ )"
     >
       {unackedCritical > 0 && (
         <>

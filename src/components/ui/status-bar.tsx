@@ -26,6 +26,12 @@ const connectionStatusVariants = cva(
           "bg-[color-mix(in_srgb,var(--theme-ok)_10%,transparent)]",
           "border-[color-mix(in_srgb,var(--theme-ok)_30%,transparent)]",
         ].join(" "),
+        connecting: [
+          "text-(--theme-warning)",
+          "bg-[color-mix(in_srgb,var(--theme-warning)_10%,transparent)]",
+          "border-[color-mix(in_srgb,var(--theme-warning)_30%,transparent)]",
+          "animate-pulse",
+        ].join(" "),
         reconnecting: [
           "text-(--theme-warning)",
           "bg-[color-mix(in_srgb,var(--theme-warning)_10%,transparent)]",
@@ -36,6 +42,11 @@ const connectionStatusVariants = cva(
           "text-(--theme-critical)",
           "bg-[color-mix(in_srgb,var(--theme-critical)_10%,transparent)]",
           "border-[color-mix(in_srgb,var(--theme-critical)_30%,transparent)]",
+        ].join(" "),
+        error: [
+          "text-(--theme-critical)",
+          "bg-[color-mix(in_srgb,var(--theme-critical)_15%,transparent)]",
+          "border-[color-mix(in_srgb,var(--theme-critical)_45%,transparent)]",
         ].join(" "),
       },
     },
@@ -48,8 +59,10 @@ const CONNECTION_DOT: Record<
   VariantProps<typeof StatusDot>["status"]
 > = {
   online: "ok",
+  connecting: "warning",
   reconnecting: "warning",
   offline: "critical",
+  error: "critical",
 };
 
 const CONNECTION_LABEL: Record<
@@ -57,8 +70,10 @@ const CONNECTION_LABEL: Record<
   string
 > = {
   online: "ONLINE",
+  connecting: "CONNECTING…",
   reconnecting: "RECONNECTING…",
   offline: "OFFLINE",
+  error: "ERROR",
 };
 
 export interface ConnectionStatusProps
@@ -81,7 +96,7 @@ export const ConnectionStatus = ({
       status={CONNECTION_DOT[status ?? "online"]}
       size="sm"
       glow={status === "online"}
-      pulse={status === "reconnecting"}
+      pulse={status === "reconnecting" || status === "connecting"}
     />
     {CONNECTION_LABEL[status ?? "online"]}
   </div>

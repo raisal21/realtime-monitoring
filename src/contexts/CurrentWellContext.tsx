@@ -1,26 +1,24 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { WELLS, getWellById, type Well } from "@/data/wells";
+import { useParams } from "react-router-dom";
+import { getWellById, type Well } from "@/data/wells";
 
 interface CurrentWellValue {
-  well: Well;
-  wellId: string;
+  well: Well | null;
+  wellId: string | null;
 }
 
 const CurrentWellContext = createContext<CurrentWellValue | null>(null);
 
-const FALLBACK_WELL = WELLS[0];
+export function CurrentWellProvider({ children }: { children: ReactNode }) {
+  const { wellId } = useParams<{ wellId?: string }>();
 
-export function CurrentWellProvider({
-  wellId,
-  children,
-}: {
-  wellId?: string;
-  children: ReactNode;
-}) {
   const value = useMemo<CurrentWellValue>(() => {
-    const resolved = (wellId && getWellById(wellId)) || FALLBACK_WELL;
-    return { well: resolved, wellId: resolved.id };
+    if (!wellId) return { well: null, wellId: null };
+    const resolved = getWellById(wellId);
+    return resolved
+      ? { well: resolved, wellId: resolved.id }
+      : { well: null, wellId: null };
   }, [wellId]);
 
   return (

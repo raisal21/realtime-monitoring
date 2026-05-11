@@ -2,7 +2,9 @@ import { useMemo, useCallback, useRef, useEffect } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import {
-  WELL_SESSION,
+  SESSION_CURSOR_DEPTH,
+  SESSION_TIME_RANGE,
+  SESSION_DEPTH_RANGE,
   presetToDepthSpanM,
   PRESET_TO_MINUTES,
   timeRangeToDepthRange,
@@ -26,7 +28,7 @@ function getEffectiveRange(
 ) {
   if (isPrimary) {
     if (liveMode) {
-      const currentDepth = WELL_SESSION.cursor.depthM;
+      const currentDepth = SESSION_CURSOR_DEPTH;
       const depthSpan = rangePreset
         ? presetToDepthSpanM(rangePreset)
         : DEFAULT_DEPTH_SPAN;
@@ -42,8 +44,8 @@ function getEffectiveRange(
     const spanMinutes = rangePreset
       ? PRESET_TO_MINUTES[rangePreset] ?? 60
       : 60;
-    const tEnd = WELL_SESSION.timeAxis.range.max;
-    const tStart = Math.max(WELL_SESSION.timeAxis.range.min, tEnd - spanMinutes);
+    const tEnd = SESSION_TIME_RANGE.max;
+    const tStart = Math.max(SESSION_TIME_RANGE.min, tEnd - spanMinutes);
     return (
       timeRangeToDepthRange(tStart, tEnd) ?? { min: sessionMin, max: sessionMax }
     );
@@ -73,7 +75,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
   const echartsRef = useRef<ReactECharts>(null);
   const axisPointerActive = useRef(false);
 
-  const { min: sessionMin, max: sessionMax } = WELL_SESSION.depthAxis.range;
+  const { min: sessionMin, max: sessionMax } = SESSION_DEPTH_RANGE;
   const yRange = getEffectiveRange(
     isPrimary,
     chart.liveMode,

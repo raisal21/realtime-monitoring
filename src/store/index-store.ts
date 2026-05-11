@@ -1,5 +1,9 @@
 import { createStore } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import {
+  persist,
+  createJSONStorage,
+  subscribeWithSelector,
+} from "zustand/middleware";
 import { log } from "@/utils/logger";
 import type { StateCreator } from "zustand";
 import type {
@@ -13,6 +17,7 @@ import type {
 import { createUiSlice } from "./slices/ui-slice";
 import { createChartSlice } from "./slices/chart-slice";
 import { createSettingsSlice } from "./slices/settings-slice";
+import { createToastSlice } from "./slices/toast-slice";
 import { StreamDef } from "@/domain/constants";
 
 export const createConnectionSlice: StateCreator<
@@ -132,11 +137,6 @@ export const createAlarmSlice: StateCreator<
       updatedMap.delete(id);
       return { alarmRegistry: updatedMap };
     }),
-
-  clearAllAlarms: () =>
-    set({
-      alarmRegistry: new Map<string, AlarmEntity>(),
-    }),
 });
 
 const createSubscriptionSlice: StateCreator<
@@ -184,6 +184,7 @@ const createSubscriptionSlice: StateCreator<
 });
 
 export const globalRigStore = createStore<GlobalRigState>()(
+  subscribeWithSelector(
   persist(
     (...args) => ({
       ...createConnectionSlice(...args),
@@ -193,6 +194,7 @@ export const globalRigStore = createStore<GlobalRigState>()(
       ...createUiSlice(...args),
       ...createChartSlice(...args),
       ...createSettingsSlice(...args),
+      ...createToastSlice(...args),
     }),
     {
       name: "rtdc-store",
@@ -210,5 +212,6 @@ export const globalRigStore = createStore<GlobalRigState>()(
       // Future schema changes should branch on `version` here.
       migrate: (persisted) => persisted as GlobalRigState,
     },
+  ),
   ),
 );

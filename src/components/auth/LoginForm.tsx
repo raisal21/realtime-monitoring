@@ -5,7 +5,7 @@ import { Activity } from "lucide-react";
 import { Button, Input } from "@/components/ui/core";
 
 export interface LoginFormProps {
-  onSignIn?: () => void;
+  onSignIn?: (email: string) => void;
   formRef?: React.Ref<HTMLFormElement>;
   firstInputRef?: React.Ref<HTMLInputElement>;
 }
@@ -22,7 +22,7 @@ export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFor
       return;
     }
     setErr(null);
-    onSignIn?.();
+    onSignIn?.(email);
   };
 
   return (

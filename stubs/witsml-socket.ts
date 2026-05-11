@@ -219,7 +219,7 @@ const rigState = {
   hkld: 200.0,
   gamma: 50.0,
   rop: 25.0,
-  gas: 10.0,
+  h2s: 10.0,
   inc: 0.5,
   azi: 45.0,
 };
@@ -267,7 +267,7 @@ function sendGeoBuff() {
   geoView.setFloat32(16, rigState.depth);
   geoView.setFloat32(20, rigState.gamma);
   geoView.setFloat32(24, rigState.rop);
-  geoView.setFloat32(28, rigState.gas);
+  geoView.setFloat32(28, rigState.h2s);
   geoView.setFloat32(32, rigState.inc);
   geoView.setFloat32(36, rigState.azi);
 
@@ -391,10 +391,11 @@ function mockAlarmGenerator() {
   const probability = Math.random();
 
   if (probability < 0.005) {
-    if (!activeAlarmCodes.has("HIGH_GAS")) {
+    if (!activeAlarmCodes.has("HIGH_H2S")) {
+      rigState.h2s = getRandom(20, 50);
       raiseAlarm(
-        "HIGH_GAS",
-        "Gas exceeded safety threshold",
+        "HIGH_H2S",
+        "H2S exceeded safety threshold",
         AlarmSeverity.CRITICAL,
       );
     }
@@ -472,6 +473,20 @@ function handleHandshake(
     return;
   }
 
+  if (
+    typeof payload.protocolVersion !== "number" ||
+    payload.protocolVersion !== PROTOCOL_VERSION
+  ) {
+    closeClient(
+      rigWs,
+      "UNSUPPORTED_PROTOCOL",
+      4409,
+      "Unsupported protocol version",
+      false,
+    );
+    return;
+  }
+
   if (payload.clientId && typeof payload.clientId === "string") {
     rigWs.clientId = payload.clientId;
   }
@@ -503,7 +518,7 @@ function handleSubscribe(
   }
 
   if (!payload || !Array.isArray(payload.streams)) {
-    sendMessage(rigWs, "SUBSCRIBE_ACK", undefined, {
+    sendMessage(rigWs, "ERROR", undefined, {
       code: "INVALID_PAYLOAD",
       message: "streams must be an array",
     });
@@ -555,7 +570,7 @@ function handleUnsubscribe(
   }
 
   if (!payload || !Array.isArray(payload.streams)) {
-    sendMessage(rigWs, "UNSUBSCRIBE_ACK", undefined, {
+    sendMessage(rigWs, "ERROR", undefined, {
       code: "INVALID_PAYLOAD",
       message: "streams must be an array",
     });
@@ -871,7 +886,7 @@ const telemetryInterval = setInterval(() => {
     if (tick % 10 === 0) {
       rigState.gamma = getRandom(40, 60);
       rigState.rop = getRandom(20, 30);
-      rigState.gas = getRandom(5, 15);
+      rigState.h2s = getRandom(0, 5);
       sendGeoBuff();
     }
 

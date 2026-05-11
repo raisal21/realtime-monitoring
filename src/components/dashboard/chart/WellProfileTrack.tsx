@@ -1,9 +1,12 @@
-import { useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 import {
-  WELL_SESSION,
   WELL_PROFILE_DATA,
+  WELL_PROFILE_MAX_DEPTH_M,
+  SESSION_CURSOR_DEPTH,
+  SESSION_DEPTH_RANGE,
+  SESSION_TIME_RANGE,
   parseWellProfileDate,
   dateToSessionMinute,
 } from "@/data/dashboard-static";
@@ -13,6 +16,8 @@ import { useSettings, FS_SCALE } from "@/store/app-store";
 import { formatDepth } from "@/lib/units";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
+import { LIVE_WELL_ID } from "@/data/wells";
+import { useCurrentWell } from "@/contexts/CurrentWellContext";
 
 // Pre-resolve session-minute for each WP_DATA entry — used by the inverse
 // lookup below; avoids re-parsing date strings on every drag tick.
@@ -61,8 +66,15 @@ export function WellProfileTrack() {
     (s) => s.chart.wellProfileSlider,
   );
   const setRulerRange = useStore(globalRigStore, (s) => s.setRulerRange);
+  const status = useStore(globalRigStore, (s) => s.status);
+  const { well } = useCurrentWell();
+  const isLive = well?.id === LIVE_WELL_ID;
+  const showLive = isLive && status === "ONLINE";
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
+
+  const chartRef = useRef<ReactECharts>(null);
+  const pendingRaf = useRef<number | null>(null);
 
   // Well-profile y-axis is a category axis of dates, so dataZoom emits
   // start/end as category indices. Map indices → wall-clock date via
@@ -99,7 +111,7 @@ export function WellProfileTrack() {
       // Interpolate continuous depth/time at the fractional index, then clamp
       // to the session window — pre-session entries have no log data.
       if (mode === "depth") {
-        const { min: dMin, max: dMax } = WELL_SESSION.depthAxis.range;
+        const { min: dMin, max: dMax } = SESSION_DEPTH_RANGE;
         const a = lerpAtIdx(WP_DEPTHS, loIdx);
         const b = lerpAtIdx(WP_DEPTHS, hiIdx);
         const lo = Math.max(dMin, Math.min(dMax, Math.min(a, b)));
@@ -107,7 +119,7 @@ export function WellProfileTrack() {
         if (hi <= lo) return; // empty overlap with session — keep current range
         setRulerRange(lo, hi);
       } else {
-        const { min: tMin, max: tMax } = WELL_SESSION.timeAxis.range;
+        const { min: tMin, max: tMax } = SESSION_TIME_RANGE;
         const a = lerpAtIdx(WP_SESSION_MIN, loIdx);
         const b = lerpAtIdx(WP_SESSION_MIN, hiIdx);
         const lo = Math.max(tMin, Math.min(tMax, Math.min(a, b)));
@@ -138,8 +150,12 @@ export function WellProfileTrack() {
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
-    const { data, maxDepthM } = WELL_SESSION.wellProfile;
-    const { depthM: currentDepthM } = WELL_SESSION.cursor;
+    const data = WELL_PROFILE_DATA;
+    const maxDepthM = WELL_PROFILE_MAX_DEPTH_M;
+    const drillStream = globalRigStore.getState().drillStream;
+    const currentDepthM = showLive && drillStream.length
+      ? drillStream[drillStream.length - 1].depth
+      : SESSION_CURSOR_DEPTH;
 
     const dates = data.map((d) => d.date) as string[];
     const depths = data.map((d) => d.depth);
@@ -335,7 +351,47 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.theme, settings.unitSystem, wellProfileSlider, liveMode, rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale]);
+  }, [settings.theme, settings.unitSystem, wellProfileSlider, liveMode, rulerRange, sliderRange.startPct, sliderRange.endPct, fsScale, showLive]);
+
+  useEffect(() => {
+    if (!showLive) return;
+
+    const flush = () => {
+      pendingRaf.current = null;
+      const inst = chartRef.current?.getEchartsInstance();
+      if (!inst) return;
+      const stream = globalRigStore.getState().drillStream;
+      if (!stream.length) return;
+      const cur = stream[stream.length - 1].depth;
+      const formatted = formatDepth(cur, settings.unitSystem).value;
+      inst.setOption(
+        {
+          series: [
+            {
+              endLabel: { formatter: formatted },
+            },
+          ],
+        },
+        { lazyUpdate: true },
+      );
+    };
+
+    const unsubscribe = globalRigStore.subscribe(
+      (s) => s.drillStream,
+      () => {
+        if (pendingRaf.current !== null) return;
+        pendingRaf.current = requestAnimationFrame(flush);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      if (pendingRaf.current !== null) {
+        cancelAnimationFrame(pendingRaf.current);
+        pendingRaf.current = null;
+      }
+    };
+  }, [showLive, settings.unitSystem]);
 
   return (
     <div
@@ -354,13 +410,28 @@ export function WellProfileTrack() {
       </div>
 
       <div className="relative flex-1 overflow-hidden">
-        <ReactECharts
-          option={option}
-          style={{ width: "100%", height: "100%" }}
-          opts={{ renderer: "canvas" }}
-          notMerge
-          onEvents={{ datazoom: handleDataZoom }}
-        />
+        {!isLive ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
+              No live feed for this well
+            </span>
+          </div>
+        ) : status !== "ONLINE" ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
+              Connecting…
+            </span>
+          </div>
+        ) : (
+          <ReactECharts
+            ref={chartRef}
+            option={option}
+            style={{ width: "100%", height: "100%" }}
+            opts={{ renderer: "canvas" }}
+            notMerge
+            onEvents={{ datazoom: handleDataZoom }}
+          />
+        )}
       </div>
 
       <div className="px-2 py-1 border-t border-(--theme-border) flex items-center justify-between flex-shrink-0">
@@ -369,7 +440,7 @@ export function WellProfileTrack() {
         </span>
         <span className="font-['Share_Tech_Mono',monospace] text-fs-8 text-(--theme-fg-muted) tabular">
           {(() => {
-            const d = formatDepth(WELL_SESSION.wellProfile.maxDepthM, settings.unitSystem);
+            const d = formatDepth(WELL_PROFILE_MAX_DEPTH_M, settings.unitSystem);
             return `${d.value} ${d.unit}`;
           })()}
         </span>

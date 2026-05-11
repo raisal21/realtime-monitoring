@@ -1,6 +1,7 @@
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRef, useState, useCallback, useMemo, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { WELLS, type Well } from "@/data/wells";
+import { WELLS, getWellById, type Well } from "@/data/wells";
 import { WellMap } from "@/components/well-explorer/map/WellMap";
 import { MapOverlay } from "@/components/well-explorer/map/MapOverlay";
 import { DetailPanel } from "@/components/well-explorer/map/DetailPanel";
@@ -10,6 +11,7 @@ import { ExplorerSidebar } from "@/components/well-explorer/sidebar/ExplorerSide
 import { POPUP_STYLES } from "@/components/well-explorer/lib/utils";
 
 export default function WellExplorer() {
+  const { wellId } = useParams<{ wellId?: string }>();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [selectedWell, setSelectedWell] = useState<Well | null>(null);
   const [query, setQuery] = useState("");
@@ -40,6 +42,14 @@ export default function WellExplorer() {
     },
     [flyToWell],
   );
+
+  useEffect(() => {
+    if (!wellId) return;
+    const well = getWellById(wellId);
+    if (!well) return;
+    setSelectedWell(well);
+    flyToWell(well.id);
+  }, [wellId, flyToWell]);
 
   return (
     <>

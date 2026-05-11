@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
+import { getWellById } from "@/data/wells";
 import { useChart } from "@/store/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
@@ -15,6 +17,9 @@ import { FlowRuler } from "@/components/dashboard/chart/FlowRuler";
 import { LogTrack } from "@/components/dashboard/chart/LogTrack";
 import { TRACK_RENDER_CONFIG } from "@/data/dashboard-static";
 import type { TRACK_TRACES } from "@/data/dashboard-static";
+import { useAuth } from "@/hooks/useAuth";
+import { ROLE_STREAMS, ROLE_FEATURES } from "@/config/role";
+import { StreamDef } from "@/domain/constants";
 import { GaugeCollapsedStrip } from "@/components/dashboard/sidebars/GaugeCollapsedStrip";
 import { FloatingGaugeSidebar } from "@/components/dashboard/sidebars/FloatingGaugeSidebar";
 import { AlarmCollapsedStrip } from "@/components/dashboard/sidebars/AlarmCollapsedStrip";
@@ -25,11 +30,20 @@ const ALARM_SIDEBAR_WIDTH = 300;
 const STRIP_WIDTH = 32;
 
 export default function Dashboard() {
+  const { wellId } = useParams<{ wellId?: string }>();
   const alarmSidebar = useStore(globalRigStore, (s) => s.ui.alarmSidebar);
   const gaugeSidebar = useStore(globalRigStore, (s) => s.ui.gaugeSidebar);
   const setLeftRail = useStore(globalRigStore, (s) => s.setLeftRail);
   const { state: chart } = useChart();
+  const { role } = useAuth();
   useKeyboardShortcuts();
+
+  const allowedStreams = role ? ROLE_STREAMS[role] : null;
+  const streamAllowed = (uiStream: "drill" | "geo"): boolean => {
+    if (!allowedStreams) return false;
+    const code = uiStream === "drill" ? StreamDef.DRILL : StreamDef.GEO;
+    return allowedStreams.has(code);
+  };
 
   const collapsedBelowBreakpoint = useRef(false);
   useEffect(() => {
@@ -47,9 +61,17 @@ export default function Dashboard() {
     return () => window.removeEventListener("resize", onResize);
   }, [setLeftRail]);
 
-  const alarmAnchor =
-    alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH;
-  const chartRightInset = STRIP_WIDTH * 2;
+  const showAlarmSidebar = role ? ROLE_FEATURES[role].alarmSidebar : false;
+  const showAckModal = role ? ROLE_FEATURES[role].ackModal : false;
+
+  const alarmAnchor = showAlarmSidebar
+    ? (alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH)
+    : 0;
+  const chartRightInset = STRIP_WIDTH + (showAlarmSidebar ? STRIP_WIDTH : 0);
+
+  if (wellId && !getWellById(wellId)) {
+    return <Navigate to="/wells" replace />;
+  }
 
   return (
     <>
@@ -77,6 +99,10 @@ export default function Dashboard() {
               {chart.trackOrder
                 .filter((id) => id !== "well-profile")
                 .filter((id) => chart.trackVisibility[id] ?? true)
+                .filter((id) => {
+                  const cfg = TRACK_RENDER_CONFIG[id];
+                  return cfg ? streamAllowed(cfg.stream) : false;
+                })
                 .map((id) => {
                   const cfg = TRACK_RENDER_CONFIG[id];
                   if (!cfg) return null;
@@ -100,17 +126,18 @@ export default function Dashboard() {
             <GaugeCollapsedStrip rightPosition={alarmAnchor} />
           )}
 
-          {alarmSidebar === "open" ? (
-            <FloatingAlarmSidebar />
-          ) : (
-            <AlarmCollapsedStrip />
-          )}
+          {showAlarmSidebar &&
+            (alarmSidebar === "open" ? (
+              <FloatingAlarmSidebar />
+            ) : (
+              <AlarmCollapsedStrip />
+            ))}
         </main>
 
         <Footer />
       </div>
 
-      <AckModal />
+      {showAckModal && <AckModal />}
     </>
   );
 }

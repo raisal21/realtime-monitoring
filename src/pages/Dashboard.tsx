@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
@@ -21,9 +21,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { ROLE_STREAMS, ROLE_FEATURES } from "@/config/role";
 import { StreamDef } from "@/domain/constants";
 import { GaugeCollapsedStrip } from "@/components/dashboard/sidebars/GaugeCollapsedStrip";
-import { FloatingGaugeSidebar } from "@/components/dashboard/sidebars/FloatingGaugeSidebar";
 import { AlarmCollapsedStrip } from "@/components/dashboard/sidebars/AlarmCollapsedStrip";
-import { FloatingAlarmSidebar } from "@/components/dashboard/sidebars/FloatingAlarmSidebar";
+
+const FloatingGaugeSidebar = lazy(() =>
+  import("@/components/dashboard/sidebars/FloatingGaugeSidebar").then((m) => ({
+    default: m.FloatingGaugeSidebar,
+  })),
+);
+const FloatingAlarmSidebar = lazy(() =>
+  import("@/components/dashboard/sidebars/FloatingAlarmSidebar").then((m) => ({
+    default: m.FloatingAlarmSidebar,
+  })),
+);
 import { AckModal } from "@/components/dashboard/modals/AckModal";
 
 const ALARM_SIDEBAR_WIDTH = 300;
@@ -116,14 +125,18 @@ export default function Dashboard() {
           </section>
 
           {gaugeSidebar === "open" ? (
-            <FloatingGaugeSidebar rightPosition={alarmAnchor} />
+            <Suspense fallback={null}>
+              <FloatingGaugeSidebar rightPosition={alarmAnchor} />
+            </Suspense>
           ) : (
             <GaugeCollapsedStrip rightPosition={alarmAnchor} />
           )}
 
           {showAlarmSidebar &&
             (alarmSidebar === "open" ? (
-              <FloatingAlarmSidebar />
+              <Suspense fallback={null}>
+                <FloatingAlarmSidebar />
+              </Suspense>
             ) : (
               <AlarmCollapsedStrip />
             ))}

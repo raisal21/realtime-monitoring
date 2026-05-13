@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthenticatedLayout } from "@/layouts/AuthenticatedLayout";
 import { GuestGuard } from "@/guards/GuestGuard";
 import { AuthGuard } from "@/guards/AuthGuard";
@@ -18,14 +18,18 @@ function RouteFallback() {
 }
 
 function PrewarmRoutes() {
+  const { pathname } = useLocation();
   useEffect(() => {
     const w = window as unknown as {
       requestIdleCallback?: (cb: () => void) => number;
       cancelIdleCallback?: (id: number) => void;
     };
     const cb = () => {
-      void import("@/pages/WellExplorer");
-      void import("@/pages/Dashboard");
+      if (pathname.startsWith("/dashboard")) {
+        void import("@/pages/WellExplorer");
+      } else if (pathname.startsWith("/wells")) {
+        void import("@/pages/Dashboard");
+      }
     };
     let idleId: number | undefined;
     let timerId: number | undefined;
@@ -40,7 +44,7 @@ function PrewarmRoutes() {
         w.cancelIdleCallback(idleId);
       }
     };
-  }, []);
+  }, [pathname]);
   return null;
 }
 

@@ -15,6 +15,7 @@ interface UseMaplibreParams {
 export function useMaplibre({ containerRef, wells, onSelectWell }: UseMaplibreParams) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const activePopupRef = useRef<maplibregl.Popup | null>(null);
+  const popupTimerRef = useRef<number | null>(null);
   const [coords, setCoords] = useState("LAT — · LON —");
 
   useEffect(() => {
@@ -229,6 +230,10 @@ export function useMaplibre({ containerRef, wells, onSelectWell }: UseMaplibrePa
     });
 
     return () => {
+      if (popupTimerRef.current !== null) {
+        clearTimeout(popupTimerRef.current);
+        popupTimerRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
     };
@@ -259,7 +264,10 @@ export function useMaplibre({ containerRef, wells, onSelectWell }: UseMaplibrePa
 
       if (activePopupRef.current) activePopupRef.current.remove();
 
-      setTimeout(() => {
+      if (popupTimerRef.current !== null) clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = window.setTimeout(() => {
+        popupTimerRef.current = null;
+        if (!mapRef.current) return;
         const col = WELL_TYPE_COLOR[well.wellType];
         const isActive = well.status === "drilling";
         const popup = new maplibregl.Popup({

@@ -13,9 +13,25 @@ import { POPUP_STYLES } from "@/components/well-explorer/lib/utils";
 export default function WellExplorer() {
   const { wellId } = useParams<{ wellId?: string }>();
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const [selectedWell, setSelectedWell] = useState<Well | null>(null);
+  const [override, setOverride] = useState<{ key: string | null; well: Well | null } | null>(null);
   const [query, setQuery] = useState("");
   const [activeType, setActiveType] = useState<Well["wellType"] | "all">("all");
+
+  const urlKey = wellId ?? null;
+  const urlWell = wellId ? (getWellById(wellId) ?? null) : null;
+  const selectedWell = override && override.key === urlKey ? override.well : urlWell;
+
+  // Keep latest urlKey in a ref so MapLibre's mount-only click handler always
+  // tags overrides with the current route key, not a stale closure capture.
+  const urlKeyRef = useRef<string | null>(urlKey);
+  useEffect(() => {
+    urlKeyRef.current = urlKey;
+  }, [urlKey]);
+
+  const selectWell = useCallback(
+    (well: Well | null) => setOverride({ key: urlKeyRef.current, well }),
+    [],
+  );
 
   const debouncedQuery = useDebouncedValue(query, 150);
 
@@ -32,22 +48,21 @@ export default function WellExplorer() {
   const { coords, flyToWell } = useMaplibre({
     containerRef: mapContainerRef,
     wells: filteredWells,
-    onSelectWell: setSelectedWell,
+    onSelectWell: selectWell,
   });
 
   const handleSidebarSelect = useCallback(
     (well: Well) => {
-      setSelectedWell(well);
+      selectWell(well);
       flyToWell(well.id);
     },
-    [flyToWell],
+    [flyToWell, selectWell],
   );
 
   useEffect(() => {
     if (!wellId) return;
     const well = getWellById(wellId);
     if (!well) return;
-    setSelectedWell(well);
     flyToWell(well.id);
   }, [wellId, flyToWell]);
 
@@ -77,7 +92,7 @@ export default function WellExplorer() {
           {selectedWell && (
             <DetailPanel
               well={selectedWell}
-              onClose={() => setSelectedWell(null)}
+              onClose={() => selectWell(null)}
             />
           )}
 

@@ -4,7 +4,7 @@ import type { GlobalRigState } from "../store.types";
 
 export type ChartMode = "time" | "depth";
 export type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
-export type Range = { min: number; max: number };
+type Range = { min: number; max: number };
 
 export type ChartState = {
   mode: ChartMode;
@@ -21,7 +21,7 @@ export type ChartState = {
   crosshairValue: number | null;
 };
 
-export interface ChartActions {
+interface ChartActions {
   setMode: (mode: ChartMode) => void;
   setCrosshairValue: (value: number | null) => void;
   toggleLive: () => void;

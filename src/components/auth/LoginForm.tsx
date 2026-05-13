@@ -29,8 +29,9 @@ export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFor
     <form ref={formRef} onSubmit={submit}>
       {/* Email field */}
       <div className="mb-rt-pad-sm">
-        <label className="field-label">Operator email</label>
+        <label className="field-label" htmlFor="login-email">Operator email</label>
         <Input
+          id="login-email"
           ref={firstInputRef}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -40,8 +41,9 @@ export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFor
 
       {/* Password field */}
       <div className="mb-rt-gap-sm">
-        <label className="field-label">Passphrase</label>
+        <label className="field-label" htmlFor="login-pass">Passphrase</label>
         <Input
+          id="login-pass"
           type="password"
           value={pass}
           onChange={(e) => setPass(e.target.value)}

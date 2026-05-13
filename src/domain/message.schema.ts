@@ -23,13 +23,13 @@ export const UnsubsAckPayload = z.strictObject({
 
 export const AlarmSeverity = z.enum(["INFO", "WARNING", "CRITICAL"]);
 
-export const AlarmAcknowledgement = z.strictObject({
+const AlarmAcknowledgement = z.strictObject({
   operatorName: z.string(),
   role: z.string(),
   timestamp: z.number(),
 });
 
-export const Alarm = z.strictObject({
+const Alarm = z.strictObject({
   id: z.string(),
   code: z.string(),
   message: z.string(),
@@ -47,7 +47,7 @@ export const ClosingPayload = z.strictObject({
   closeCode: z.number(),
 });
 
-export const ErrorSchema = z.strictObject({
+const ErrorSchema = z.strictObject({
   code: z.string(),
   message: z.string(),
 });

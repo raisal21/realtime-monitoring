@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
-export type PulseRTone = "default" | "solid" | "print";
-export type PulseRStatus = "ok" | "warning" | "critical" | "info";
+type PulseRTone = "default" | "solid" | "print";
+type PulseRStatus = "ok" | "warning" | "critical" | "info";
 
 export interface PulseRProps {
   size?: number;
@@ -39,7 +39,7 @@ export default function PulseR({
       width={size}
       height={size}
       viewBox="0 0 64 64"
-      shape-rendering="crispEdges"
+      shapeRendering="crispEdges"
       className={cn(pulse && "animate-pulse", className)}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -54,7 +54,7 @@ export default function PulseR({
       <line
         x1="2" y1="40" x2="62" y2="40"
         stroke={accentColor}
-        stroke-width="1.5"
+        strokeWidth="1.5"
         opacity={scanOpacity}
       />
       <rect x="44" y="20" width="3" height="3" fill={accentColor} />

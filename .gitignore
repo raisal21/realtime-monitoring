@@ -29,7 +29,10 @@ AGENTS.md
 CLAUDE.md
 PLAN.md
 NAPKIN.md
+TODO.md
+audit.txt
 stubs/CSHARP_PORT_PLAN.md
+.sentrux/
 
 .obsidian/
 templates/
@@ -40,3 +43,4 @@ daily/
 changelog/
 .napkin/
 
+PLAN.md

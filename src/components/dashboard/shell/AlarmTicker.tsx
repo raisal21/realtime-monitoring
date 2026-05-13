@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { useSettings } from "@/store/app-store";
 import { globalRigStore } from "@/store/index-store";
@@ -6,6 +6,7 @@ import { TICKER_NOMINAL_ENTRIES } from "@/data/dashboard-static";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_FEATURES } from "@/config/role";
 import { cn } from "@/lib/utils";
+import type { AlarmEntity } from "@/store/store.types";
 
 let audioCtx: AudioContext | null = null;
 
@@ -68,44 +69,6 @@ export function AlarmTicker() {
     };
   }, [hasAlarms, settings.soundEnabled, alarmSoundEnabled]);
 
-  const renderAlarmEntries = (keyPrefix: string) =>
-    unackedAlarms.map((alarm, i) => (
-      <React.Fragment key={`${keyPrefix}-${alarm.id}-${i}`}>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5",
-            alarm.severity === "CRITICAL"
-              ? "text-(--theme-critical)"
-              : "text-(--theme-warning)",
-          )}
-        >
-          <span className={cn(
-            "font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.04em]",
-            alarm.severity === "CRITICAL" ? "crit" : "warn"
-          )}>
-            {alarm.severity === "CRITICAL" ? "CRITICAL" : "WARNING"}:{" "}
-            {alarm.message}
-          </span>
-        </span>
-        <span className="text-(--theme-fg-dim) shrink-0">·</span>
-      </React.Fragment>
-    ));
-
-  const renderNominalEntries = (keyPrefix: string) =>
-    TICKER_NOMINAL_ENTRIES.map((entry, i) => (
-      <React.Fragment key={`${keyPrefix}-${entry.label}-${i}`}>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.08em]">
-            {entry.label}:
-          </span>
-          <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-muted) tracking-[0.04em]">
-            {entry.value}
-          </span>
-        </span>
-        <span className="text-(--theme-fg-dim) shrink-0">·</span>
-      </React.Fragment>
-    ));
-
   return (
     <div
       className={cn(
@@ -126,17 +89,15 @@ export function AlarmTicker() {
         >
           {hasAlarms ? (
             <>
-              {renderAlarmEntries("a")}
-              {renderAlarmEntries("b")}
-              {renderAlarmEntries("c")}
-              {renderAlarmEntries("d")}
+              {(["a", "b", "c", "d"] as const).map((prefix) => (
+                <AlarmEntries key={prefix} prefix={prefix} alarms={unackedAlarms} />
+              ))}
             </>
           ) : (
             <>
-              {renderNominalEntries("a")}
-              {renderNominalEntries("b")}
-              {renderNominalEntries("c")}
-              {renderNominalEntries("d")}
+              {(["a", "b", "c", "d"] as const).map((prefix) => (
+                <NominalEntries key={prefix} prefix={prefix} />
+              ))}
             </>
           )}
         </div>
@@ -154,5 +115,53 @@ export function AlarmTicker() {
         {hasAlarms ? `Critical · ${unackedAlarms.length}` : "All Clear"}
       </div>
     </div>
+  );
+}
+
+function AlarmEntries({ prefix, alarms }: { prefix: string; alarms: AlarmEntity[] }) {
+  return (
+    <>
+      {alarms.map((alarm) => (
+        <Fragment key={`${prefix}-${alarm.id}`}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5",
+              alarm.severity === "CRITICAL"
+                ? "text-(--theme-critical)"
+                : "text-(--theme-warning)",
+            )}
+          >
+            <span className={cn(
+              "font-['Share_Tech_Mono',monospace] text-fs-10 tracking-[0.04em]",
+              alarm.severity === "CRITICAL" ? "crit" : "warn"
+            )}>
+              {alarm.severity === "CRITICAL" ? "CRITICAL" : "WARNING"}:{" "}
+              {alarm.message}
+            </span>
+          </span>
+          <span className="text-(--theme-fg-dim) shrink-0">·</span>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+function NominalEntries({ prefix }: { prefix: string }) {
+  return (
+    <>
+      {TICKER_NOMINAL_ENTRIES.map((entry) => (
+        <Fragment key={`${prefix}-${entry.label}`}>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.08em]">
+              {entry.label}:
+            </span>
+            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-muted) tracking-[0.04em]">
+              {entry.value}
+            </span>
+          </span>
+          <span className="text-(--theme-fg-dim) shrink-0">·</span>
+        </Fragment>
+      ))}
+    </>
   );
 }

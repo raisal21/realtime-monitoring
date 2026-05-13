@@ -101,8 +101,9 @@ export function AckModal() {
           </div>
 
           <div>
-            <label className="field-label">Operator Name</label>
+            <label className="field-label" htmlFor="ack-operator">Operator Name</label>
             <input
+              id="ack-operator"
               type="text"
               readOnly
               value={operatorName ?? ""}
@@ -111,8 +112,9 @@ export function AckModal() {
           </div>
 
           <div>
-            <label className="field-label">Role</label>
+            <label className="field-label" htmlFor="ack-role">Role</label>
             <input
+              id="ack-role"
               type="text"
               readOnly
               value={role ? role.toUpperCase() : ""}

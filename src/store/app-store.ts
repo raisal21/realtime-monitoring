@@ -15,8 +15,6 @@ import type {
   Theme,
   Density,
   FontSize,
-  SampleRate,
-  SettingsState,
 } from "@/store/slices/settings-slice";
 import type { UiState } from "@/store/slices/ui-slice";
 import type {
@@ -28,7 +26,7 @@ import type {
 export { TRACKS_META } from "@/data/dashboard-static";
 export { FS_SCALE } from "@/store/slices/settings-slice";
 export type { ChartMode };
-export type { Theme, Density, FontSize, SampleRate, SettingsState };
+export type { Theme, Density, FontSize };
 
 // ─── UI ──────────────────────────────────────────────────────────────────────
 

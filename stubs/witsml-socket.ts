@@ -197,10 +197,11 @@ const log = {
 // =============================================================================
 
 const streamSubscribers: Map<StreamDef, Set<RigWebSocket>> = new Map();
+const VALID_STREAM_IDS = new Set<number>(
+  Object.values(StreamDef).filter((v): v is number => typeof v === "number"),
+);
 
-for (const stream of Object.values(StreamDef).filter(
-  (v) => typeof v === "number",
-) as StreamDef[]) {
+for (const stream of VALID_STREAM_IDS as Set<StreamDef>) {
   streamSubscribers.set(stream, new Set());
 }
 
@@ -534,7 +535,7 @@ function handleSubscribe(
       continue;
     }
 
-    if (Object.values(StreamDef).includes(id)) {
+    if (VALID_STREAM_IDS.has(id)) {
       rigWs.subscriptions.add(id);
 
       const set = streamSubscribers.get(id);

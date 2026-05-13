@@ -1,13 +1,7 @@
 import { metricOk, metricUnavailable, type MetricValue } from "@/lib/types";
 
-export type WellStatus = "drilling" | "standby" | "offline";
-export type WellType = "production" | "injection" | "delineation";
-export type WellPhase =
-  | "drilling"
-  | "completion"
-  | "producing"
-  | "injecting"
-  | "shut-in";
+type WellStatus = "drilling" | "standby" | "offline";
+type WellType = "production" | "injection" | "delineation";
 
 interface WellBase {
   id: string;
@@ -62,14 +56,6 @@ export const WELLS: Well[] = [
   { id: "gc-01", name: "PROD-GC-01", padId: "pad-c", wellType: "production", status: "drilling", phase: "drilling", lat: -7.2802, lon: 107.6798, operator: metricOk("Sari M."), spud: "Jun 1, 2025", targetDepth: "2,100 m", field: FIELD, region: REGION, currentDepth: "1,896 m", rop: "6.0 m/hr", daysOnWell: 12 },
   { id: "gc-02", name: "DEL-GC-01", padId: "pad-c", wellType: "delineation", status: "standby", phase: "completion", lat: -7.2795, lon: 107.6805, operator: metricUnavailable(), spud: "TBD", targetDepth: "3,500 m", field: FIELD, region: REGION },
 ];
-
-export function getWellName(id: string): string {
-  const well = WELLS.find((w) => w.id === id);
-  if (!well) {
-    throw new Error(`Well with id "${id}" not found`);
-  }
-  return well.name;
-}
 
 export function getWellById(id: string): Well | undefined {
   return WELLS.find((w) => w.id === id);

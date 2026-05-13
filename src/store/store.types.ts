@@ -20,12 +20,12 @@ export interface GlobalRigState
     SettingsSlice,
     ToastSlice {}
 
-export interface ConnectionError {
+interface ConnectionError {
   code: string;
   reason: string;
 }
 
-export interface ConnectionState {
+interface ConnectionState {
   status: ConnectionStatus;
   clientId: string | null;
   error?: ConnectionError | null;
@@ -36,7 +36,7 @@ export interface ConnectionState {
   retryFn: (() => void) | null;
 }
 
-export interface ConnectionActions {
+interface ConnectionActions {
   updateConnectionStatus: (status: ConnectionState["status"]) => void;
   registerClient: (clientId: string) => void;
 
@@ -52,11 +52,6 @@ export interface ConnectionActions {
 }
 
 export interface ConnectionSlice extends ConnectionState, ConnectionActions {}
-
-export interface TelemetryPoint {
-  timestamp: number;
-  sensorValue: number;
-}
 
 export interface TelemetrySlice {
   drillStream: DrillUpdate[];

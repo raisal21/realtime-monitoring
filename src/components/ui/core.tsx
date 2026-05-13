@@ -101,16 +101,20 @@ export interface ButtonProps
     React.ComponentPropsWithoutRef<typeof BaseButton>,
     VariantProps<typeof buttonVariants> {}
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, intent, size, fullWidth, ...props }, ref) => (
-    <BaseButton
-      ref={ref}
-      className={cn(buttonVariants({ intent, size, fullWidth }), className)}
-      {...props}
-    />
-  ),
+export const Button = ({
+  ref,
+  className,
+  intent,
+  size,
+  fullWidth,
+  ...props
+}: ButtonProps & { ref?: React.Ref<HTMLButtonElement> }) => (
+  <BaseButton
+    ref={ref}
+    className={cn(buttonVariants({ intent, size, fullWidth }), className)}
+    {...props}
+  />
 );
-Button.displayName = "Button";
 
 // ─── 1.2 INPUT ────────────────────────────────────────────────────────────────
 const inputVariants = cva(
@@ -137,39 +141,42 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   wrapperClassName?: string;
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, wrapperClassName, icon, ...props }, ref) => (
-    <div
-      className={cn(
-        "relative flex items-center w-full",
-        "bg-(--theme-elevated) border border-(--theme-border)",
-        "rounded-(--radius-badge) transition-all duration-150",
-        "focus-within:border-(--theme-accent)",
-        "focus-within:shadow-[0_0_0_3px_var(--theme-accent-dim)]",
-        wrapperClassName,
-      )}
-    >
-      {icon && (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "absolute left-2.75 flex items-center justify-center",
-            "text-fs-12 text-(--theme-fg-dim) pointer-events-none",
-            "group-focus-within:text-(--theme-accent) transition-colors duration-150",
-          )}
-        >
-          {icon}
-        </span>
-      )}
-      <input
-        ref={ref}
-        className={cn(inputVariants({ hasIcon: !!icon }), className)}
-        {...props}
-      />
-    </div>
-  ),
+export const Input = ({
+  ref,
+  className,
+  wrapperClassName,
+  icon,
+  ...props
+}: InputProps & { ref?: React.Ref<HTMLInputElement> }) => (
+  <div
+    className={cn(
+      "relative flex items-center w-full",
+      "bg-(--theme-elevated) border border-(--theme-border)",
+      "rounded-(--radius-badge) transition-all duration-150",
+      "focus-within:border-(--theme-accent)",
+      "focus-within:shadow-[0_0_0_3px_var(--theme-accent-dim)]",
+      wrapperClassName,
+    )}
+  >
+    {icon && (
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute left-2.75 flex items-center justify-center",
+          "text-fs-12 text-(--theme-fg-dim) pointer-events-none",
+          "group-focus-within:text-(--theme-accent) transition-colors duration-150",
+        )}
+      >
+        {icon}
+      </span>
+    )}
+    <input
+      ref={ref}
+      className={cn(inputVariants({ hasIcon: !!icon }), className)}
+      {...props}
+    />
+  </div>
 );
-Input.displayName = "Input";
 
 // ─── 1.3 SURFACE / PANEL ──────────────────────────────────────────────────────
 const surfaceVariants = cva("overflow-hidden", {
@@ -209,16 +216,19 @@ export interface SurfaceProps
     React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof surfaceVariants> {}
 
-export const Surface = React.forwardRef<HTMLDivElement, SurfaceProps>(
-  ({ elevation, outline, className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(surfaceVariants({ elevation, outline }), className)}
-      {...props}
-    />
-  ),
+export const Surface = ({
+  ref,
+  elevation,
+  outline,
+  className,
+  ...props
+}: SurfaceProps & { ref?: React.Ref<HTMLDivElement> }) => (
+  <div
+    ref={ref}
+    className={cn(surfaceVariants({ elevation, outline }), className)}
+    {...props}
+  />
 );
-Surface.displayName = "Surface";
 
 // ─── 1.4 BADGE / CHIP ─────────────────────────────────────────────────────────
 const badgeVariants = cva(
@@ -381,44 +391,3 @@ export const ToggleItem = ({
   />
 );
 
-// ─── 1.7 TRACE COLOR ──────────────────────────────────────────────────────────
-const traceColorVariants = cva("shrink-0 rounded-(--radius-badge)", {
-  variants: {
-    trace: {
-      depth: "bg-[#d3869b]",
-      rpm: "bg-[#8ec07c]",
-      wob: "bg-[#fabd2f]",
-      torque: "bg-[#fe8019]",
-      spp: "bg-[#83a598]",
-      hkld: "bg-[#d65d0e]",
-      gamma: "bg-[#b8bb26]",
-      rop: "bg-[#458588]",
-      h2s: "bg-[#fb4934]",
-      inc: "bg-[#d3869b]",
-      azi: "bg-[#8ec07c]",
-    },
-    type: {
-      line: "w-[12px] h-[3px]",
-      dot: "w-[7px] h-[7px] rounded-full",
-      block: "w-2.5 h-[10px]",
-    },
-  },
-  defaultVariants: { trace: "rpm", type: "line" },
-});
-
-export interface TraceColorProps
-  extends
-    React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof traceColorVariants> {}
-
-export const TraceColor = ({
-  trace,
-  type,
-  className,
-  ...props
-}: TraceColorProps) => (
-  <div
-    className={cn(traceColorVariants({ trace, type }), className)}
-    {...props}
-  />
-);

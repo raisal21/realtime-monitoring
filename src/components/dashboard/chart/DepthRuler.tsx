@@ -344,7 +344,6 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
       ],
     };
   }, [
-    settings.theme,
     settings.unitSystem,
     fsScale,
     isPrimary,
@@ -355,7 +354,6 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     sliderStartPct,
     sliderEndPct,
     showDataZoomSlider,
-    chart.rulerRange,
     tickInterval,
     labelInterval,
   ]);

@@ -1,4 +1,4 @@
-export function getCssVar(name: string): string {
+function getCssVar(name: string): string {
   return getComputedStyle(document.documentElement)
     .getPropertyValue(name)
     .trim();
@@ -38,4 +38,3 @@ export function getTraceColors() {
   };
 }
 
-export type TraceKey = keyof ReturnType<typeof getTraceColors>;

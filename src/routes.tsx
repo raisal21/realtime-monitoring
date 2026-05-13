@@ -19,17 +19,27 @@ function RouteFallback() {
 
 function PrewarmRoutes() {
   useEffect(() => {
-    const idle = (cb: () => void) => {
-      const w = window as unknown as {
-        requestIdleCallback?: (cb: () => void) => number;
-      };
-      if (typeof w.requestIdleCallback === "function") w.requestIdleCallback(cb);
-      else setTimeout(cb, 200);
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
     };
-    idle(() => {
+    const cb = () => {
       void import("@/pages/WellExplorer");
       void import("@/pages/Dashboard");
-    });
+    };
+    let idleId: number | undefined;
+    let timerId: number | undefined;
+    if (typeof w.requestIdleCallback === "function") {
+      idleId = w.requestIdleCallback(cb);
+    } else {
+      timerId = window.setTimeout(cb, 200);
+    }
+    return () => {
+      if (timerId !== undefined) clearTimeout(timerId);
+      if (idleId !== undefined && typeof w.cancelIdleCallback === "function") {
+        w.cancelIdleCallback(idleId);
+      }
+    };
   }, []);
   return null;
 }

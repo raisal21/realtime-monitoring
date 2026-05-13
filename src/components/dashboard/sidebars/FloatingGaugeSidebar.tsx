@@ -127,10 +127,7 @@ function useLiveGaugeValue(
   const pending = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
-      setVal(undefined);
-      return;
-    }
+    if (!enabled) return;
     const flush = () => {
       pending.current = null;
       const v = getLatestValueForGauge(gaugeId, stream);
@@ -153,7 +150,7 @@ function useLiveGaugeValue(
     };
   }, [gaugeId, stream, enabled]);
 
-  return val;
+  return enabled ? val : undefined;
 }
 
 // ─── Radial gauge (ECharts, imperative setOption per rAF) ────────────────────
@@ -619,15 +616,15 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
       ) : status !== "ONLINE" ? (
         <GaugePlaceholder text="Connecting…" />
       ) : (
-        <div className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2 flex flex-col gap-1.5">
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-2 flex flex-col gap-1.5">
           {radialIds.some((id) => byId.has(id)) && (
             <SectionLabel label="Drill / Hydraulics" />
           )}
           <div className="grid grid-cols-2 gap-1.5">
-            {radialIds
-              .map((id) => byId.get(id))
-              .filter((g): g is typeof GAUGES[number] => !!g)
-              .map((g) => (
+            {radialIds.flatMap((id) => {
+              const g = byId.get(id);
+              if (!g) return [];
+              return [
                 <RadialGaugeCard
                   key={g.id}
                   gauge={g}
@@ -636,26 +633,28 @@ export function FloatingGaugeSidebar({ rightPosition }: { rightPosition: number 
                   theme={settings.theme}
                   unitSystem={settings.unitSystem}
                   fsScale={fsScale}
-                />
-              ))}
+                />,
+              ];
+            })}
           </div>
 
           {valueIds.some((id) => byId.has(id)) && (
             <SectionLabel label="Rates / Geo" />
           )}
           <div className="grid grid-cols-2 gap-1.5">
-            {valueIds
-              .map((id) => byId.get(id))
-              .filter((g): g is typeof GAUGES[number] => !!g)
-              .map((g) => (
+            {valueIds.flatMap((id) => {
+              const g = byId.get(id);
+              if (!g) return [];
+              return [
                 <ValueCard
                   key={g.id}
                   gauge={g}
                   source={g.stream}
                   showLive={showLive}
                   unitSystem={settings.unitSystem}
-                />
-              ))}
+                />,
+              ];
+            })}
           </div>
 
           {incGauge && aziGauge && (

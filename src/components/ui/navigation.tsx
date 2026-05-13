@@ -17,10 +17,16 @@ export interface TopbarButtonProps extends ButtonProps {
   alarm?: boolean;
 }
 
-export const TopbarButton = React.forwardRef<
-  HTMLButtonElement,
-  TopbarButtonProps
->(({ intent = "ghost", size = "icon", alarm, badgeCount, className, children, ...props }, ref) => (
+export const TopbarButton = ({
+  ref,
+  intent = "ghost",
+  size = "icon",
+  alarm,
+  badgeCount,
+  className,
+  children,
+  ...props
+}: TopbarButtonProps & { ref?: React.Ref<HTMLButtonElement> }) => (
   <Button
     ref={ref}
     intent={alarm ? "danger" : intent}
@@ -48,8 +54,7 @@ export const TopbarButton = React.forwardRef<
       </span>
     )}
   </Button>
-));
-TopbarButton.displayName = "TopbarButton";
+);
 
 // ─── 4.2 BREADCRUMB ITEM ──────────────────────────────────────────────
 const breadcrumbItemVariants = cva(

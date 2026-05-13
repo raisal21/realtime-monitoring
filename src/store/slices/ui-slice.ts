@@ -12,7 +12,7 @@ export type UiState = {
   alarmFilters: { critical: boolean; warning: boolean; info: boolean };
 };
 
-export interface UiActions {
+interface UiActions {
   toggleGaugeSidebar: () => void;
   toggleAlarmSidebar: () => void;
   toggleBothSidebars: () => void;

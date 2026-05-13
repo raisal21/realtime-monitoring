@@ -158,49 +158,6 @@ export const TRACK_TRACES = {
   ],
 } as const;
 
-export const FEED_ITEMS = [
-  {
-    id: "f1",
-    severity: "critical" as const,
-    state: "unacked" as const,
-    message: "High H2S — 42.3 ppm threshold exceeded",
-    meta: "Stream: GEO · Sensor: H2S",
-    timestamp: "14:31:52",
-  },
-  {
-    id: "f2",
-    severity: "warning" as const,
-    state: "unacked" as const,
-    message: "SPP drop — 2,450 psi (below 2,480 min)",
-    meta: "Stream: DRILL · Sensor: Standpipe Pressure",
-    timestamp: "14:28:17",
-  },
-  {
-    id: "f3",
-    severity: "info" as const,
-    state: "acked" as const,
-    message: "Connection re-established after 3s dropout",
-    meta: "System · WebSocket reconnect #2",
-    timestamp: "14:21:05",
-  },
-  {
-    id: "f4",
-    severity: "note" as const,
-    state: "acked" as const,
-    message: "Pipe change completed — back to drilling",
-    meta: "Ahmad R. · Driller · ft 12,540",
-    timestamp: "14:18:33",
-  },
-  {
-    id: "f5",
-    severity: "info" as const,
-    state: "resolved" as const,
-    message: "RPM stabilized after correction",
-    meta: "Resolved · Acked by Ahmad R.",
-    timestamp: "14:05:11",
-  },
-] as const;
-
 // Depths in meters MD (canonical). Render boundary converts to ft when imperial.
 export const WELL_PROFILE_DATA = [
   { date: "Mar 12", depth: 0 },
@@ -237,13 +194,6 @@ export const PRESET_TO_MINUTES: Record<string, number> = Object.fromEntries(
   ]),
 );
 
-export const RANGE_PRESETS_DOMAIN = [
-  { id: "shift", label: "This Shift" },
-  { id: "bit-run", label: "Last Bit Run" },
-  { id: "connection", label: "Last Connection" },
-  { id: "custom", label: "Custom Range…" },
-] as const;
-
 export const TICKER_NOMINAL_ENTRIES = [
   { label: "Well", value: "PROD-GA-01 · Pad Guntur" },
   { label: "Depth", value: "4,630 m MD" },
@@ -265,15 +215,6 @@ const TIME_STEP_MIN = 30;
 const SESSION_TIME_MAX_MIN = (POINT_COUNT - 1) * TIME_STEP_MIN; // 10050 min ≈ 7d
 const SESSION_DEPTH_START_M = 4237;
 const SESSION_DEPTH_END_M = 4633;
-
-export const SESSION_RANGE = {
-  startDate: SESSION_START_DATE,
-  pointCount: POINT_COUNT,
-  timeStepMin: TIME_STEP_MIN,
-  timeMaxMin: SESSION_TIME_MAX_MIN,
-  depthStartM: SESSION_DEPTH_START_M,
-  depthEndM: SESSION_DEPTH_END_M,
-};
 
 // Stateful generator: produces depth + traces + flow per sample, modeling
 // realistic drill / connect / trip / idle phases. Replaces the old "tile a

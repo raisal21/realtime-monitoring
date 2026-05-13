@@ -96,26 +96,21 @@ export default function Dashboard() {
             <FlowRuler />
 
             <div className="flex-1 flex overflow-x-auto overflow-y-hidden no-scrollbar">
-              {chart.trackOrder
-                .filter((id) => id !== "well-profile")
-                .filter((id) => chart.trackVisibility[id] ?? true)
-                .filter((id) => {
-                  const cfg = TRACK_RENDER_CONFIG[id];
-                  return cfg ? streamAllowed(cfg.stream) : false;
-                })
-                .map((id) => {
-                  const cfg = TRACK_RENDER_CONFIG[id];
-                  if (!cfg) return null;
-                  return (
-                    <LogTrack
-                      key={id}
-                      trackId={id as keyof typeof TRACK_TRACES}
-                      title={cfg.title}
-                      hz={cfg.hz}
-                      stream={cfg.stream}
-                    />
-                  );
-                })}
+              {chart.trackOrder.flatMap((id) => {
+                if (id === "well-profile") return [];
+                if (!(chart.trackVisibility[id] ?? true)) return [];
+                const cfg = TRACK_RENDER_CONFIG[id];
+                if (!cfg || !streamAllowed(cfg.stream)) return [];
+                return [
+                  <LogTrack
+                    key={id}
+                    trackId={id as keyof typeof TRACK_TRACES}
+                    title={cfg.title}
+                    hz={cfg.hz}
+                    stream={cfg.stream}
+                  />,
+                ];
+              })}
               <div className="flex-1 bg-(--theme-base)" />
             </div>
           </section>

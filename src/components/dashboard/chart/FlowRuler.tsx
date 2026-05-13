@@ -163,7 +163,7 @@ export function FlowRuler() {
         },
       },
     };
-  }, [mode, yRange.min, yRange.max, settings.theme, settings.unitSystem, fsScale]);
+  }, [mode, yRange.min, yRange.max, settings.unitSystem, fsScale]);
 
   return (
     <div

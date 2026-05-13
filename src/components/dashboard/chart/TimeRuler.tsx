@@ -346,7 +346,6 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       ],
     };
   }, [
-    settings.theme,
     fsScale,
     isPrimary,
     axisMin,
@@ -356,7 +355,6 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     sliderStartPct,
     sliderEndPct,
     showDataZoomSlider,
-    chart.rulerRange,
     tickInterval,
     labelInterval,
   ]);

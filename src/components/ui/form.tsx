@@ -119,16 +119,19 @@ export interface IconButtonProps
     React.ComponentPropsWithoutRef<typeof BaseButton>,
     VariantProps<typeof iconButtonVariants> {}
 
-export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
-  ({ intent, size, className, ...props }, ref) => (
-    <BaseButton
-      ref={ref}
-      className={cn(iconButtonVariants({ intent, size }), className)}
-      {...props}
-    />
-  ),
+export const IconButton = ({
+  ref,
+  intent,
+  size,
+  className,
+  ...props
+}: IconButtonProps & { ref?: React.Ref<HTMLButtonElement> }) => (
+  <BaseButton
+    ref={ref}
+    className={cn(iconButtonVariants({ intent, size }), className)}
+    {...props}
+  />
 );
-IconButton.displayName = "IconButton";
 
 // ─── 8.4 RADIO CARD ───────────────────────────────────────────────────
 // Card-style radio button (shadcn pattern).

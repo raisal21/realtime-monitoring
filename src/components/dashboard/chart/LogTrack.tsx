@@ -342,14 +342,13 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
           const ps = params as Array<{ value: [number, number] }>;
           if (!ps?.length) return "";
           return ps
-            .map((p, i) => {
+            .flatMap((p, i) => {
               const t = visibleTraces[i];
-              if (!t) return "";
+              if (!t) return [];
               const d = traceDisplays.get(t.trace)!;
               const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
-              return `<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${p.value[0].toFixed(1)}</span> <span style="color:${c.fgDim}">${d.unit}</span>`;
+              return [`<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${p.value[0].toFixed(1)}</span> <span style="color:${c.fgDim}">${d.unit}</span>`];
             })
-            .filter(Boolean)
             .join("<br/>");
         },
       },
@@ -364,7 +363,6 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     logTrackRange,
     rulerRange,
     settings.unitSystem,
-    settings.theme,
     fsScale,
     traceDisplays,
     stream,

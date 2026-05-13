@@ -104,20 +104,19 @@ export function DisplayLayoutPopoverContent() {
             strategy={verticalListSortingStrategy}
           >
             <div className="flex flex-col gap-1">
-              {chart.trackOrder
-                .filter((id) => id !== "well-profile")
-                .map((trackId) => {
-                  const meta = TRACKS_META.find((t) => t.id === trackId);
-                  if (!meta) return null;
-                  return (
-                    <SortableTrackItem
-                      key={trackId}
-                      trackId={trackId}
-                      name={meta.name}
-                      isFixed={meta.isFixed}
-                    />
-                  );
-                })}
+              {chart.trackOrder.flatMap((trackId) => {
+                if (trackId === "well-profile") return [];
+                const meta = TRACKS_META.find((t) => t.id === trackId);
+                if (!meta) return [];
+                return [
+                  <SortableTrackItem
+                    key={trackId}
+                    trackId={trackId}
+                    name={meta.name}
+                    isFixed={meta.isFixed}
+                  />,
+                ];
+              })}
             </div>
           </SortableContext>
         </DndContext>
@@ -126,14 +125,13 @@ export function DisplayLayoutPopoverContent() {
       <div className="px-rt-pad py-rt-pad-sm border-b border-(--theme-border)">
         <span className="section-heading block mb-3">Track Widths</span>
         <div className="flex flex-col gap-3">
-          {chart.trackOrder
-            .filter((id) => id !== "well-profile")
-            .map((trackId) => {
+          {chart.trackOrder.flatMap((trackId) => {
+            if (trackId === "well-profile") return [];
             const meta = TRACKS_META.find((t) => t.id === trackId);
-            if (!meta) return null;
+            if (!meta) return [];
             const width = chart.trackWidths[trackId] ?? meta.defaultWidth;
 
-            return (
+            return [
               <div key={trackId} className="flex items-center gap-3">
                 <span className="w-24 shrink-0 font-['Barlow_Condensed',sans-serif] text-fs-10 font-semibold text-(--theme-fg-muted) truncate">
                   {meta.name}
@@ -155,8 +153,8 @@ export function DisplayLayoutPopoverContent() {
                 <span className="w-12 text-right font-['Share_Tech_Mono',monospace] text-fs-9 text-(--theme-fg-dim) tabular-nums shrink-0">
                   {width} px
                 </span>
-              </div>
-            );
+              </div>,
+            ];
           })}
         </div>
         <Button

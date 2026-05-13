@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, use, useMemo, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { getWellById, type Well } from "@/data/wells";
 
@@ -29,7 +29,7 @@ export function CurrentWellProvider({ children }: { children: ReactNode }) {
 }
 
 export function useCurrentWell(): CurrentWellValue {
-  const ctx = useContext(CurrentWellContext);
+  const ctx = use(CurrentWellContext);
   if (!ctx) {
     throw new Error("useCurrentWell must be used inside CurrentWellProvider");
   }
@@ -37,5 +37,5 @@ export function useCurrentWell(): CurrentWellValue {
 }
 
 export function useOptionalCurrentWell(): CurrentWellValue | null {
-  return useContext(CurrentWellContext);
+  return use(CurrentWellContext);
 }

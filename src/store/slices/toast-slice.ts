@@ -11,7 +11,7 @@ export interface ToastEntry {
   createdAt: number;
 }
 
-export interface ToastActions {
+interface ToastActions {
   pushToast: (
     input: { tone: ToastTone; code: string; message: string },
   ) => string;

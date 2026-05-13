@@ -20,7 +20,7 @@ import { createSettingsSlice } from "./slices/settings-slice";
 import { createToastSlice } from "./slices/toast-slice";
 import { StreamDef } from "@/domain/constants";
 
-export const createConnectionSlice: StateCreator<
+const createConnectionSlice: StateCreator<
   GlobalRigState,
   [],
   [],
@@ -63,7 +63,7 @@ export const createConnectionSlice: StateCreator<
   },
 });
 
-export const createTelemetrySlice: StateCreator<
+const createTelemetrySlice: StateCreator<
   GlobalRigState,
   [],
   [],
@@ -97,7 +97,7 @@ export const createTelemetrySlice: StateCreator<
     }),
 });
 
-export const createAlarmSlice: StateCreator<
+const createAlarmSlice: StateCreator<
   GlobalRigState,
   [],
   [],

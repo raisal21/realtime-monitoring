@@ -29,10 +29,12 @@ export interface PopoverTriggerProps extends React.ComponentPropsWithoutRef<type
   asChild?: boolean;
 }
 
-export const PopoverTrigger = React.forwardRef<
-  HTMLButtonElement,
-  PopoverTriggerProps
->(({ asChild, children, ...props }, ref) => {
+export const PopoverTrigger = ({
+  ref,
+  asChild,
+  children,
+  ...props
+}: PopoverTriggerProps & { ref?: React.Ref<HTMLButtonElement> }) => {
   if (asChild && React.isValidElement(children)) {
     return (
       <BasePopover.Trigger {...props}>
@@ -41,7 +43,7 @@ export const PopoverTrigger = React.forwardRef<
     );
   }
   return <BasePopover.Trigger ref={ref} {...props}>{children}</BasePopover.Trigger>;
-});
+};
 PopoverTrigger.displayName = "PopoverTrigger";
 
 export interface PopoverContentProps extends React.ComponentPropsWithoutRef<

@@ -74,7 +74,7 @@ const DRILLING_DOT_STATUS: Record<
   offline: "inactive",
 };
 
-export type WellType = "production" | "injection" | "delineation";
+type WellType = "production" | "injection" | "delineation";
 
 const WELL_TYPE_BADGE: Record<WellType, { intent: "ok" | "info" | "warning"; label: string }> = {
   production: { intent: "ok", label: "PROD" },
@@ -178,13 +178,13 @@ export const WellListItem = ({
 );
 
 // ─── 5.2 WELL METRIC ──────────────────────────────────────────────────
-export interface WellMetricProps extends React.HTMLAttributes<HTMLDivElement> {
+interface WellMetricProps extends React.HTMLAttributes<HTMLDivElement> {
   metricKey: string;
   value: string | number;
   unit?: string;
 }
 
-export const WellMetric = ({
+const WellMetric = ({
   metricKey,
   value,
   unit,

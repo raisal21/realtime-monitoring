@@ -1,4 +1,4 @@
-export interface Pad {
+interface Pad {
   id: string;
   name: string;
   shortName: string;
@@ -6,7 +6,7 @@ export interface Pad {
   centroid: { lat: number; lon: number };
 }
 
-export const PADS: Record<string, Pad> = {
+const PADS: Record<string, Pad> = {
   "pad-a": {
     id: "pad-a",
     name: "Guntur Wellpad",

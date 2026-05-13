@@ -18,7 +18,7 @@ export function MapOverlay({ coords }: MapOverlayProps) {
         {(Object.keys(WELL_TYPE_COLOR) as Well["wellType"][]).map((t) => (
           <div key={t} className="flex items-center gap-[7px] mb-[3px] last:mb-0">
             <div
-              className="w-[8px] h-[8px] rounded-full"
+              className="size-[8px] rounded-full"
               style={{ background: WELL_TYPE_COLOR[t] }}
             />
             <span className="font-['Barlow_Condensed',sans-serif] text-fs-10 leading-none inline-block text-(--theme-fg-muted)">

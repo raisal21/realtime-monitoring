@@ -102,27 +102,3 @@ export const ConnectionStatus = ({
   </div>
 );
 
-// ─── 7.2 FOOTER STAT ──────────────────────────────────────────────────
-export interface FooterStatProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: string | number;
-  label?: string;
-}
-
-export const FooterStat = ({
-  value,
-  label,
-  className,
-  ...props
-}: FooterStatProps) => (
-  <div
-    className={cn(
-      "flex items-center gap-1.25",
-      "font-['Share_Tech_Mono',monospace] text-fs-10",
-      className,
-    )}
-    {...props}
-  >
-    <span className="text-(--theme-fg-muted)">{value}</span>
-    {label && <span className="text-(--theme-fg-dim)">{label}</span>}
-  </div>
-);

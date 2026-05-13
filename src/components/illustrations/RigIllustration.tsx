@@ -45,9 +45,9 @@ function RigIllustration() {
         }}
         aria-hidden="true"
       >
-        {stars.map((s, i) => (
+        {stars.map((s) => (
           <circle
-            key={i}
+            key={`${s.cx}-${s.cy}`}
             cx={s.cx}
             cy={s.cy}
             r={s.r}

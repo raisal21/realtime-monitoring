@@ -5,7 +5,7 @@ import type { GlobalRigState } from "../store.types";
 export type Theme = "gruvbox" | "tomorrow" | "solarized";
 export type Density = "compact" | "comfortable";
 export type FontSize = "sm" | "md" | "lg";
-export type SampleRate = "10hz" | "5hz" | "1hz";
+type SampleRate = "10hz" | "5hz" | "1hz";
 
 // Mirror of --fs-scale in index.css. Canvas/SVG renderers consume it
 // to keep numeric labels aligned with CSS-driven text.
@@ -15,7 +15,7 @@ export const FS_SCALE: Record<FontSize, number> = {
   lg: 1.12,
 };
 
-export type SettingsState = {
+type SettingsState = {
   theme: Theme;
   density: Density;
   fontSize: FontSize;
@@ -26,7 +26,7 @@ export type SettingsState = {
   unitSystem: UnitSystem;
 };
 
-export interface SettingsActions {
+interface SettingsActions {
   setTheme: (theme: Theme) => void;
   setDensity: (density: Density) => void;
   setFontSize: (size: FontSize) => void;

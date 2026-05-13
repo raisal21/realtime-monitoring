@@ -5,7 +5,7 @@ import type { GlobalRigState } from "../store.types";
 export type Theme = "gruvbox" | "tomorrow" | "solarized";
 export type Density = "compact" | "comfortable";
 export type FontSize = "sm" | "md" | "lg";
-type SampleRate = "10hz" | "5hz" | "1hz";
+export type SampleRate = "10hz" | "5hz" | "1hz";
 
 // Mirror of --fs-scale in index.css. Canvas/SVG renderers consume it
 // to keep numeric labels aligned with CSS-driven text.

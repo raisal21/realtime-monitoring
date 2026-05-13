@@ -15,6 +15,7 @@ import type {
   Theme,
   Density,
   FontSize,
+  SampleRate,
 } from "@/store/slices/settings-slice";
 import type { UiState } from "@/store/slices/ui-slice";
 import type {

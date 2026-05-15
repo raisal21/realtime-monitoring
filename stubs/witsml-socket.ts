@@ -223,6 +223,7 @@ const rigState = {
   h2s: 10.0,
   inc: 0.5,
   azi: 45.0,
+  flow: 1500.0,
 };
 
 let seqDrill = 0;
@@ -237,7 +238,7 @@ let seqGeo = 0;
 // 16+ : sensor values (float32)
 // ------------------------------------------------
 // Layout must stay stable because clients parse this directly.
-const drillBuff = new ArrayBuffer(40);
+const drillBuff = new ArrayBuffer(44);
 const drillView = new DataView(drillBuff);
 
 const geoBuff = new ArrayBuffer(40);
@@ -255,6 +256,7 @@ function sendDrillBuff() {
   drillView.setFloat32(28, rigState.torque);
   drillView.setFloat32(32, rigState.hkld);
   drillView.setFloat32(36, rigState.spp);
+  drillView.setFloat32(40, rigState.flow);
 
   broadcastBinary(drillBuff, StreamDef.DRILL);
 }
@@ -880,13 +882,14 @@ const telemetryInterval = setInterval(() => {
     rigState.torque = getRandom(4, 6);
     rigState.spp = getRandom(2450, 2550);
     rigState.hkld = getRandom(190, 210);
+    rigState.flow = getRandom(1400, 1600);
 
     // Drill broadcasts every tick (100ms), geo every 10th tick (1s).
     sendDrillBuff();
 
     if (tick % 10 === 0) {
       rigState.gamma = getRandom(40, 60);
-      rigState.rop = getRandom(20, 30);
+      rigState.rop = getRandom(2, 12);
       rigState.h2s = getRandom(0, 5);
       sendGeoBuff();
     }

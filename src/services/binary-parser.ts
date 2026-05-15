@@ -7,8 +7,8 @@ import { PROTOCOL_VERSION } from "@/domain/constants";
 export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
   const view = new DataView(buffer);
 
-  if (buffer.byteLength < 40) {
-    log.error("Insufficient buffer length for Geo packet!");
+  if (buffer.byteLength < 44) {
+    log.error("Insufficient buffer length for Drill packet!");
     return null;
   }
 
@@ -27,6 +27,7 @@ export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
     torque: view.getFloat32(28),
     hkld: view.getFloat32(32),
     spp: view.getFloat32(36),
+    flow: view.getFloat32(40),
   };
 
   // Validasi menggunakan .partial() karena data yang masuk hanya sebagian dari RigState

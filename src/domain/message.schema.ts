@@ -104,6 +104,7 @@ export const DrillSchema = z.strictObject({
   torque: z.number(),
   spp: z.number(),
   hkld: z.number(),
+  flow: z.number(),
 });
 
 export const GeoSchema = z.strictObject({

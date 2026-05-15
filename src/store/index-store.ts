@@ -198,18 +198,22 @@ export const globalRigStore = createStore<GlobalRigState>()(
     }),
     {
       name: "rtdc-store",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       // Allowlist persisted slices. Connection/Telemetry/Alarm/Subscription
       // are runtime/server-driven — persisting would resurrect stale state.
+      // Chart state (live mode, range preset, slider toggles) intentionally
+      // not persisted — these are per-session decisions, should reset on
+      // reload to liveMode/1h defaults.
       partialize: (s) => ({
         ui: s.ui,
-        chart: s.chart,
         settings: s.settings,
       }),
       // version 0 → 1: legacy `rtdc.unitSystem` is lifted into
       // `settings.unitSystem` at slice-init time (see settings-slice.ts).
-      // Future schema changes should branch on `version` here.
+      // version 1 → 2: `chart` dropped from allowlist; reload always boots
+      // into liveMode + 1h preset. Old `chart` key in persisted blob is
+      // ignored at hydrate by the new partialize shape.
       migrate: (persisted) => persisted as GlobalRigState,
     },
   ),

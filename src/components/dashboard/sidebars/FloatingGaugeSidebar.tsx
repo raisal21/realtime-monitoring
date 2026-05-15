@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import ReactECharts from "echarts-for-react/lib/core";
+import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useUi, useSettings, FS_SCALE } from "@/store/app-store";
@@ -307,20 +307,31 @@ function RadialGaugeCard({
     };
   }, [source, showLive, buildOption]);
 
-  const initialCfg = buildGaugeConfig(gauge, undefined, unitSystem);
+  // Wrapper status selector: re-renders only on threshold crossings (status
+  // is a string; equality check skips re-render while values stay in tier).
+  // The inner ECharts canvas continues to update imperatively via setOption.
+  const status = useStore(globalRigStore, (s) => {
+    const stream = source === "drill" ? s.drillStream : s.geoStream;
+    const v = stream.length
+      ? (stream[stream.length - 1] as Record<string, number | undefined>)[gauge.id]
+      : undefined;
+    return buildGaugeConfig(gauge, v, unitSystem).status;
+  });
+  const ariaLabel = buildGaugeConfig(gauge, undefined, unitSystem).label;
 
   return (
     <div
       className={cn(
         "overflow-hidden border border-(--theme-border) rounded-(--radius-badge)",
-        statusBg(initialCfg.status),
+        statusBg(status),
       )}
       style={{ height: 118 }}
       role="img"
-      aria-label={`${initialCfg.label}`}
+      aria-label={ariaLabel}
     >
       <ReactECharts
         ref={chartRef}
+        echarts={echarts}
         option={{}}
         style={{ width: "100%", height: "100%" }}
         opts={{ renderer: "canvas" }}

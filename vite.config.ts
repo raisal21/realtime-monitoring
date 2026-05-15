@@ -15,9 +15,13 @@ export default defineConfig({
     chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
-        manualChunks: {
-          echarts: ["echarts", "echarts-for-react"],
-          maplibre: ["maplibre-gl"],
+        manualChunks(id) {
+          if (id.includes("node_modules/echarts/") || id.includes("node_modules/echarts-for-react/") || id.includes("node_modules/zrender/")) {
+            return "echarts";
+          }
+          if (id.includes("node_modules/maplibre-gl/")) {
+            return "maplibre";
+          }
         },
       },
     },

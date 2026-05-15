@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useCallback, useRef } from "react";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import ReactECharts from "echarts-for-react/lib/core";
+import { echarts, type EChartsOption } from "@/lib/echarts";
 import {
   WELL_PROFILE_DATA,
   WELL_PROFILE_MAX_DEPTH_M,
-  SESSION_CURSOR_DEPTH,
-  SESSION_DEPTH_RANGE,
-  SESSION_TIME_RANGE,
   parseWellProfileDate,
   dateToSessionMinute,
 } from "@/data/dashboard-static";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE } from "@/store/app-store";
+import { useLiveSessionRange } from "@/hooks/dashboard-hooks";
 import { formatDepth } from "@/lib/units";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
@@ -72,6 +70,7 @@ export function WellProfileTrack() {
   const showLive = isLive && status === "ONLINE";
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
+  const { depthMin: sessionDepthMin, depthMax: sessionDepthMax, timeMin: sessionTimeMin, timeMax: sessionTimeMax, cursorDepth } = useLiveSessionRange();
 
   const chartRef = useRef<ReactECharts>(null);
   const pendingRaf = useRef<number | null>(null);
@@ -111,7 +110,8 @@ export function WellProfileTrack() {
       // Interpolate continuous depth/time at the fractional index, then clamp
       // to the session window — pre-session entries have no log data.
       if (mode === "depth") {
-        const { min: dMin, max: dMax } = SESSION_DEPTH_RANGE;
+        const dMin = sessionDepthMin;
+        const dMax = sessionDepthMax;
         const a = lerpAtIdx(WP_DEPTHS, loIdx);
         const b = lerpAtIdx(WP_DEPTHS, hiIdx);
         const lo = Math.max(dMin, Math.min(dMax, Math.min(a, b)));
@@ -119,7 +119,8 @@ export function WellProfileTrack() {
         if (hi <= lo) return; // empty overlap with session — keep current range
         setRulerRange(lo, hi);
       } else {
-        const { min: tMin, max: tMax } = SESSION_TIME_RANGE;
+        const tMin = sessionTimeMin;
+        const tMax = sessionTimeMax;
         const a = lerpAtIdx(WP_SESSION_MIN, loIdx);
         const b = lerpAtIdx(WP_SESSION_MIN, hiIdx);
         const lo = Math.max(tMin, Math.min(tMax, Math.min(a, b)));
@@ -128,7 +129,7 @@ export function WellProfileTrack() {
         setRulerRange(lo, hi);
       }
     },
-    [mode, setRulerRange],
+    [mode, setRulerRange, sessionDepthMin, sessionDepthMax, sessionTimeMin, sessionTimeMax],
   );
 
   // Map current rulerRange back to a fractional WP index so the slider handles
@@ -155,7 +156,7 @@ export function WellProfileTrack() {
     const drillStream = globalRigStore.getState().drillStream;
     const currentDepthM = showLive && drillStream.length
       ? drillStream[drillStream.length - 1].depth
-      : SESSION_CURSOR_DEPTH;
+      : cursorDepth;
 
     const dates = data.map((d) => d.date) as string[];
     const depths = data.map((d) => d.depth);
@@ -351,7 +352,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.unitSystem, wellProfileSlider, liveMode, sliderRange.startPct, sliderRange.endPct, fsScale, showLive]);
+  }, [settings.unitSystem, wellProfileSlider, liveMode, sliderRange.startPct, sliderRange.endPct, fsScale, showLive, cursorDepth]);
 
   useEffect(() => {
     if (!showLive) return;
@@ -425,6 +426,7 @@ export function WellProfileTrack() {
         ) : (
           <ReactECharts
             ref={chartRef}
+            echarts={echarts}
             option={option}
             style={{ width: "100%", height: "100%" }}
             opts={{ renderer: "canvas" }}

@@ -1,15 +1,15 @@
 "use client";
 
-import { useReducer, useCallback, useEffect, useMemo } from "react";
+import { useReducer, useCallback, useEffect, useMemo, useState } from "react";
 import type { Dispatch } from "react";
 import { format } from "date-fns";
 import {
-  RotateCcw,
   Activity,
   BarChart2,
   CalendarRange,
 } from "lucide-react";
 import { useChart } from "@/store/app-store";
+import type { RangePreset } from "@/store/slices/chart-slice";
 import {
   RANGE_PRESETS_QUICK,
   WELL_SESSION,
@@ -32,7 +32,7 @@ import {
 import { Calendar } from "@/components/ui/Calendar";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { LiveBadge, RangePresetButton } from "@/components/ui/display";
-import { Button } from "@/components/ui/core";
+import { Button, Surface } from "@/components/ui/core";
 import { cn } from "@/lib/utils";
 
 // ─── Local reducer (avoids cascading setState-in-effect) ─────────────────────
@@ -149,6 +149,27 @@ export function ZoomPopoverContent() {
     toOpen: false,
   });
 
+  const [pendingPreset, setPendingPreset] = useState<RangePreset | null>(null);
+  const isLocked = state.rulerRange !== null || state.logTrackRange !== null;
+
+  const handlePresetClick = useCallback(
+    (preset: RangePreset) => {
+      if (isLocked) {
+        setPendingPreset(preset);
+        return;
+      }
+      dispatch({ type: "SET_RANGE_PRESET", preset });
+    },
+    [isLocked, dispatch],
+  );
+
+  const handleConfirmPreset = useCallback(() => {
+    if (pendingPreset === null) return;
+    dispatch({ type: "SET_LIVE", live: true });
+    dispatch({ type: "SET_RANGE_PRESET", preset: pendingPreset });
+    setPendingPreset(null);
+  }, [pendingPreset, dispatch]);
+
   // Sync local state from store when ruler range changes externally.
   useRulerSync(state, axisRange, localDispatch);
 
@@ -217,9 +238,7 @@ export function ZoomPopoverContent() {
             <RangePresetButton
               key={p.id}
               active={state.liveMode && state.rangePreset === p.id}
-              onClick={() =>
-                dispatch({ type: "SET_RANGE_PRESET", preset: p.id })
-              }
+              onClick={() => handlePresetClick(p.id)}
             >
               {p.label}
             </RangePresetButton>
@@ -323,17 +342,10 @@ export function ZoomPopoverContent() {
           <TimePicker value={local.max} onChange={(v) => localDispatch({ type: "SET_MAX", value: v })} />
         </div>
 
-        {/* Apply / Reset */}
+        {/* Apply */}
         <div className="flex gap-1.5 mt-2.5">
           <Button intent="primary" size="sm" fullWidth onClick={handleApply}>
             Apply
-          </Button>
-          <Button
-            intent="ghost"
-            size="sm"
-            onClick={() => dispatch({ type: "RESET_ZOOM" })}
-          >
-            <RotateCcw size={11} strokeWidth={2} />
           </Button>
         </div>
       </div>
@@ -373,6 +385,43 @@ export function ZoomPopoverContent() {
           Slider
         </Button>
       </div>
+
+      {pendingPreset !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[260] flex items-center justify-center bg-black/60 backdrop-blur-[3px]"
+          onClick={() => setPendingPreset(null)}
+        >
+          <Surface
+            elevation="elevated"
+            outline="all"
+            className="w-[360px] animate-fade-up shadow-[0_32px_80px_rgba(0,0,0,0.7)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 border-b border-(--theme-border)">
+              <span className="font-['Barlow_Condensed',sans-serif] text-fs-14 font-bold uppercase tracking-[0.08em]">
+                Discard custom range?
+              </span>
+            </div>
+            <div className="px-5 py-3 text-fs-12 text-(--theme-fg-dim)">
+              Switching to {pendingPreset} releases the locked viewport and resumes live tracking.
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-(--theme-border)">
+              <Button
+                intent="ghost"
+                size="sm"
+                onClick={() => setPendingPreset(null)}
+              >
+                Cancel
+              </Button>
+              <Button intent="primary" size="sm" onClick={handleConfirmPreset}>
+                Confirm
+              </Button>
+            </div>
+          </Surface>
+        </div>
+      )}
     </PopoverContent>
   );
 }

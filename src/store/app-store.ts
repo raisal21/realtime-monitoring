@@ -88,9 +88,6 @@ type ChartAction =
   | { type: "SET_RULER_RANGE"; min: number; max: number }
   | { type: "SET_LOG_TRACK_RANGE"; min: number; max: number }
   | { type: "SET_SLIDER_MODE"; value: boolean }
-  | { type: "ZOOM_IN" }
-  | { type: "ZOOM_OUT" }
-  | { type: "RESET_ZOOM" }
   | { type: "TOGGLE_TRACE_VISIBILITY"; trace: string }
   | { type: "SET_TRACK_ORDER"; order: string[] }
   | { type: "SET_TRACK_WIDTH"; trackId: string; width: number }
@@ -116,12 +113,6 @@ const chartDispatch: React.Dispatch<ChartAction> = (a) => {
       return g.setLogTrackRange(a.min, a.max);
     case "SET_SLIDER_MODE":
       return g.setSliderMode(a.value);
-    case "ZOOM_IN":
-      return g.zoomIn();
-    case "ZOOM_OUT":
-      return g.zoomOut();
-    case "RESET_ZOOM":
-      return g.resetZoom();
     case "TOGGLE_TRACE_VISIBILITY":
       return g.toggleTraceVisibility(a.trace);
     case "SET_TRACK_ORDER":

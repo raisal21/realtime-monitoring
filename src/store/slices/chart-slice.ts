@@ -30,9 +30,6 @@ interface ChartActions {
   setRulerRange: (min: number, max: number) => void;
   setLogTrackRange: (min: number, max: number) => void;
   setSliderMode: (value: boolean) => void;
-  zoomIn: () => void;
-  zoomOut: () => void;
-  resetZoom: () => void;
   toggleTraceVisibility: (trace: string) => void;
   setTrackOrder: (order: string[]) => void;
   setTrackWidth: (trackId: string, width: number) => void;
@@ -124,30 +121,26 @@ export const createChartSlice: StateCreator<
     })),
 
   setRangePreset: (preset) =>
-    set((s) => ({
-      chart: {
-        ...s.chart,
-        rangePreset: preset,
-        liveMode: true,
-        rulerRange: null,
-        logTrackRange: null,
-        wellProfileSlider: false,
-        rulerSlider: false,
-      },
-    })),
+    set((s) => ({ chart: { ...s.chart, rangePreset: preset } })),
 
   setRulerRange: (min, max) =>
-    set((s) => ({
-      chart: {
-        ...s.chart,
-        rulerRange: { min, max },
-        logTrackRange: null,
-        liveMode: false,
-        rangePreset: null,
-        wellProfileSlider: true,
-        rulerSlider: true,
-      },
-    })),
+    set((s) => {
+      const currentInner = s.chart.logTrackRange;
+      const nextInner =
+        currentInner && min <= currentInner.min && currentInner.max <= max
+          ? currentInner
+          : null;
+      return {
+        chart: {
+          ...s.chart,
+          rulerRange: { min, max },
+          logTrackRange: nextInner,
+          liveMode: false,
+          wellProfileSlider: true,
+          rulerSlider: true,
+        },
+      };
+    }),
 
   setLogTrackRange: (min, max) =>
     set((s) => ({
@@ -155,7 +148,6 @@ export const createChartSlice: StateCreator<
         ...s.chart,
         logTrackRange: { min, max },
         liveMode: false,
-        rangePreset: null,
         wellProfileSlider: true,
         rulerSlider: true,
       },
@@ -164,22 +156,6 @@ export const createChartSlice: StateCreator<
   setSliderMode: (value) =>
     set((s) => ({
       chart: value ? enterSliderMode(s.chart) : enterLiveMode(s.chart),
-    })),
-
-  zoomIn: () => set((s) => ({ chart: enterSliderMode(s.chart) })),
-  zoomOut: () => set((s) => ({ chart: enterSliderMode(s.chart) })),
-
-  resetZoom: () =>
-    set((s) => ({
-      chart: {
-        ...s.chart,
-        liveMode: true,
-        rangePreset: "1h",
-        rulerRange: null,
-        logTrackRange: null,
-        wellProfileSlider: false,
-        rulerSlider: false,
-      },
     })),
 
   toggleTraceVisibility: (trace) =>

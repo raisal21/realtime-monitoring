@@ -1,5 +1,54 @@
 import { useState, useEffect, useRef } from "react";
+import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import { useUi, useChart } from "@/store/app-store";
+import { globalRigStore } from "@/store/index-store";
+
+// Live-derived session window. Empty stream → neutral 30 m / 1 h fallback so
+// first paint doesn't NaN. Rulers + tracks read from here instead of static
+// SESSION_* constants. Snap policy: rulers no longer snap axis outward; the
+// formatter `val % labelInterval === 0 ? show : ""` already gates labels.
+export function useLiveSessionRange(): {
+  depthMin: number;
+  depthMax: number;
+  timeMin: number;
+  timeMax: number;
+  cursorDepth: number;
+  ropMPerMin: number;
+} {
+  return useStore(
+    globalRigStore,
+    useShallow((s) => {
+      const stream = s.drillStream;
+      if (stream.length === 0) {
+        const now = Date.now();
+        return {
+          depthMin: 0,
+          depthMax: 30,
+          timeMin: now - 60 * 60 * 1000,
+          timeMax: now,
+          cursorDepth: 0,
+          ropMPerMin: 0.1,
+        };
+      }
+      const first = stream[0];
+      const last = stream[stream.length - 1];
+      const rawMin = Math.min(first.depth, last.depth);
+      const rawMax = Math.max(first.depth, last.depth);
+      const span = rawMax - rawMin;
+      const dTimeMs = last.timestamp - first.timestamp;
+      const ropMPerMin = dTimeMs > 0 ? (rawMax - rawMin) / dTimeMs * 60_000 : 0.1;
+      return {
+        depthMin: span < 1 ? rawMax - 30 : rawMin,
+        depthMax: rawMax,
+        timeMin: first.timestamp,
+        timeMax: last.timestamp,
+        cursorDepth: last.depth,
+        ropMPerMin,
+      };
+    }),
+  );
+}
 
 export function useClock() {
   const [time, setTime] = useState(() =>
@@ -49,19 +98,7 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      if (!cmd) {
-        if (e.key === "[") {
-          e.preventDefault();
-          chartDispatch({ type: "ZOOM_OUT" });
-          return;
-        }
-        if (e.key === "]") {
-          e.preventDefault();
-          chartDispatch({ type: "ZOOM_IN" });
-          return;
-        }
-        return;
-      }
+      if (!cmd) return;
 
       switch (e.key) {
         case ".":

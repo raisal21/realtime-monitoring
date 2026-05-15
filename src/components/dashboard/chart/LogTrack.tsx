@@ -1,20 +1,21 @@
 import { useMemo, useRef, useEffect, useCallback } from "react";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import ReactECharts from "echarts-for-react/lib/core";
+import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE, TRACKS_META } from "@/store/app-store";
-import {
-  TRACK_TRACES,
-  PRESET_TO_MINUTES,
-  presetToDepthSpanM,
-} from "@/data/dashboard-static";
+import { TRACK_TRACES } from "@/data/dashboard-static";
 import { Badge } from "@/components/ui/core";
 import { getChartColors, getTraceColors } from "@/lib/echarts-theme";
 import { formatDepth, formatQuantityBounds } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { LIVE_WELL_ID } from "@/data/wells";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import {
+  getViewport,
+  type ViewportSession,
+} from "@/lib/chart-viewport";
+import { getTickCount } from "@/lib/chart-ticks";
 import type { GlobalRigState } from "@/store/store.types";
 import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
 
@@ -159,7 +160,6 @@ function getStreamSlice(
 
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const mode = useStore(globalRigStore, (s) => s.chart.mode);
-  const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
@@ -212,24 +212,35 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const visibleTraces = traces.filter((t) => traceVisibility[t.trace]);
 
     const streamData = getStreamSlice(globalRigStore.getState(), stream);
+    const drillNow = globalRigStore.getState().drillStream;
+    const head = drillNow[0];
+    const tail = drillNow[drillNow.length - 1];
 
-    let yRange: { min: number; max: number };
+    let session: ViewportSession;
     if (mode === "depth") {
-      const last = streamData.length ? streamData[streamData.length - 1].depth : 0;
-      const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
-      yRange = liveMode
-        ? { min: Math.max(0, last - span), max: last + 1 }
-        : (logTrackRange ?? rulerRange ?? { min: Math.max(0, last - span), max: last + 1 });
+      const cursor = tail?.depth ?? 0;
+      const minDepth = head?.depth ?? cursor;
+      const dT = head && tail ? tail.timestamp - head.timestamp : 0;
+      const ropMPerMin =
+        dT > 0 && head && tail
+          ? ((tail.depth - head.depth) / dT) * 60_000
+          : 0.1;
+      session = { min: minDepth, max: cursor, cursor, ropMPerMin };
     } else {
-      const lastTs = streamData.length
-        ? streamData[streamData.length - 1].timestamp
-        : Date.now();
-      const span = rangePreset ? (PRESET_TO_MINUTES[rangePreset] ?? 60) : 60;
-      const spanMs = span * 60_000;
-      yRange = liveMode
-        ? { min: lastTs - spanMs, max: lastTs }
-        : (logTrackRange ?? rulerRange ?? { min: lastTs - spanMs, max: lastTs });
+      const cursor = tail?.timestamp ?? Date.now();
+      const min = head?.timestamp ?? cursor;
+      session = { min, max: cursor, cursor };
     }
+
+    const yRange = getViewport(
+      { rangePreset, rulerRange, logTrackRange },
+      session,
+      true,
+      mode,
+    );
+    const canvasH =
+      chartRef.current?.getEchartsInstance()?.getHeight() ?? 600;
+    const tickCount = getTickCount(canvasH);
 
     const convertVal = (t: typeof visibleTraces[number], v: number): number => {
       if (t.kind === "scalar") return v;
@@ -298,6 +309,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         min: yRange.min,
         max: yRange.max,
         show: false,
+        splitNumber: tickCount,
         splitLine: {
           show: true,
           lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
@@ -358,7 +370,6 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     traces,
     traceVisibility,
     mode,
-    liveMode,
     rangePreset,
     logTrackRange,
     rulerRange,
@@ -436,6 +447,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         ) : (
           <ReactECharts
             ref={chartRef}
+            echarts={echarts}
             option={{}}
             style={{ width: "100%", height: "100%" }}
             opts={{ renderer: "canvas" }}

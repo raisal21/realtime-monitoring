@@ -1,20 +1,25 @@
-import { useMemo } from "react";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
-import {
-  SESSION_CURSOR_DEPTH,
-  SESSION_DEPTH_RANGE,
-  SESSION_TIME_RANGE,
-  SESSION_FLOW_SAMPLES,
-  PRESET_TO_MINUTES,
-  presetToDepthSpanM,
-} from "@/data/dashboard-static";
+import { useCallback, useEffect, useRef } from "react";
+import ReactECharts from "echarts-for-react/lib/core";
+import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE } from "@/store/app-store";
+import { useLiveSessionRange } from "@/hooks/dashboard-hooks";
+import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import { LIVE_WELL_ID } from "@/data/wells";
 import { getChartColors } from "@/lib/echarts-theme";
 import { formatDepth } from "@/lib/units";
 import { cn } from "@/lib/utils";
+import {
+  getViewport,
+  type ViewportSession,
+} from "@/lib/chart-viewport";
+import type { DrillUpdate } from "@/domain/message.types";
+
+// Flow baseline (gpm). Live stub holds rigState.flow around 1500; we render
+// the signed delta (flow - FLOW_BASELINE) so positive = "in", negative = "out".
+const FLOW_BASELINE = 1500;
+const FLOW_SCALE = 200;
 
 const minutesToHHMM = (min: number) => {
   const wrapped = ((min % 1440) + 1440) % 1440;
@@ -23,60 +28,52 @@ const minutesToHHMM = (min: number) => {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 };
 
-const FLOW_SCALE = Math.max(
-  10,
-  Math.ceil(Math.max(...SESSION_FLOW_SAMPLES.map((d) => Math.abs(d.flow))) * 1.15),
-);
-
 export function FlowRuler() {
   // Per-field selectors: avoid re-render on unrelated chart mutations
   // (crosshair, traceVisibility, track layout).
   const mode = useStore(globalRigStore, (s) => s.chart.mode);
-  const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
+  const status = useStore(globalRigStore, (s) => s.status);
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
+  const {
+    depthMin,
+    depthMax,
+    timeMin,
+    timeMax,
+    cursorDepth,
+    ropMPerMin,
+  } = useLiveSessionRange();
+  const { well } = useCurrentWell();
+  const isLive = well?.id === LIVE_WELL_ID;
+  const showLive = isLive && status === "ONLINE";
 
-  // Mirror LogTrack's yRange logic so flow bars stay vertically aligned with
-  // the active ruler (Time / Depth) under live, preset, and zoom states.
-  const sessionRange =
+  const chartRef = useRef<ReactECharts>(null);
+  const pendingRaf = useRef<number | null>(null);
+
+  // Shared viewport helper — same window as primary ruler / LogTrack.
+  const session: ViewportSession =
     mode === "depth"
-      ? SESSION_DEPTH_RANGE
-      : SESSION_TIME_RANGE;
-  let yRange: { min: number; max: number };
-  if (liveMode) {
-    if (mode === "depth") {
-      const cur = SESSION_CURSOR_DEPTH;
-      const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
-      yRange = { min: Math.max(sessionRange.min, cur - span), max: cur };
-    } else {
-      const span = rangePreset ? PRESET_TO_MINUTES[rangePreset] ?? 60 : 60;
-      yRange = {
-        min: Math.max(sessionRange.min, sessionRange.max - span),
-        max: sessionRange.max,
-      };
-    }
-  } else {
-    yRange =
-      logTrackRange ??
-      rulerRange ?? { min: sessionRange.min, max: sessionRange.max };
-  }
+      ? { min: depthMin, max: depthMax, cursor: cursorDepth, ropMPerMin }
+      : { min: timeMin, max: timeMax, cursor: timeMax };
+  const yRange = getViewport(
+    { rangePreset, rulerRange, logTrackRange },
+    session,
+    true,
+    mode,
+  );
 
-  const option = useMemo((): EChartsOption => {
+  const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
-    const samples = SESSION_FLOW_SAMPLES;
 
-    // Filter samples by visible window. Depth is non-monotonic (drill / trip
-    // cycles can revisit the same depth band), so multiple samples may hit
-    // the same depth slice — that is intentional and renders as stacked bars.
-    const inRange =
-      mode === "depth"
-        ? samples.filter(
-            (s) => s.depth >= yRange.min && s.depth <= yRange.max,
-          )
-        : samples.filter((s) => s.time >= yRange.min && s.time <= yRange.max);
+    const stream = globalRigStore.getState().drillStream;
+    const yKey: keyof DrillUpdate = mode === "depth" ? "depth" : "timestamp";
+    const inRange = stream.filter((s) => {
+      const v = s[yKey];
+      return v >= yRange.min && v <= yRange.max;
+    });
 
     return {
       animation: false,
@@ -127,10 +124,7 @@ export function FlowRuler() {
             };
           },
           encode: { x: 0, y: 1 },
-          data: inRange.map((s) => [
-            s.flow,
-            mode === "depth" ? s.depth : s.time,
-          ]),
+          data: inRange.map((s) => [s.flow - FLOW_BASELINE, s[yKey]]),
           tooltip: { show: true },
         },
       ],
@@ -164,6 +158,37 @@ export function FlowRuler() {
       },
     };
   }, [mode, yRange.min, yRange.max, settings.unitSystem, fsScale]);
+
+  useEffect(() => {
+    if (!showLive) return;
+    const ec = chartRef.current?.getEchartsInstance();
+    if (!ec) return;
+
+    ec.setOption(buildOption(), { lazyUpdate: true });
+
+    const flush = () => {
+      pendingRaf.current = null;
+      const inst = chartRef.current?.getEchartsInstance();
+      if (!inst) return;
+      inst.setOption(buildOption(), { lazyUpdate: true });
+    };
+
+    const unsubscribe = globalRigStore.subscribe(
+      (s) => s.drillStream,
+      () => {
+        if (pendingRaf.current !== null) return;
+        pendingRaf.current = requestAnimationFrame(flush);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      if (pendingRaf.current !== null) {
+        cancelAnimationFrame(pendingRaf.current);
+        pendingRaf.current = null;
+      }
+    };
+  }, [buildOption, showLive]);
 
   return (
     <div
@@ -203,13 +228,32 @@ export function FlowRuler() {
 
       <div className="relative flex-1 overflow-hidden">
         <div className="absolute left-1/2 top-0 bottom-0 w-px bg-(--theme-border) z-10" />
-        <ReactECharts
-          option={option}
-          style={{ width: "100%", height: "100%" }}
-          opts={{ renderer: "canvas" }}
-          notMerge
-        />
+        {!isLive ? (
+          <ChartPlaceholder text="No live feed for this well" />
+        ) : status !== "ONLINE" ? (
+          <ChartPlaceholder text="Connecting…" />
+        ) : (
+          <ReactECharts
+            ref={chartRef}
+            echarts={echarts}
+            option={{}}
+            style={{ width: "100%", height: "100%" }}
+            opts={{ renderer: "canvas" }}
+            notMerge={false}
+            lazyUpdate
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+function ChartPlaceholder({ text }: { text: string }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
+        {text}
+      </span>
     </div>
   );
 }

@@ -1,68 +1,31 @@
-import { useMemo, useCallback, useRef, useEffect } from "react";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
-import {
-  SESSION_CURSOR_DEPTH,
-  SESSION_DEPTH_RANGE,
-  SESSION_TIME_RANGE,
-  PRESET_TO_MINUTES,
-  sessionMinuteToDate,
-  depthRangeToTimeRange,
-  presetToDepthSpanM,
-} from "@/data/dashboard-static";
+import { useCallback, useRef, useEffect, useState } from "react";
+import ReactECharts from "echarts-for-react/lib/core";
+import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE } from "@/store/app-store";
+import { useLiveSessionRange } from "@/hooks/dashboard-hooks";
 import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
+import {
+  getViewport,
+  type ViewportSession,
+} from "@/lib/chart-viewport";
+import { getTickCount } from "@/lib/chart-ticks";
 
-const minutesToHHMM = (min: number) => {
-  const wrapped = ((min % 1440) + 1440) % 1440;
-  const h = Math.floor(wrapped / 60);
-  const m = Math.floor(wrapped % 60);
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+const MS_PER_MIN = 60_000;
+
+// Local wall-clock — DashboardSubheader's LiveDepthReadout also shows local;
+// staying consistent across the dashboard.
+const msToHHMM = (ms: number) => {
+  const d = new Date(ms);
+  return `${d.getHours().toString().padStart(2, "0")}:${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function getEffectiveRange(
-  isPrimary: boolean,
-  liveMode: boolean,
-  rulerRange: { min: number; max: number } | null,
-  rangePreset: string | null,
-  sessionMin: number,
-  sessionMax: number,
-) {
-  if (isPrimary) {
-    if (liveMode) {
-      const spanMinutes = rangePreset ? (PRESET_TO_MINUTES[rangePreset] ?? 60) : 60;
-      const end = sessionMax;
-      const start = Math.max(sessionMin, end - spanMinutes);
-      return { min: start, max: end };
-    }
-    return rulerRange ?? { min: sessionMin, max: sessionMax };
-  }
-  // Non-primary (chart.mode === "depth"): project the active depth window
-  // onto the time axis so the time ruler reflects the same visible span as
-  // the depth ruler, log tracks, and well-profile slider.
-  if (liveMode) {
-    const cur = SESSION_CURSOR_DEPTH;
-    const span = rangePreset ? presetToDepthSpanM(rangePreset) : 30;
-    const dStart = Math.max(SESSION_DEPTH_RANGE.min, cur - span);
-    return (
-      depthRangeToTimeRange(dStart, cur) ?? { min: sessionMin, max: sessionMax }
-    );
-  }
-  if (rulerRange) {
-    return (
-      depthRangeToTimeRange(rulerRange.min, rulerRange.max) ?? {
-        min: sessionMin,
-        max: sessionMax,
-      }
-    );
-  }
-  return { min: sessionMin, max: sessionMax };
-}
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const chart = useStore(globalRigStore, (s) => s.chart);
@@ -77,16 +40,35 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const { state: settings } = useSettings();
   const echartsRef = useRef<ReactECharts>(null);
   const axisPointerActive = useRef(false);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasH, setCanvasH] = useState(600);
+  useEffect(() => {
+    const node = chartContainerRef.current;
+    if (!node) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const e of entries) setCanvasH(e.contentRect.height);
+    });
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, []);
 
-  const { min: sessionMin, max: sessionMax } = SESSION_TIME_RANGE;
-  const yRange = getEffectiveRange(
-    isPrimary,
-    chart.liveMode,
-    chart.rulerRange,
-    chart.rangePreset,
-    sessionMin,
-    sessionMax,
-  );
+  const { timeMin: sessionMin, timeMax: sessionMax } = useLiveSessionRange();
+  const session: ViewportSession = {
+    min: sessionMin,
+    max: sessionMax,
+    cursor: sessionMax,
+  };
+  const yRange = getViewport(chart, session, isPrimary, "time");
+
+  // Tick count adapts to canvas height via getTickCount helper. Values
+  // won't land on round wall-clock minutes but density stays readable across
+  // resizes. msToHHMM formatter rounds to nearest minute. Crosshair
+  // projection uses raw bounds so the tooltip pixel matches the cursor.
+  const tickCount = getTickCount(canvasH);
+  const spanMs = yRange.max - yRange.min;
+  const tickIntervalMs = spanMs > 0 ? spanMs / tickCount : MS_PER_MIN;
+  const axisMin = yRange.min;
+  const axisMax = yRange.max;
 
   useEffect(() => {
     const ec = echartsRef.current?.getEchartsInstance();
@@ -95,7 +77,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     const { crosshairValue } = chart;
 
     if (crosshairValue !== null) {
-      const timeValue = yRange.min + crosshairValue * (yRange.max - yRange.min);
+      const timeValue = axisMin + crosshairValue * (axisMax - axisMin);
       const coords = ec.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [
         0.5,
         timeValue,
@@ -130,7 +112,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
       });
       axisPointerActive.current = false;
     }
-  }, [chart.crosshairValue, yRange.min, yRange.max]);
+  }, [chart.crosshairValue, axisMin, axisMax]);
 
   const sliderAxisMin = sessionMin;
   const sliderAxisMax = sessionMax;
@@ -184,32 +166,15 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
 
   const fsScale = FS_SCALE[settings.fontSize];
 
-  // Pick tick density based on visible span (range covers up to 7 days).
-  const span = yRange.max - yRange.min;
-  const { tickInterval, labelInterval } =
-    span > 4320
-      ? { tickInterval: 720, labelInterval: 1440 }   // > 3d:  6h ticks, daily labels
-      : span > 1440
-      ? { tickInterval: 240, labelInterval: 720 }    // > 1d:  4h ticks, 12h labels
-      : span > 360
-      ? { tickInterval: 60, labelInterval: 180 }     // > 6h:  1h ticks, 3h labels
-      : span > 60
-      ? { tickInterval: 15, labelInterval: 60 }      // > 1h:  15m ticks, hourly labels
-      : { tickInterval: 5, labelInterval: 15 };      // ≤ 1h:  5m ticks, 15m labels
-
-  // Snap axis bounds to tickInterval so ticks align with labelInterval grid
-  // (slider/dataZoom can yield float minute values, which would otherwise
-  // make `val % labelInterval === 0` always false → blank labels).
-  const axisMin = Math.floor(yRange.min / tickInterval) * tickInterval;
-  const axisMax = Math.ceil(yRange.max / tickInterval) * tickInterval;
-
   // Slider operates on full session range; start/end percentages reflect
   // current visible window position within the session.
   const sessionSpan = sessionMax - sessionMin || 1;
   const sliderStartPct = ((yRange.min - sessionMin) / sessionSpan) * 100;
   const sliderEndPct = ((yRange.max - sessionMin) / sessionSpan) * 100;
 
-  const option = useMemo((): EChartsOption => {
+  const pendingRaf = useRef<number | null>(null);
+
+  const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
     const tickColor = isPrimary ? c.accent : c.fgDim;
     const labelColor = isPrimary ? c.fgMuted : c.fgDim;
@@ -236,7 +201,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
           max: axisMax,
           inverse: true,
           position: "left",
-          interval: tickInterval,
+          interval: tickIntervalMs,
           axisLine: { show: false },
           axisTick: {
             show: true,
@@ -250,8 +215,8 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             fontSize: 9 * fsScale,
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
-            formatter: (val: number) =>
-              val % labelInterval === 0 ? minutesToHHMM(val % 1440) : "",
+            hideOverlap: true,
+            formatter: (val: number) => msToHHMM(val),
           },
           splitLine: { show: false },
           axisPointer: {
@@ -263,12 +228,8 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               fontSize: 11 * fsScale,
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
-              formatter: (params: { value: number | string | Date }) => {
-                const min = ((Number(params.value) % 1440) + 1440) % 1440;
-                const h = Math.floor(min / 60);
-                const m = Math.floor(min % 60);
-                return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-              },
+              formatter: (params: { value: number | string | Date }) =>
+                msToHHMM(Number(params.value)),
             },
           },
         },
@@ -283,50 +244,52 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
           show: false,
         },
       ],
-      dataZoom: showDataZoomSlider
-        ? [
-            {
-              type: "inside",
-              yAxisIndex: 1,
-              filterMode: "none",
-              zoomOnMouseWheel: true,
-              moveOnMouseMove: false,
-              moveOnMouseWheel: true,
-              start: sliderStartPct,
-              end: sliderEndPct,
-            },
-            {
-              type: "slider",
-              yAxisIndex: 1,
-              orient: "vertical",
-              left: 0,
-              width: 42,
-              handleSize: 30,
-              borderColor: "transparent",
-              backgroundColor: "transparent",
-              fillerColor: c.accent + "50",
-              handleStyle: {
-                color: c.accent,
-                borderWidth: 1,
-                borderRadius: 0,
+      dataZoom: !isPrimary
+        ? []
+        : showDataZoomSlider
+          ? [
+              {
+                type: "inside",
+                yAxisIndex: 1,
+                filterMode: "none",
+                zoomOnMouseWheel: true,
+                moveOnMouseMove: false,
+                moveOnMouseWheel: true,
+                start: sliderStartPct,
+                end: sliderEndPct,
               },
-              filterMode: "none",
-              showDataShadow: false,
-              showDetail: false,
-              start: sliderStartPct,
-              end: sliderEndPct,
-            },
-          ]
-        : [
-            {
-              type: "inside",
-              yAxisIndex: 1,
-              filterMode: "none",
-              zoomOnMouseWheel: true,
-              moveOnMouseMove: false,
-              moveOnMouseWheel: true,
-            },
-          ],
+              {
+                type: "slider",
+                yAxisIndex: 1,
+                orient: "vertical",
+                left: 0,
+                width: 42,
+                handleSize: 30,
+                borderColor: "transparent",
+                backgroundColor: "transparent",
+                fillerColor: c.accent + "50",
+                handleStyle: {
+                  color: c.accent,
+                  borderWidth: 1,
+                  borderRadius: 0,
+                },
+                filterMode: "none",
+                showDataShadow: false,
+                showDetail: false,
+                start: sliderStartPct,
+                end: sliderEndPct,
+              },
+            ]
+          : [
+              {
+                type: "inside",
+                yAxisIndex: 1,
+                filterMode: "none",
+                zoomOnMouseWheel: true,
+                moveOnMouseMove: false,
+                moveOnMouseWheel: true,
+              },
+            ],
       // Invisible anchor series so dataZoom on yAxisIndex 1 has data to bind
       // to; without this the slider may render but not emit zoom events.
       series: [
@@ -355,9 +318,40 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     sliderStartPct,
     sliderEndPct,
     showDataZoomSlider,
-    tickInterval,
-    labelInterval,
+    tickIntervalMs,
   ]);
+
+  // See DepthRuler for the why: prop-driven notMerge re-renders blow away
+  // the axisPointer state installed by the crosshair effect, causing tooltip
+  // flicker. Apply imperatively in merge mode instead.
+  useEffect(() => {
+    const ec = echartsRef.current?.getEchartsInstance();
+    if (!ec) return;
+    ec.setOption(buildOption(), { lazyUpdate: true, replaceMerge: ["dataZoom"] });
+
+    const flush = () => {
+      pendingRaf.current = null;
+      const inst = echartsRef.current?.getEchartsInstance();
+      if (!inst) return;
+      inst.setOption(buildOption(), { lazyUpdate: true, replaceMerge: ["dataZoom"] });
+    };
+
+    const unsubscribe = globalRigStore.subscribe(
+      (s) => s.drillStream,
+      () => {
+        if (pendingRaf.current !== null) return;
+        pendingRaf.current = requestAnimationFrame(flush);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      if (pendingRaf.current !== null) {
+        cancelAnimationFrame(pendingRaf.current);
+        pendingRaf.current = null;
+      }
+    };
+  }, [buildOption]);
 
   return (
     <div
@@ -377,7 +371,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
         >
           Time
         </span>
-        <div className="label-mono mt-0.5">UTC</div>
+        <div className="label-mono mt-0.5">LOCAL</div>
       </div>
 
       <div className="h-[72px] flex-shrink-0 border-b border-(--theme-border) flex flex-col">
@@ -395,11 +389,11 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             )}
           >
             <span className="font-['Barlow_Condensed',sans-serif] text-fs-7 uppercase tracking-wider opacity-75">
-              {MONTHS[sessionMinuteToDate(yRange.min).getMonth()]}{" "}
-              {sessionMinuteToDate(yRange.min).getDate()}
+              {MONTHS[new Date(yRange.min).getMonth()]}{" "}
+              {new Date(yRange.min).getDate()}
             </span>
             <span className="font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums">
-              {minutesToHHMM(yRange.min)}
+              {msToHHMM(yRange.min)}
             </span>
           </div>
         </div>
@@ -426,27 +420,30 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             )}
           >
             <span className="font-['Barlow_Condensed',sans-serif] text-fs-7 uppercase tracking-wider opacity-75">
-              {MONTHS[sessionMinuteToDate(yRange.max).getMonth()]}{" "}
-              {sessionMinuteToDate(yRange.max).getDate()}
+              {MONTHS[new Date(yRange.max).getMonth()]}{" "}
+              {new Date(yRange.max).getDate()}
             </span>
             <span className="font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums">
-              {minutesToHHMM(yRange.max)}
+              {msToHHMM(yRange.max)}
             </span>
           </div>
         </div>
       </div>
 
       <div
+        ref={chartContainerRef}
         className="relative flex-1 overflow-hidden"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
         <ReactECharts
           ref={echartsRef}
-          option={option}
+          echarts={echarts}
+          option={{}}
           style={{ width: "100%", height: "100%" }}
           opts={{ renderer: "canvas" }}
-          notMerge
+          notMerge={false}
+          lazyUpdate
           onEvents={{ datazoom: handleDataZoom }}
         />
       </div>

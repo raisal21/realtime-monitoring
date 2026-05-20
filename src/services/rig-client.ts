@@ -2,8 +2,13 @@
 
 import { log } from "@/utils/logger";
 import { handleWelcome, handleClosing } from "@/services/protocol";
-import { PROTOCOL_VERSION, SUPPORTED_SCHEMA_ID } from "@/domain/constants";
-import { HANDSHAKE_TIMEOUT_MS } from "@/domain/constants";
+import {
+  PROTOCOL_VERSION,
+  SUPPORTED_SCHEMA_ID,
+  HANDSHAKE_TIMEOUT_MS,
+  WS_URL,
+  WS_TOKEN,
+} from "@/domain/constants";
 import { parseServerMessage } from "@/domain/message.schema";
 import { globalRigStore } from "@/store/index-store";
 
@@ -89,7 +94,7 @@ export async function connect(
 
   transitionState(client, ClientState.CONNECTING);
 
-  const socket = new WebSocketStream("ws://localhost:8080", {
+  const socket = new WebSocketStream(WS_URL, {
     signal: ac.signal,
   });
 
@@ -113,6 +118,7 @@ export async function connect(
         payload: {
           protocolVersion: PROTOCOL_VERSION,
           schemaId: SUPPORTED_SCHEMA_ID,
+          token: WS_TOKEN,
           ...(options.clientId ? { clientId: options.clientId } : {}),
         },
       }),

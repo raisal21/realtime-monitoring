@@ -24,3 +24,13 @@ interface Window {
 declare const WebSocketStream: {
   new (url: string, options?: WebSocketStreamOptions): WebSocketStream;
 };
+
+interface ImportMetaEnv {
+  readonly VITE_LOG_LEVEL: string;
+  readonly VITE_WS_URL: string;
+  readonly VITE_WS_TOKEN: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

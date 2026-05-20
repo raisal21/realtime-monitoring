@@ -7,6 +7,8 @@
 export const SUPPORTED_SCHEMA_ID = 1;
 export const PROTOCOL_VERSION = 1;
 export const HANDSHAKE_TIMEOUT_MS = 6_000;
+export const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
+export const WS_TOKEN = import.meta.env.VITE_WS_TOKEN ?? "";
 
 export const StreamDef = {
   DRILL: 101,

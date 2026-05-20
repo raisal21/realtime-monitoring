@@ -5,11 +5,7 @@
     "src/config/global.d.ts"
   ],
   "ignoreDependencies": [
-    "@tanstack/react-query",
     "@types/ws",
-    "aedes",
-    "concurrently",
-    "tslib",
     "ws"
   ]
 }

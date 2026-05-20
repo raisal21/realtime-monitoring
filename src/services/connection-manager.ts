@@ -87,6 +87,17 @@ export function createConnectionManager(
 
         const msg = parsed.data;
 
+        if (msg.messageType === "HEARTBEAT") {
+          if (activeWriter) {
+            activeWriter
+              .write(JSON.stringify({ messageType: "HEARTBEAT" }))
+              .catch((err) =>
+                log.warn(`[CONNECTION] HEARTBEAT reply failed: ${err}`),
+              );
+          }
+          continue;
+        }
+
         if (msg.messageType === "ERROR") {
           globalRigStore.getState().pushToast({
             tone: "error",

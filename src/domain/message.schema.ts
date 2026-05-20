@@ -84,6 +84,11 @@ export const ServerSchema = z.discriminatedUnion("messageType", [
     payload: ClosingPayload,
   }),
   z.strictObject({
+    messageType: z.literal("HEARTBEAT"),
+    timestamp: z.number(),
+    payload: z.null().optional(),
+  }),
+  z.strictObject({
     messageType: z.literal("ERROR"),
     timestamp: z.number(),
     error: ErrorSchema,

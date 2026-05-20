@@ -54,6 +54,18 @@ export default function Dashboard() {
     return allowedStreams.has(code);
   };
 
+  const showAlarmSidebar = role ? ROLE_FEATURES[role].alarmSidebar : false;
+  const showAckModal = role ? ROLE_FEATURES[role].ackModal : false;
+
+  // Mount-only: force alarm sidebar open on Dashboard entry, overriding
+  // persisted "closed". Deps MUST stay [] — adding alarmSidebar would
+  // re-fire on every manual collapse and make the sidebar un-closable.
+  useEffect(() => {
+    if (showAlarmSidebar && alarmSidebar === "closed") {
+      globalRigStore.getState().toggleAlarmSidebar();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const collapsedBelowBreakpoint = useRef(false);
   useEffect(() => {
     const onResize = () => {
@@ -69,9 +81,6 @@ export default function Dashboard() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [setLeftRail]);
-
-  const showAlarmSidebar = role ? ROLE_FEATURES[role].alarmSidebar : false;
-  const showAckModal = role ? ROLE_FEATURES[role].ackModal : false;
 
   const alarmAnchor = showAlarmSidebar
     ? (alarmSidebar === "open" ? ALARM_SIDEBAR_WIDTH : STRIP_WIDTH)

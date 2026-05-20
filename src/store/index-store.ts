@@ -109,7 +109,11 @@ const createAlarmSlice: StateCreator<
     set((state) => {
       const updatedMap = new Map(state.alarmRegistry);
       updatedMap.set(alarm.id, alarm);
-      return { alarmRegistry: updatedMap };
+      const ui =
+        alarm.severity === "CRITICAL" && state.ui.alarmSidebar === "closed"
+          ? { ...state.ui, alarmSidebar: "open" as const }
+          : state.ui;
+      return { alarmRegistry: updatedMap, ui };
     }),
 
   ackAlarm: (id: string, operatorName: string, role: string) => {

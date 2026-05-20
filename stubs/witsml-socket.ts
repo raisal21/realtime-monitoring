@@ -216,7 +216,7 @@ const rigState = {
   rpm: 120.0,
   wob: 20.0,
   torque: 5.0,
-  spp: 2500.0,
+  spp: 170.0,
   hkld: 200.0,
   gamma: 50.0,
   rop: 25.0,
@@ -880,7 +880,7 @@ const telemetryInterval = setInterval(() => {
     rigState.rpm = getRandom(115, 125);
     rigState.wob = getRandom(18, 22);
     rigState.torque = getRandom(4, 6);
-    rigState.spp = getRandom(2450, 2550);
+    rigState.spp = getRandom(140, 207);
     rigState.hkld = getRandom(190, 210);
     rigState.flow = getRandom(1400, 1600);
 

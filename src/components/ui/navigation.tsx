@@ -3,11 +3,13 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import { Button, type ButtonProps } from "@/components/ui/core";
 
-/* ============================================================================
-   4. NAVIGATION SHELL
-   ============================================================================ */
+// =============================================================================
+// 4. NAVIGATION SHELL
+// =============================================================================
 
-// ─── 4.1 TOPBAR BUTTON ────────────────────────────────────────────────
+// =============================================================================
+// 4.1 TOPBAR BUTTON
+// =============================================================================
 // Thin wrapper around core Button for topbar use.
 // Defaults to ghost + icon size. For text labels, override size (e.g. size="sm").
 // Set alarm to true for critical-colored pulsing alarm button.
@@ -56,7 +58,9 @@ export const TopbarButton = ({
   </Button>
 );
 
-// ─── 4.2 BREADCRUMB ITEM ──────────────────────────────────────────────
+// =============================================================================
+// 4.2 BREADCRUMB ITEM
+// =============================================================================
 const breadcrumbItemVariants = cva(
   "font-['Barlow_Condensed',sans-serif] text-fs-11 transition-colors duration-150",
   {

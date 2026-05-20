@@ -30,7 +30,7 @@ export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
     flow: view.getFloat32(40),
   };
 
-  // Validasi menggunakan .partial() karena data yang masuk hanya sebagian dari RigState
+  // Validate with .partial() since the incoming data is only a subset of RigState
   const validation = DrillSchema.safeParse(rawData);
 
   if (!validation.success) {

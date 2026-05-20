@@ -153,7 +153,9 @@ function useLiveGaugeValue(
   return enabled ? val : undefined;
 }
 
-// ─── Radial gauge (ECharts, imperative setOption per rAF) ────────────────────
+// =============================================================================
+// Radial gauge (ECharts, imperative setOption per rAF)
+// =============================================================================
 
 function RadialGaugeCard({
   gauge,
@@ -342,7 +344,9 @@ function RadialGaugeCard({
   );
 }
 
-// ─── Value card (rop, h2s, gamma) — state-based ──────────────────────────────
+// =============================================================================
+// Value card (rop, h2s, gamma) — state-based
+// =============================================================================
 
 function ValueCard({
   gauge,
@@ -412,7 +416,9 @@ function ValueCard({
   );
 }
 
-// ─── Compass card (inc + azi) ────────────────────────────────────────────────
+// =============================================================================
+// Compass card (inc + azi)
+// =============================================================================
 
 function CompassCard({
   incGauge,

@@ -64,7 +64,6 @@ export function AppRoutes() {
             }
           />
 
-          {/* Authenticated Routes wrapped in a single Layout */}
           <Route
             element={
               <AuthGuard>
@@ -72,19 +71,14 @@ export function AppRoutes() {
               </AuthGuard>
             }
           >
-            {/* Wells Routes */}
             <Route path="/wells" element={<WellExplorer />} />
             <Route path="/wells/:wellId" element={<WellExplorer />} />
 
-            {/* Dashboard Routes (optional wellId param) */}
-            {/* Phase 10.g: ChartProvider removed. Chart state lives in
-                Zustand and survives route nav by default. To reset on
-                each Dashboard mount, call `resetChart()` from a useEffect
-                in Dashboard.tsx. */}
+            {/* Chart state lives in Zustand and survives route nav; reset
+                on mount via resetChart() in a Dashboard.tsx useEffect. */}
             <Route path="/dashboard/:wellId?" element={<Dashboard />} />
           </Route>
 
-          {/* Fallback Route */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

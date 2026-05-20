@@ -1,11 +1,7 @@
-// Phase 10.h: legacy reducer code stripped. File now exposes Zustand-backed
-// shims for `useUi()`, `useChart()`, `useSettings()` so existing call sites
-// keep their `{ state, dispatch }` API. Provider components and Context
-// objects are gone — consumers either use these hooks or switch to direct
+// Zustand-backed compatibility shims for `useUi()`, `useChart()`,
+// `useSettings()` — call sites keep their `{ state, dispatch }` API
+// without a Context provider. New consumers should prefer the direct
 // `useStore(globalRigStore, ...)` selector form.
-//
-// Future cleanup (10.i / beyond): retire dispatch shims by migrating cold
-// consumers to direct slice action calls, then delete this file entirely.
 
 import type React from "react";
 import { useStore } from "zustand";
@@ -29,7 +25,9 @@ export { FS_SCALE } from "@/store/slices/settings-slice";
 export type { ChartMode };
 export type { Theme, Density, FontSize };
 
-// ─── UI ──────────────────────────────────────────────────────────────────────
+// =============================================================================
+// UI
+// =============================================================================
 
 type UiAction =
   | { type: "TOGGLE_GAUGE_SIDEBAR" }
@@ -77,7 +75,9 @@ export function useUi() {
   return { state, dispatch: uiDispatch };
 }
 
-// ─── Chart ───────────────────────────────────────────────────────────────────
+// =============================================================================
+// Chart
+// =============================================================================
 
 type ChartAction =
   | { type: "SET_MODE"; mode: ChartMode }
@@ -134,7 +134,9 @@ export function useChart(): {
   return { state, dispatch: chartDispatch };
 }
 
-// ─── Settings ────────────────────────────────────────────────────────────────
+// =============================================================================
+// Settings
+// =============================================================================
 
 type SettingsAction =
   | { type: "SET_THEME"; theme: Theme }

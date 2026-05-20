@@ -3,11 +3,13 @@ import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-/* ============================================================================
-   2. TELEMETRY DATA DISPLAY
-   ============================================================================ */
+// =============================================================================
+// 2. TELEMETRY DATA DISPLAY
+// =============================================================================
 
-// ─── 2.1 VALUE READOUT ────────────────────────────────────────────────
+// =============================================================================
+// 2.1 VALUE READOUT
+// =============================================================================
 const valueReadoutVariants = cva(
   "font-['Share_Tech_Mono',monospace] leading-none font-variant-numeric tabular-nums",
   {

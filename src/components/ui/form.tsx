@@ -9,11 +9,13 @@ import { Radio as BaseRadio } from "@base-ui/react/radio";
 import { RadioGroup as BaseRadioGroup } from "@base-ui/react/radio-group";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
 
-/* ============================================================================
-   8. NEW v2 PRIMITIVES — FORM COMPONENTS
-   ============================================================================ */
+// =============================================================================
+// 8. NEW v2 PRIMITIVES — FORM COMPONENTS
+// =============================================================================
 
-// ─── 8.2 SWITCH ───────────────────────────────────────────────────────
+// =============================================================================
+// 8.2 SWITCH
+// =============================================================================
 // Base UI Switch with theme styling.
 // Uses data-[checked] state attribute (Base UI v1+ convention).
 
@@ -72,7 +74,9 @@ export const Switch = ({ size, className, ...props }: SwitchProps) => (
   </BaseSwitch.Root>
 );
 
-// ─── 8.3 ICON BUTTON ──────────────────────────────────────────────────
+// =============================================================================
+// 8.3 ICON BUTTON
+// =============================================================================
 // Thin wrapper around Base UI Button for icon-only actions.
 // Difference from regular Button: no text typography, square aspect ratio,
 // no uppercase letter-spacing, slimmer hover state.
@@ -133,7 +137,9 @@ export const IconButton = ({
   />
 );
 
-// ─── 8.4 RADIO CARD ───────────────────────────────────────────────────
+// =============================================================================
+// 8.4 RADIO CARD
+// =============================================================================
 // Card-style radio button (shadcn pattern).
 // Composes Base UI Radio.Root + Radio.Indicator with custom layout.
 //
@@ -225,7 +231,9 @@ export const RadioCard = ({
   </BaseRadio.Root>
 );
 
-// ─── 9.2 SLIDER ───────────────────────────────────────────────────────
+// =============================================================================
+// 9.2 SLIDER
+// =============================================================================
 // Base UI Slider with theme styling. Single canonical size.
 // Used for: Display Settings track widths (visual only in v2 polish).
 //

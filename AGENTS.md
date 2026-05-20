@@ -46,3 +46,22 @@ When searching the codebase, always use `bm25_search` (BM25-ranked search) along
 - JSON protocol for control messages: HANDSHAKE → SUBSCRIBE/UNSUBSCRIBE/ALARM_ACK
 - Client must send HANDSHAKE first after connecting
 - Run independently: `tsx stubs/witsml-socket.ts`
+
+## Comments
+
+- **Language**: English only — comments *and* identifiers. Domain terms are
+  exempt (Guntur, rig, wellbore, WITSML, ROP, WOB, gamma, etc.).
+- **Why, not what**: a comment explains intent, an invariant, a trade-off, or
+  a gotcha. It never paraphrases the line below it. If the code already says
+  it, delete the comment.
+- **No changelog comments**: no `Phase N.x` markers, no "removed in …", no
+  dated history. That belongs in git and `NAPKIN.md`.
+- **Banner dividers**: a section banner is `//` followed by a 77-char `=`
+  run. One format — no `─` or `-` variants.
+- **Doc comments** (TSDoc `/** */`): optional. Add one only for a non-obvious
+  invariant or gotcha on a public function. No blanket doc-comment rule — do
+  not restate type-safe signatures the types already describe.
+- **Security comments**: may point at a recorded decision (`see NAPKIN
+  2026-05-21`), never describe an exploit path. Never commit a secret in a
+  comment — if you find one, flag it for rotation.
+- Enforced by code review. There is no CI gate for comments.

@@ -6,11 +6,13 @@ import { Button as BaseButton } from "@base-ui/react/button";
 
 // Imports from core
 
-/* ============================================================================
-   8-9. DISPLAY COMPONENTS
-   ============================================================================ */
+// =============================================================================
+// 8-9. DISPLAY COMPONENTS
+// =============================================================================
 
-// ─── 8.5 LIVE BADGE ───────────────────────────────────────────────────
+// =============================================================================
+// 8.5 LIVE BADGE
+// =============================================================================
 // Live / Frozen state indicator. Pulses when LIVE.
 
 const liveBadgeVariants = cva(
@@ -63,7 +65,9 @@ export const LiveBadge = ({
   </span>
 );
 
-// ─── 8.6 RANGE PRESET BUTTON ──────────────────────────────────────────
+// =============================================================================
+// 8.6 RANGE PRESET BUTTON
+// =============================================================================
 // Toggle-style button for range presets in Zoom popover (1h, 6h, This Shift, etc.)
 
 const rangePresetButtonVariants = cva(
@@ -114,7 +118,9 @@ export const RangePresetButton = ({
   />
 );
 
-// ─── 9.1 RAIL SECTION ─────────────────────────────────────────────────
+// =============================================================================
+// 9.1 RAIL SECTION
+// =============================================================================
 // Section divider for left tool rail.
 // Renders "label + horizontal line" header above its children.
 // When `collapsed` is true, label hides — only the line separator remains.

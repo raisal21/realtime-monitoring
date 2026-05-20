@@ -1,9 +1,6 @@
 // Module-level DOM sync for settings. Runs at import time so
 // `<html data-theme=... data-font-size=... data-density=...>` is wired
 // before any React mount, regardless of provider tree.
-//
-// Replaces the side-effects previously housed inside `SettingsProvider`
-// (Phase 10.c — provider removed from layouts).
 
 import { globalRigStore } from "./index-store";
 

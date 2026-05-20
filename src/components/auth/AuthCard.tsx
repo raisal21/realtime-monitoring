@@ -33,7 +33,6 @@ export default function AuthCard({ onSignIn, formRef, firstInputRef }: AuthCardP
           <span className="label-mono">Control Room</span>
         </div>
 
-        {/* Heading */}
         <h1
           className={cn(
             "font-['Barlow_Condensed',sans-serif] text-fs-24 font-bold",
@@ -52,7 +51,6 @@ export default function AuthCard({ onSignIn, formRef, firstInputRef }: AuthCardP
           supervisor can re-issue a token from the field office.
         </p>
 
-        {/* Form */}
         <LoginForm onSignIn={onSignIn} formRef={formRef} firstInputRef={firstInputRef} />
 
         {/* Footer stamp */}

@@ -63,9 +63,9 @@ export function createConnectionManager(
     globalRigStore.getState().updateConnectionStatus(status);
   }
 
-  // ---------------------------------------------------------------------------
-  // Message loop — hanya berjalan setelah negosiasi sukses.
-  // ---------------------------------------------------------------------------
+  // =============================================================================
+  // Message loop — runs only after a successful negotiation.
+  // =============================================================================
   async function runLoop(
     reader: ReadableStreamDefaultReader<unknown>,
   ): Promise<LoopResult> {
@@ -125,7 +125,7 @@ export function createConnectionManager(
         if (msg.messageType === "SUBSCRIBE_ACK") {
           const ack = handleSubscribeAck(msg);
 
-          // currentSubscriptions adalah kebenaran mutlak — langsung pakai
+          // currentSubscriptions is the source of truth — use it directly
           globalRigStore.getState().reconcileTopics(ack.currentSubscriptions);
 
           if (ack.rejected.length > 0) {
@@ -192,10 +192,10 @@ export function createConnectionManager(
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Single attempt — delegasi negosiasi penuh ke rig-client.
-  // connection-manager hanya tahu: berhasil atau tidak, dan perlu retry atau tidak.
-  // ---------------------------------------------------------------------------
+  // =============================================================================
+  // Single attempt — full negotiation delegated to rig-client.
+  // connection-manager only knows: succeeded or not, and whether to retry.
+  // =============================================================================
   async function attempt(): Promise<LoopResult> {
     const currentClientId = getClientId?.() ?? null;
 
@@ -225,9 +225,9 @@ export function createConnectionManager(
     return runLoop(result.reader);
   }
 
-  // ---------------------------------------------------------------------------
-  // Orchestrator — retry loop dengan backoff.
-  // ---------------------------------------------------------------------------
+  // =============================================================================
+  // Orchestrator — retry loop with backoff.
+  // =============================================================================
   async function run(): Promise<void> {
     running = true;
     const myGeneration = ++runGeneration;
@@ -301,9 +301,9 @@ export function createConnectionManager(
     }
   }
 
-  // ---------------------------------------------------------------------------
+  // =============================================================================
   // Public API
-  // ---------------------------------------------------------------------------
+  // =============================================================================
   return {
     start(): void {
       stopped = false;

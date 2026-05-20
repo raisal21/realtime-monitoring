@@ -203,7 +203,9 @@ export const TICKER_NOMINAL_ENTRIES = [
   { label: "Status", value: "All systems nominal" },
 ] as const;
 
-// ─── Unified session data ────────────────────────────────────────────────────
+// =============================================================================
+// Unified session data
+// =============================================================================
 // Single source of truth for all chart components during UI mock-up.
 // Replace with Zustand store slices once WebSocket integration is active.
 
@@ -319,7 +321,7 @@ function generateSession(): SessionData {
   for (let i = 0; i < POINT_COUNT; i++) {
     const phase = PHASES[i];
 
-    // ── Depth evolution by phase ──
+    // Depth evolution by phase
     if (phase === "drill") {
       // Vary per-sample ROP 60-140% of avg → chunky build, not linear.
       curDepth += avgDrillStepM * (0.6 + rng() * 0.8);
@@ -333,7 +335,7 @@ function generateSession(): SessionData {
     // connect / idle: depth flat
     out.depth[i] = r1(curDepth);
 
-    // ── Directional profile based on current depth (m) ──
+    // Directional profile based on current depth (m)
     // Build (start → 4313 m):    inc 3°→28°, azi 141°→145°
     // Tangent (4313-4587 m):     inc ~28-30° steady, azi ~145° (slight drift)
     // Drop/land (4587 → end):    inc 29°→22°, azi steady
@@ -359,7 +361,7 @@ function generateSession(): SessionData {
     out.inc[i] = r1(lastSurveyInc);
     out.azi[i] = r1(lastSurveyAzi);
 
-    // ── Formation gamma (depth-driven, m) ──
+    // Formation gamma (depth-driven, m)
     // Two-frequency oscillation + bed-boundary step at major formation tops.
     const gammaBase = 60
       + Math.sin(curDepth * 0.036) * 28
@@ -374,7 +376,7 @@ function generateSession(): SessionData {
     const sppDrillBase = 172 + depthDelta * 0.034;         // ~172 → ~185 bar
     const hkldDrillBase = 823 + depthDelta * 0.191;        // ~823 → ~900 kN
 
-    // ── Phase-dependent surface measurements & flow ──
+    // Phase-dependent surface measurements & flow
     if (phase === "drill") {
       out.rpm[i] = Math.round(120 + j(4));
       const wobV = r1(91.2 + j(5.3));
@@ -552,7 +554,9 @@ export const SESSION_CURSOR_DEPTH = WELL_SESSION.cursor.depthM;
 export const WELL_PROFILE_MAX_DEPTH_M = WELL_SESSION.wellProfile.maxDepthM;
 export const SESSION_FLOW_SAMPLES = WELL_SESSION.flow;
 
-// ─── Well profile date bounds ───────────────────────────────────────────
+// =============================================================================
+// Well profile date bounds
+// =============================================================================
 // Parsed from WELL_PROFILE_DATA for use in date pickers.
 // Year 2026 matches the app's time context.
 

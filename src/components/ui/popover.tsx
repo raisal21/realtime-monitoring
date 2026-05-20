@@ -4,11 +4,13 @@ import { cn } from "@/lib/utils";
 // Base UI
 import { Popover as BasePopover } from "@base-ui/react/popover";
 
-/* ============================================================================
-   8. NEW v2 PRIMITIVES — POPOVER
-   ============================================================================ */
+// =============================================================================
+// 8. NEW v2 PRIMITIVES — POPOVER
+// =============================================================================
 
-// ─── 8.1 POPOVER ──────────────────────────────────────────────────────
+// =============================================================================
+// 8.1 POPOVER
+// =============================================================================
 // Reusable themed wrapper around Base UI Popover.
 // Supports both render prop pattern and asChild pattern:
 //   <Popover>
@@ -87,7 +89,9 @@ export const PopoverContent = ({
   </BasePopover.Portal>
 );
 
-// ─── 9.3 POPOVER SUB-COMPONENTS ───────────────────────────────────────
+// =============================================================================
+// 9.3 POPOVER SUB-COMPONENTS
+// =============================================================================
 // Adopted from shadcn snippet pattern. Provides consistent popover structure:
 //   <PopoverContent>
 //     <PopoverHeader>

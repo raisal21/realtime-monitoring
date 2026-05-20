@@ -54,8 +54,8 @@ function transitionState(client: RigClient, next: ClientState): void {
 
 export type { RigClient };
 
-// Discriminated union — connection-manager tahu apakah berhasil atau tidak
-// tanpa kehilangan informasi retryable dari CLOSING.
+// Discriminated union — connection-manager knows whether it succeeded
+// without losing the retryable flag carried by CLOSING.
 export type ConnectResult =
   | {
       ok: true;

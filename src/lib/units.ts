@@ -77,7 +77,9 @@ function formatPressure(
   return { value: fmt(bar, opts.fractionDigits ?? 1), unit: "bar" };
 }
 
-// ─── Quantity dispatcher ──────────────────────────────────────────────────────
+// =============================================================================
+// Quantity dispatcher
+// =============================================================================
 
 export type Quantity =
   | { kind: "depth"; valueM: number }

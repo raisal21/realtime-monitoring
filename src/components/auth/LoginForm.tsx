@@ -27,7 +27,6 @@ export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFor
 
   return (
     <form ref={formRef} onSubmit={submit}>
-      {/* Email field */}
       <div className="mb-rt-pad-sm">
         <label className="field-label" htmlFor="login-email">Operator email</label>
         <Input
@@ -39,7 +38,6 @@ export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFor
         />
       </div>
 
-      {/* Password field */}
       <div className="mb-rt-gap-sm">
         <label className="field-label" htmlFor="login-pass">Passphrase</label>
         <Input
@@ -57,7 +55,6 @@ export default function LoginForm({ onSignIn, formRef, firstInputRef }: LoginFor
         </div>
       )}
 
-      {/* Submit */}
       <Button intent="primary" size="xl" fullWidth type="submit" className="mt-rt-gap-sm">
         Enter Control Room
         <Activity size={14} strokeWidth={2} />

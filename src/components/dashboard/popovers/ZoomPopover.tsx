@@ -35,7 +35,9 @@ import { LiveBadge, RangePresetButton } from "@/components/ui/display";
 import { Button, Surface } from "@/components/ui/core";
 import { cn } from "@/lib/utils";
 
-// ─── Local reducer (avoids cascading setState-in-effect) ─────────────────────
+// =============================================================================
+// Local reducer (avoids cascading setState-in-effect)
+// =============================================================================
 
 interface LocalState {
   min: number;
@@ -342,7 +344,6 @@ export function ZoomPopoverContent() {
           <TimePicker value={local.max} onChange={(v) => localDispatch({ type: "SET_MAX", value: v })} />
         </div>
 
-        {/* Apply */}
         <div className="flex gap-1.5 mt-2.5">
           <Button intent="primary" size="sm" fullWidth onClick={handleApply}>
             Apply

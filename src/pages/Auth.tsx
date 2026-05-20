@@ -49,22 +49,16 @@ export default function Auth({
           <UniversalTopbar
             hideBreadcrumbs
             hideConnectionStatus
-            profileSlot={
-              <div className="flex items-center gap-rt-gap-sm">
-                <ControlRoomPopover
-                  value={pendingRole}
-                  onChange={setPendingRole}
-                />
-                <TopbarButton
-                  size="sm"
-                  onClick={handleLoginClick}
-                  title="Login"
-                  aria-label="Scroll to login form"
-                >
-                  <Lock size={14} strokeWidth={2} />
-                  <span className="ml-1">Login</span>
-                </TopbarButton>
-              </div>
+             profileSlot={
+              <TopbarButton
+                size="sm"
+                onClick={handleLoginClick}
+                title="Login"
+                aria-label="Scroll to login form"
+              >
+                <Lock size={14} strokeWidth={2} />
+                <span className="ml-1">Login</span>
+              </TopbarButton>
             }
           />
 
@@ -78,6 +72,13 @@ export default function Auth({
                 firstInputRef={firstInputRef}
               />
             </div>
+          </div>
+
+          <div className="fixed bottom-6 right-6 z-50 opacity-75 hover:opacity-100 transition-opacity duration-200">
+            <ControlRoomPopover
+              value={pendingRole}
+              onChange={setPendingRole}
+            />
           </div>
     </div>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { Radio } from "lucide-react";
-import { TopbarButton } from "@/components/ui/navigation";
 import {
   Popover,
   PopoverTrigger,
@@ -11,6 +10,7 @@ import {
   PopoverDescription,
 } from "@/components/ui/popover";
 import { RadioCard, RadioCardGroup } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
 import type { Role } from "@/hooks/auth.types";
 
 interface ControlRoomPopoverProps {
@@ -41,12 +41,23 @@ export default function ControlRoomPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <TopbarButton size="sm" title="Select operator role">
+        <button
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full",
+            "bg-(--theme-surface)/80 backdrop-blur-sm",
+            "border border-(--theme-border)",
+            "font-['Share_Tech_Mono',monospace] text-fs-10",
+            "text-(--theme-fg-muted) hover:text-(--theme-fg)",
+            "transition-colors duration-150",
+            "shadow-[0_4px_16px_rgba(0,0,0,0.3)]",
+          )}
+          title="Select operator role"
+        >
           <Radio size={14} strokeWidth={2} />
-          <span className="ml-1">Role: {ROLE_LABEL[value]}</span>
-        </TopbarButton>
+          <span>{ROLE_LABEL[value]}</span>
+        </button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[260px]">
+      <PopoverContent align="end" sideOffset={8} className="w-[260px] opacity-95">
         <PopoverHeader>
           <PopoverTitle>Control Room</PopoverTitle>
           <PopoverDescription>

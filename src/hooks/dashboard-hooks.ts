@@ -19,8 +19,8 @@ export function useLiveSessionRange(): {
   return useStore(
     globalRigStore,
     useShallow((s) => {
-      const stream = s.drillStream;
-      if (stream.length === 0) {
+      const ring = s.drillRing;
+      if (ring.size === 0) {
         const now = Date.now();
         return {
           depthMin: 0,
@@ -31,8 +31,8 @@ export function useLiveSessionRange(): {
           ropMPerMin: 0.1,
         };
       }
-      const first = stream[0];
-      const last = stream[stream.length - 1];
+      const first = ring.first()!;
+      const last = ring.latest()!;
       const rawMin = Math.min(first.depth, last.depth);
       const rawMax = Math.max(first.depth, last.depth);
       const span = rawMax - rawMin;

@@ -107,9 +107,9 @@ function streamToCode(s: "drill" | "geo"): StreamDef {
 
 function getLatestValueForGauge(gaugeId: string, stream: "drill" | "geo"): number | undefined {
   const state = globalRigStore.getState();
-  const slice = stream === "drill" ? state.drillStream : state.geoStream;
-  if (!slice.length) return undefined;
-  const latest = slice[slice.length - 1] as unknown as Record<string, number | undefined>;
+  const ring = stream === "drill" ? state.drillRing : state.geoRing;
+  const latest = ring.latest() as Record<string, number | undefined> | undefined;
+  if (!latest) return undefined;
   const v = latest[gaugeId];
   return typeof v === "number" ? v : undefined;
 }
@@ -134,7 +134,7 @@ function useLiveGaugeValue(
       if (v !== undefined) setVal(v);
     };
     const unsub = globalRigStore.subscribe(
-      (s) => (stream === "drill" ? s.drillStream : s.geoStream),
+      (s) => (stream === "drill" ? s.drillRev : s.geoRev),
       () => {
         if (pending.current !== null) return;
         pending.current = requestAnimationFrame(flush);
@@ -294,7 +294,7 @@ function RadialGaugeCard({
       inst.setOption(buildOption(), { lazyUpdate: true });
     };
     const unsub = globalRigStore.subscribe(
-      (s) => (source === "drill" ? s.drillStream : s.geoStream),
+      (s) => (source === "drill" ? s.drillRev : s.geoRev),
       () => {
         if (pending.current !== null) return;
         pending.current = requestAnimationFrame(flush);
@@ -313,10 +313,9 @@ function RadialGaugeCard({
   // is a string; equality check skips re-render while values stay in tier).
   // The inner ECharts canvas continues to update imperatively via setOption.
   const status = useStore(globalRigStore, (s) => {
-    const stream = source === "drill" ? s.drillStream : s.geoStream;
-    const v = stream.length
-      ? (stream[stream.length - 1] as Record<string, number | undefined>)[gauge.id]
-      : undefined;
+    const ring = source === "drill" ? s.drillRing : s.geoRing;
+    const latest = ring.latest() as Record<string, number | undefined> | undefined;
+    const v = latest?.[gauge.id];
     return buildGaugeConfig(gauge, v, unitSystem).status;
   });
   const ariaLabel = buildGaugeConfig(gauge, undefined, unitSystem).label;

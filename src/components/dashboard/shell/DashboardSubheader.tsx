@@ -129,7 +129,7 @@ function LiveDepthReadout({
 }) {
   const latestDepth = useStore(
     globalRigStore,
-    (s) => (s.drillStream.length ? s.drillStream[s.drillStream.length - 1].depth : null),
+    (s) => s.drillRing.latest()?.depth ?? null,
   );
 
   const d =

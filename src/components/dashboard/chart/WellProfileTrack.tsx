@@ -153,10 +153,8 @@ export function WellProfileTrack() {
     const c = getChartColors();
     const data = WELL_PROFILE_DATA;
     const maxDepthM = WELL_PROFILE_MAX_DEPTH_M;
-    const drillStream = globalRigStore.getState().drillStream;
-    const currentDepthM = showLive && drillStream.length
-      ? drillStream[drillStream.length - 1].depth
-      : cursorDepth;
+    const latest = globalRigStore.getState().drillRing.latest();
+    const currentDepthM = showLive && latest ? latest.depth : cursorDepth;
 
     const dates = data.map((d) => d.date) as string[];
     const depths = data.map((d) => d.depth);
@@ -361,9 +359,9 @@ export function WellProfileTrack() {
       pendingRaf.current = null;
       const inst = chartRef.current?.getEchartsInstance();
       if (!inst) return;
-      const stream = globalRigStore.getState().drillStream;
-      if (!stream.length) return;
-      const cur = stream[stream.length - 1].depth;
+      const latest = globalRigStore.getState().drillRing.latest();
+      if (!latest) return;
+      const cur = latest.depth;
       const formatted = formatDepth(cur, settings.unitSystem).value;
       inst.setOption(
         {
@@ -378,7 +376,7 @@ export function WellProfileTrack() {
     };
 
     const unsubscribe = globalRigStore.subscribe(
-      (s) => s.drillStream,
+      (s) => s.drillRev,
       () => {
         if (pendingRaf.current !== null) return;
         pendingRaf.current = requestAnimationFrame(flush);

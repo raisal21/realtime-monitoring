@@ -5,6 +5,7 @@ import type {
   GeoUpdate,
 } from "@/domain/message.types";
 import { StreamDef } from "@/domain/constants";
+import type { StreamRing } from "@/lib/stream-ring";
 import type { UiSlice } from "./slices/ui-slice";
 import type { ChartSlice } from "./slices/chart-slice";
 import type { SettingsSlice } from "./slices/settings-slice";
@@ -54,10 +55,12 @@ interface ConnectionActions {
 export interface ConnectionSlice extends ConnectionState, ConnectionActions {}
 
 export interface TelemetrySlice {
-  drillStream: DrillUpdate[];
-  geoStream: GeoUpdate[];
-  drillBufferCapacity: number;
-  geoBufferCapacity: number;
+  drillRing: StreamRing<DrillUpdate>;
+  geoRing: StreamRing<GeoUpdate>;
+  // Monotonic insert counters. The rings mutate in place and keep a stable
+  // reference, so bumping a counter is what notifies store subscribers.
+  drillRev: number;
+  geoRev: number;
 
   insertDrillPoint: (point: DrillUpdate) => void;
   insertGeoPoint: (point: GeoUpdate) => void;

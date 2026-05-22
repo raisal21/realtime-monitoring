@@ -18,6 +18,8 @@ import {
 import { getTickCount } from "@/lib/chart-ticks";
 import type { GlobalRigState } from "@/store/store.types";
 import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
+import type { StreamRing } from "@/lib/stream-ring";
+import { binMinMax, type EnvelopePoint } from "@/lib/bin-mm";
 
 interface LogTrackProps {
   trackId: keyof typeof TRACK_TRACES;
@@ -151,11 +153,11 @@ function TrackHeader({ traces, traceColors, traceVisibility, onToggle, compact, 
   );
 }
 
-function getStreamSlice(
+function getStreamRing(
   state: GlobalRigState,
   stream: "drill" | "geo",
-): ReadonlyArray<DrillUpdate | GeoUpdate> {
-  return stream === "drill" ? state.drillStream : state.geoStream;
+): StreamRing<DrillUpdate> | StreamRing<GeoUpdate> {
+  return stream === "drill" ? state.drillRing : state.geoRing;
 }
 
 export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
@@ -211,10 +213,10 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const unitSystem = settings.unitSystem;
     const visibleTraces = traces.filter((t) => traceVisibility[t.trace]);
 
-    const streamData = getStreamSlice(globalRigStore.getState(), stream);
-    const drillNow = globalRigStore.getState().drillStream;
-    const head = drillNow[0];
-    const tail = drillNow[drillNow.length - 1];
+    const streamRing = getStreamRing(globalRigStore.getState(), stream);
+    const drillRing = globalRigStore.getState().drillRing;
+    const head = drillRing.first();
+    const tail = drillRing.latest();
 
     let session: ViewportSession;
     if (mode === "depth") {
@@ -250,30 +252,31 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       return v;
     };
 
-    const yOf = (pt: DrillUpdate | GeoUpdate): number =>
-      mode === "depth" ? pt.depth : pt.timestamp;
+    const yKey = mode === "depth" ? "depth" : "timestamp";
 
-    const series = visibleTraces.map((t, idx) => {
-      const data: [number, number][] = [];
-      for (const pt of streamData) {
-        const raw = (pt as unknown as Record<string, number | undefined>)[t.trace];
-        if (typeof raw !== "number") continue;
-        data.push([convertVal(t, raw), yOf(pt)]);
-      }
+    // BIN-MM envelope: each trace becomes a min line + a max line over
+    // `tickCount` bins (~2× tickCount points total), replacing one polyline
+    // point per raw sample. Decimation cost is independent of ring depth.
+    const series = visibleTraces.flatMap((t, idx) => {
+      const env = binMinMax(streamRing, t.trace, yKey, tickCount);
       const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
-      return {
+      const toData = (pts: EnvelopePoint[]): [number, number][] =>
+        pts.map(([v, y]) => [convertVal(t, v), y] as [number, number]);
+      const line = {
         type: "line" as const,
+        name: t.trace,
         xAxisIndex: idx,
         yAxisIndex: 0,
-        data,
         smooth: false,
         showSymbol: false,
-        symbol: "circle",
-        symbolSize: 5,
         lineStyle: { color, width: 1.5, opacity: 0.95 },
-        itemStyle: { color, borderColor: c.base, borderWidth: 1.5 },
+        itemStyle: { color },
         z: 10 - idx,
       };
+      return [
+        { ...line, data: toData(env.max) },
+        { ...line, data: toData(env.min) },
+      ];
     });
 
     const xAxes = visibleTraces.length > 0
@@ -351,15 +354,31 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         extraCssText: "z-index: 20",
         textStyle: { color: c.fg, fontSize: 10 * fsScale, fontFamily: "Share Tech Mono, monospace" },
         formatter: (params: unknown) => {
-          const ps = params as Array<{ value: [number, number] }>;
+          const ps = params as Array<{ seriesName: string; value: [number, number] }>;
           if (!ps?.length) return "";
-          return ps
-            .flatMap((p, i) => {
-              const t = visibleTraces[i];
-              if (!t) return [];
-              const d = traceDisplays.get(t.trace)!;
-              const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
-              return [`<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${p.value[0].toFixed(1)}</span> <span style="color:${c.fgDim}">${d.unit}</span>`];
+          // Two series share each trace's name (min + max line) — collapse
+          // them into one min–max band readout per trace.
+          const band = new Map<string, { lo: number; hi: number }>();
+          for (const p of ps) {
+            const v = p.value[0];
+            const e = band.get(p.seriesName);
+            if (e) {
+              e.lo = Math.min(e.lo, v);
+              e.hi = Math.max(e.hi, v);
+            } else {
+              band.set(p.seriesName, { lo: v, hi: v });
+            }
+          }
+          return [...band.entries()]
+            .flatMap(([trace, mm]) => {
+              const d = traceDisplays.get(trace);
+              if (!d) return [];
+              const color = tcL[trace as keyof typeof tcL] || c.fgMuted;
+              const val =
+                mm.lo === mm.hi
+                  ? mm.lo.toFixed(1)
+                  : `${mm.lo.toFixed(1)}–${mm.hi.toFixed(1)}`;
+              return [`<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${val}</span> <span style="color:${c.fgDim}">${d.unit}</span>`];
             })
             .join("<br/>");
         },
@@ -384,17 +403,17 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const ec = chartRef.current?.getEchartsInstance();
     if (!ec) return;
 
-    ec.setOption(buildOption(), { lazyUpdate: true });
+    ec.setOption(buildOption(), { lazyUpdate: true, replaceMerge: ["series"] });
 
     const flush = () => {
       pendingRaf.current = null;
       const inst = chartRef.current?.getEchartsInstance();
       if (!inst) return;
-      inst.setOption(buildOption(), { lazyUpdate: true });
+      inst.setOption(buildOption(), { lazyUpdate: true, replaceMerge: ["series"] });
     };
 
     const unsubscribe = globalRigStore.subscribe(
-      (s) => (stream === "drill" ? s.drillStream : s.geoStream),
+      (s) => (stream === "drill" ? s.drillRev : s.geoRev),
       () => {
         if (pendingRaf.current !== null) return;
         pendingRaf.current = requestAnimationFrame(flush);

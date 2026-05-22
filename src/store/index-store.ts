@@ -19,6 +19,9 @@ import { createChartSlice } from "./slices/chart-slice";
 import { createSettingsSlice } from "./slices/settings-slice";
 import { createToastSlice } from "./slices/toast-slice";
 import { StreamDef } from "@/domain/constants";
+import { StreamRing, HOT_RING_CAPACITY } from "@/lib/stream-ring";
+import { DrillSchema, GeoSchema } from "@/domain/message.schema";
+import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
 
 const createConnectionSlice: StateCreator<
   GlobalRigState,
@@ -63,37 +66,36 @@ const createConnectionSlice: StateCreator<
   },
 });
 
+// Field name lists drive the ring's columnar layout — sourced from the zod
+// schemas so they stay in lockstep with the wire contract.
+const DRILL_FIELDS = Object.keys(DrillSchema.shape) as (keyof DrillUpdate & string)[];
+const GEO_FIELDS = Object.keys(GeoSchema.shape) as (keyof GeoUpdate & string)[];
+
 const createTelemetrySlice: StateCreator<
   GlobalRigState,
   [],
   [],
   TelemetrySlice
 > = (set) => ({
-  drillStream: [],
-  geoStream: [],
-  drillBufferCapacity: 200,
-  geoBufferCapacity: 200,
+  drillRing: new StreamRing<DrillUpdate>(HOT_RING_CAPACITY, DRILL_FIELDS),
+  geoRing: new StreamRing<GeoUpdate>(HOT_RING_CAPACITY, GEO_FIELDS),
+  drillRev: 0,
+  geoRev: 0,
 
+  // Ring push is in-place and allocation-free; the rev bump is the store
+  // mutation that wakes subscribers (the ring reference never changes).
   insertDrillPoint: (newPoint) =>
     set((state) => {
       if (!newPoint) return state;
-      const current = state.drillStream;
-      const nextStream =
-        current.length >= state.drillBufferCapacity
-          ? [...current.slice(1), newPoint]
-          : [...current, newPoint];
-      return { drillStream: nextStream };
+      state.drillRing.push(newPoint);
+      return { drillRev: state.drillRev + 1 };
     }),
 
   insertGeoPoint: (newPoint) =>
     set((state) => {
       if (!newPoint) return state;
-      const current = state.geoStream;
-      const nextStream =
-        current.length >= state.geoBufferCapacity
-          ? [...current.slice(1), newPoint]
-          : [...current, newPoint];
-      return { geoStream: nextStream };
+      state.geoRing.push(newPoint);
+      return { geoRev: state.geoRev + 1 };
     }),
 });
 

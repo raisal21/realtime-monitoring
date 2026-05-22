@@ -20,7 +20,7 @@ export function DetailPanel({ well, onClose }: DetailPanelProps) {
   const { state: settings } = useSettings();
   const latestDrillDepth = useStore(
     globalRigStore,
-    (s) => (s.drillStream.length ? s.drillStream[s.drillStream.length - 1].depth : null),
+    (s) => s.drillRing.latest()?.depth ?? null,
   );
   const isActive = well.status === "drilling";
   const barColor = WELL_TYPE_COLOR[well.wellType];

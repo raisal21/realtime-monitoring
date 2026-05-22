@@ -337,7 +337,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     };
 
     const unsubscribe = globalRigStore.subscribe(
-      (s) => s.drillStream,
+      (s) => s.drillRev,
       () => {
         if (pendingRaf.current !== null) return;
         pendingRaf.current = requestAnimationFrame(flush);

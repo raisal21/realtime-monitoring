@@ -14,12 +14,14 @@ import {
   getViewport,
   type ViewportSession,
 } from "@/lib/chart-viewport";
-import type { DrillUpdate } from "@/domain/message.types";
 
 // Flow baseline (gpm). Live stub holds rigState.flow around 1500; we render
 // the signed delta (flow - FLOW_BASELINE) so positive = "in", negative = "out".
 const FLOW_BASELINE = 1500;
 const FLOW_SCALE = 200;
+// Hard cap on rendered bars — the ring holds far more samples than a 60 px
+// ruler can resolve, so stride-sample down to this many.
+const FLOW_MAX_BARS = 600;
 
 const minutesToHHMM = (min: number) => {
   const wrapped = ((min % 1440) + 1440) % 1440;
@@ -68,12 +70,18 @@ export function FlowRuler() {
   const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
 
-    const stream = globalRigStore.getState().drillStream;
-    const yKey: keyof DrillUpdate = mode === "depth" ? "depth" : "timestamp";
-    const inRange = stream.filter((s) => {
-      const v = s[yKey];
-      return v >= yRange.min && v <= yRange.max;
-    });
+    const ring = globalRigStore.getState().drillRing;
+    const yKey = mode === "depth" ? "depth" : "timestamp";
+    // Stride-sample the ring so the bar count stays bounded regardless of
+    // how deep the ring has filled; keep only samples inside the viewport.
+    const n = ring.size;
+    const stride = Math.max(1, Math.ceil(n / FLOW_MAX_BARS));
+    const bars: [number, number][] = [];
+    for (let i = 0; i < n; i += stride) {
+      const y = ring.field(yKey, i);
+      if (y < yRange.min || y > yRange.max) continue;
+      bars.push([ring.field("flow", i) - FLOW_BASELINE, y]);
+    }
 
     return {
       animation: false,
@@ -124,7 +132,7 @@ export function FlowRuler() {
             };
           },
           encode: { x: 0, y: 1 },
-          data: inRange.map((s) => [s.flow - FLOW_BASELINE, s[yKey]]),
+          data: bars,
           tooltip: { show: true },
         },
       ],
@@ -174,7 +182,7 @@ export function FlowRuler() {
     };
 
     const unsubscribe = globalRigStore.subscribe(
-      (s) => s.drillStream,
+      (s) => s.drillRev,
       () => {
         if (pendingRaf.current !== null) return;
         pendingRaf.current = requestAnimationFrame(flush);

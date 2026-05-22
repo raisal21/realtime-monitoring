@@ -403,13 +403,13 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const ec = chartRef.current?.getEchartsInstance();
     if (!ec) return;
 
-    ec.setOption(buildOption(), { lazyUpdate: true, replaceMerge: ["series"] });
+    ec.setOption(buildOption(), { lazyUpdate: true });
 
     const flush = () => {
       pendingRaf.current = null;
       const inst = chartRef.current?.getEchartsInstance();
       if (!inst) return;
-      inst.setOption(buildOption(), { lazyUpdate: true, replaceMerge: ["series"] });
+      inst.setOption(buildOption(), { lazyUpdate: true });
     };
 
     const unsubscribe = globalRigStore.subscribe(

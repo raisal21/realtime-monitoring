@@ -20,6 +20,7 @@ import type { GlobalRigState } from "@/store/store.types";
 import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
 import type { StreamRing } from "@/lib/stream-ring";
 import { binMinMax, type EnvelopePoint } from "@/lib/bin-mm";
+import { tileEnvelope } from "@/services/tiles-client";
 
 interface LogTrackProps {
   trackId: keyof typeof TRACK_TRACES;
@@ -165,6 +166,13 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
+  const tileRange = useStore(globalRigStore, (s) => s.chart.tileRange);
+  const tileStatus = useStore(globalRigStore, (s) => s.chart.tileStatus);
+  const tileError = useStore(globalRigStore, (s) => s.chart.tileError);
+  const drillTiles = useStore(globalRigStore, (s) => s.chart.drillTiles);
+  const geoTiles = useStore(globalRigStore, (s) => s.chart.geoTiles);
+  const tiles = stream === "drill" ? drillTiles : geoTiles;
+  const tileMode = tileStatus === "ready" && tiles !== null;
   const trackWidths = useStore(globalRigStore, (s) => s.chart.trackWidths);
   const traceVisibility = useStore(
     globalRigStore,
@@ -235,7 +243,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     }
 
     const yRange = getViewport(
-      { rangePreset, rulerRange, logTrackRange },
+      { rangePreset, rulerRange, logTrackRange, tileRange },
       session,
       true,
       mode,
@@ -258,7 +266,12 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     // `tickCount` bins (~2× tickCount points total), replacing one polyline
     // point per raw sample. Decimation cost is independent of ring depth.
     const series = visibleTraces.flatMap((t, idx) => {
-      const env = binMinMax(streamRing, t.trace, yKey, tickCount);
+      // Tile mode renders backend-aggregated bins; live mode decimates the
+      // ring. Both yield the same min/max envelope shape — one render path.
+      const env =
+        tileMode && tiles
+          ? tileEnvelope(tiles, t.trace)
+          : binMinMax(streamRing, t.trace, yKey, tickCount);
       const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
       const toData = (pts: EnvelopePoint[]): [number, number][] =>
         pts.map(([v, y]) => [convertVal(t, v), y] as [number, number]);
@@ -392,6 +405,9 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     rangePreset,
     logTrackRange,
     rulerRange,
+    tileRange,
+    tileMode,
+    tiles,
     settings.unitSystem,
     fsScale,
     traceDisplays,
@@ -404,6 +420,9 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     if (!ec) return;
 
     ec.setOption(buildOption(), { lazyUpdate: true });
+
+    // Tile mode is a static historical snapshot — no live-ring subscription.
+    if (tileMode) return;
 
     const flush = () => {
       pendingRaf.current = null;
@@ -427,7 +446,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         pendingRaf.current = null;
       }
     };
-  }, [stream, buildOption, showLive]);
+  }, [stream, buildOption, showLive, tileMode]);
 
   const trackMeta = TRACKS_META.find((t) => t.id === trackId);
   const trackWidth = trackMeta ? (trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;
@@ -464,16 +483,27 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         ) : status !== "ONLINE" ? (
           <ChartPlaceholder text="Connecting…" />
         ) : (
-          <ReactECharts
-            ref={chartRef}
-            echarts={echarts}
-            option={{}}
-            style={{ width: "100%", height: "100%" }}
-            opts={{ renderer: "canvas" }}
-            notMerge={false}
-            lazyUpdate
-            onEvents={{ datazoom: handleDataZoom }}
-          />
+          <>
+            <ReactECharts
+              ref={chartRef}
+              echarts={echarts}
+              option={{}}
+              style={{ width: "100%", height: "100%" }}
+              opts={{ renderer: "canvas" }}
+              notMerge={false}
+              lazyUpdate
+              onEvents={{ datazoom: handleDataZoom }}
+            />
+            {tileStatus === "loading" && (
+              <ChartOverlay text="Loading history…" />
+            )}
+            {tileStatus === "error" && (
+              <ChartOverlay text={tileError ?? "History unavailable"} />
+            )}
+            {tileMode && tiles && tiles.bins.length === 0 && (
+              <ChartOverlay text="No data for this range" />
+            )}
+          </>
         )}
       </div>
     </div>
@@ -486,6 +516,16 @@ function ChartPlaceholder({ text }: { text: string }) {
       <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
         {text}
       </span>
+    </div>
+  );
+}
+
+// Tile loading / error / empty state, drawn over the live chart canvas so the
+// ECharts instance stays mounted (its ref must survive for the tile setOption).
+function ChartOverlay({ text }: { text: string }) {
+  return (
+    <div className="absolute inset-0 bg-(--theme-base)">
+      <ChartPlaceholder text={text} />
     </div>
   );
 }

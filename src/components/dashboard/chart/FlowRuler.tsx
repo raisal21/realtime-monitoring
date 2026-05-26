@@ -37,6 +37,7 @@ export function FlowRuler() {
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
+  const tileRange = useStore(globalRigStore, (s) => s.chart.tileRange);
   const status = useStore(globalRigStore, (s) => s.status);
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
@@ -61,7 +62,7 @@ export function FlowRuler() {
       ? { min: depthMin, max: depthMax, cursor: cursorDepth, ropMPerMin }
       : { min: timeMin, max: timeMax, cursor: timeMax };
   const yRange = getViewport(
-    { rangePreset, rulerRange, logTrackRange },
+    { rangePreset, rulerRange, logTrackRange, tileRange },
     session,
     true,
     mode,

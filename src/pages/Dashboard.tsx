@@ -7,6 +7,7 @@ import { globalRigStore } from "@/store/index-store";
 import { getWellById } from "@/data/wells";
 import { useChart } from "@/store/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
+import { useTileSync } from "@/hooks/use-tile-sync";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
 import { Footer } from "@/components/dashboard/shell/Footer";
 import { LeftToolRail } from "@/components/dashboard/rail/LeftToolRail";
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const { state: chart } = useChart();
   const { role } = useAuth();
   useKeyboardShortcuts();
+  useTileSync();
 
   const allowedStreams = role ? ROLE_STREAMS[role] : null;
   const streamAllowed = (uiStream: "drill" | "geo"): boolean => {

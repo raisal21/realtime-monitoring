@@ -1,9 +1,11 @@
 import type { StateCreator } from "zustand";
 import { TRACKS_META, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
+import type { TileResponse } from "@/services/tiles-client";
 import type { GlobalRigState } from "../store.types";
 
 export type ChartMode = "time" | "depth";
 export type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
+type TileStatus = "idle" | "loading" | "ready" | "error";
 type Range = { min: number; max: number };
 
 export type ChartState = {
@@ -12,6 +14,11 @@ export type ChartState = {
   rangePreset: RangePreset | null;
   rulerRange: Range | null;
   logTrackRange: Range | null;
+  tileStatus: TileStatus;
+  tileError: string | null;
+  drillTiles: TileResponse | null;
+  geoTiles: TileResponse | null;
+  tileRange: Range | null;
   wellProfileSlider: boolean;
   rulerSlider: boolean;
   traceVisibility: Record<string, boolean>;
@@ -29,6 +36,10 @@ interface ChartActions {
   setRangePreset: (preset: RangePreset) => void;
   setRulerRange: (min: number, max: number) => void;
   setLogTrackRange: (min: number, max: number) => void;
+  setTileLoading: () => void;
+  setTiles: (drill: TileResponse, geo: TileResponse, range: Range) => void;
+  setTileError: (message: string) => void;
+  clearTiles: () => void;
   setSliderMode: (value: boolean) => void;
   toggleTraceVisibility: (trace: string) => void;
   setTrackOrder: (order: string[]) => void;
@@ -48,6 +59,11 @@ const chartInitial: ChartState = {
   rangePreset: "1h",
   rulerRange: null,
   logTrackRange: null,
+  tileStatus: "idle",
+  tileError: null,
+  drillTiles: null,
+  geoTiles: null,
+  tileRange: null,
   wellProfileSlider: false,
   rulerSlider: false,
   crosshairValue: null,
@@ -152,6 +168,46 @@ export const createChartSlice: StateCreator<
         rulerSlider: true,
       },
     })),
+
+  setTileLoading: () =>
+    set((s) => ({
+      chart: { ...s.chart, tileStatus: "loading", tileError: null },
+    })),
+
+  setTiles: (drill, geo, range) =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        tileStatus: "ready",
+        tileError: null,
+        drillTiles: drill,
+        geoTiles: geo,
+        tileRange: range,
+      },
+    })),
+
+  setTileError: (message) =>
+    set((s) => ({
+      chart: { ...s.chart, tileStatus: "error", tileError: message },
+    })),
+
+  // No-op when already cleared — useTileSync calls this on every narrow /
+  // depth-mode render, and a same-reference return skips the store update.
+  clearTiles: () =>
+    set((s) =>
+      s.chart.tileStatus === "idle" && s.chart.tileRange === null
+        ? s
+        : {
+            chart: {
+              ...s.chart,
+              tileStatus: "idle",
+              tileError: null,
+              drillTiles: null,
+              geoTiles: null,
+              tileRange: null,
+            },
+          },
+    ),
 
   setSliderMode: (value) =>
     set((s) => ({

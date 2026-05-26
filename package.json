@@ -9,6 +9,7 @@
     "prebuild": "node scripts/check-themes.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:logic": "tsx --test tests/*.test.ts",
     "preview": "vite preview",
     "smoke": "bash scripts/smoke-test.sh"
   },

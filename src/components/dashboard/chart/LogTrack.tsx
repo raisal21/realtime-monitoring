@@ -15,7 +15,7 @@ import {
   getViewport,
   type ViewportSession,
 } from "@/lib/chart-viewport";
-import { getTickCount } from "@/lib/chart-ticks";
+import { getEnvelopeBinCount, getTickCount } from "@/lib/chart-ticks";
 import type { GlobalRigState } from "@/store/store.types";
 import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
 import type { StreamRing } from "@/lib/stream-ring";
@@ -251,6 +251,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const canvasH =
       chartRef.current?.getEchartsInstance()?.getHeight() ?? 600;
     const tickCount = getTickCount(canvasH);
+    const envelopeBinCount = getEnvelopeBinCount(canvasH);
 
     const convertVal = (t: typeof visibleTraces[number], v: number): number => {
       if (t.kind === "scalar") return v;
@@ -262,16 +263,20 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
 
     const yKey = mode === "depth" ? "depth" : "timestamp";
 
-    // BIN-MM envelope: each trace becomes a min line + a max line over
-    // `tickCount` bins (~2× tickCount points total), replacing one polyline
-    // point per raw sample. Decimation cost is independent of ring depth.
+    // Grid ticks stay sparse for readability; envelope bins are denser so
+    // sparse live buffers still reach the viewport edges without hiding spikes.
     const series = visibleTraces.flatMap((t, idx) => {
       // Tile mode renders backend-aggregated bins; live mode decimates the
       // ring. Both yield the same min/max envelope shape — one render path.
       const env =
         tileMode && tiles
           ? tileEnvelope(tiles, t.trace)
-          : binMinMax(streamRing, t.trace, yKey, tickCount);
+          : binMinMax(streamRing, t.trace, yKey, {
+              binCount: envelopeBinCount,
+              yMin: yRange.min,
+              yMax: yRange.max,
+              anchorEdges: true,
+            });
       const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
       const toData = (pts: EnvelopePoint[]): [number, number][] =>
         pts.map(([v, y]) => [convertVal(t, v), y] as [number, number]);

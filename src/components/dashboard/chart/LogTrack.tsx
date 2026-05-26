@@ -15,12 +15,15 @@ import {
   getViewport,
   type ViewportSession,
 } from "@/lib/chart-viewport";
+import { useLiveSessionRange } from "@/hooks/dashboard-hooks";
 import { getEnvelopeBinCount, getTickCount } from "@/lib/chart-ticks";
+import { formatLocalHHMM } from "@/lib/time-format";
 import type { GlobalRigState } from "@/store/store.types";
 import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
 import type { StreamRing } from "@/lib/stream-ring";
 import { binMinMax, type EnvelopePoint } from "@/lib/bin-mm";
 import { tileEnvelope } from "@/services/tiles-client";
+import { isTilePreset } from "@/lib/tile-resolution";
 
 interface LogTrackProps {
   trackId: keyof typeof TRACK_TRACES;
@@ -167,12 +170,14 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
   const tileRange = useStore(globalRigStore, (s) => s.chart.tileRange);
+  const tileDepthRange = useStore(globalRigStore, (s) => s.chart.tileDepthRange);
   const tileStatus = useStore(globalRigStore, (s) => s.chart.tileStatus);
   const tileError = useStore(globalRigStore, (s) => s.chart.tileError);
   const drillTiles = useStore(globalRigStore, (s) => s.chart.drillTiles);
   const geoTiles = useStore(globalRigStore, (s) => s.chart.geoTiles);
   const tiles = stream === "drill" ? drillTiles : geoTiles;
-  const tileMode = tileStatus === "ready" && tiles !== null;
+  const wideTilePreset = isTilePreset(rangePreset);
+  const tileMode = wideTilePreset && tileStatus === "ready" && tiles !== null;
   const trackWidths = useStore(globalRigStore, (s) => s.chart.trackWidths);
   const traceVisibility = useStore(
     globalRigStore,
@@ -190,6 +195,14 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
   const { well } = useCurrentWell();
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
+  const {
+    depthMin,
+    depthMax,
+    timeMin,
+    timeMax,
+    cursorDepth,
+    ropMPerMin,
+  } = useLiveSessionRange();
   const traces = TRACK_TRACES[trackId];
   const tc = getTraceColors();
 
@@ -222,28 +235,13 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     const visibleTraces = traces.filter((t) => traceVisibility[t.trace]);
 
     const streamRing = getStreamRing(globalRigStore.getState(), stream);
-    const drillRing = globalRigStore.getState().drillRing;
-    const head = drillRing.first();
-    const tail = drillRing.latest();
-
-    let session: ViewportSession;
-    if (mode === "depth") {
-      const cursor = tail?.depth ?? 0;
-      const minDepth = head?.depth ?? cursor;
-      const dT = head && tail ? tail.timestamp - head.timestamp : 0;
-      const ropMPerMin =
-        dT > 0 && head && tail
-          ? ((tail.depth - head.depth) / dT) * 60_000
-          : 0.1;
-      session = { min: minDepth, max: cursor, cursor, ropMPerMin };
-    } else {
-      const cursor = tail?.timestamp ?? Date.now();
-      const min = head?.timestamp ?? cursor;
-      session = { min, max: cursor, cursor };
-    }
+    const session: ViewportSession =
+      mode === "depth"
+        ? { min: depthMin, max: depthMax, cursor: cursorDepth, ropMPerMin }
+        : { min: timeMin, max: timeMax, cursor: timeMax };
 
     const yRange = getViewport(
-      { rangePreset, rulerRange, logTrackRange, tileRange },
+      { rangePreset, rulerRange, logTrackRange, tileRange, tileDepthRange },
       session,
       true,
       mode,
@@ -252,6 +250,8 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       chartRef.current?.getEchartsInstance()?.getHeight() ?? 600;
     const tickCount = getTickCount(canvasH);
     const envelopeBinCount = getEnvelopeBinCount(canvasH);
+    const ySpan = yRange.max - yRange.min;
+    const tickInterval = ySpan > 0 ? ySpan / tickCount : 1;
 
     const convertVal = (t: typeof visibleTraces[number], v: number): number => {
       if (t.kind === "scalar") return v;
@@ -263,15 +263,14 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
 
     const yKey = mode === "depth" ? "depth" : "timestamp";
 
-    // Grid ticks stay sparse for readability; envelope bins are denser so
-    // sparse live buffers still reach the viewport edges without hiding spikes.
-    const series = visibleTraces.flatMap((t, idx) => {
-      // Tile mode renders backend-aggregated bins; live mode decimates the
-      // ring. Both yield the same min/max envelope shape — one render path.
-      const env =
-        tileMode && tiles
-          ? tileEnvelope(tiles, t.trace)
-          : binMinMax(streamRing, t.trace, yKey, {
+    // Grid ticks stay sparse for readability; data bins stay dense so live
+    // buffers reach the viewport edges without drawing duplicate envelopes.
+    const series = visibleTraces.map((t, idx) => {
+      const env = wideTilePreset
+        ? tileMode && tiles
+          ? tileEnvelope(tiles, t.trace, mode === "depth" ? "depth" : "time")
+          : { min: [], max: [], line: [] }
+        : binMinMax(streamRing, t.trace, yKey, {
               binCount: envelopeBinCount,
               yMin: yRange.min,
               yMax: yRange.max,
@@ -280,7 +279,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
       const color = tcL[t.trace as keyof typeof tcL] || c.fgMuted;
       const toData = (pts: EnvelopePoint[]): [number, number][] =>
         pts.map(([v, y]) => [convertVal(t, v), y] as [number, number]);
-      const line = {
+      return {
         type: "line" as const,
         name: t.trace,
         xAxisIndex: idx,
@@ -290,11 +289,8 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         lineStyle: { color, width: 1.5, opacity: 0.95 },
         itemStyle: { color },
         z: 10 - idx,
+        data: toData(env.line),
       };
-      return [
-        { ...line, data: toData(env.max) },
-        { ...line, data: toData(env.min) },
-      ];
     });
 
     const xAxes = visibleTraces.length > 0
@@ -329,8 +325,11 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         inverse: true,
         min: yRange.min,
         max: yRange.max,
-        show: false,
-        splitNumber: tickCount,
+        show: true,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { show: false },
+        interval: tickInterval,
         splitLine: {
           show: true,
           lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
@@ -357,10 +356,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
                   return `${d.value} ${d.unit}`;
                 }
               : (params: { value: number | string | Date }) => {
-                  const min = ((Number(params.value) % 1440) + 1440) % 1440;
-                  const h = Math.floor(min / 60);
-                  const m = Math.floor(min % 60);
-                  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+                  return formatLocalHHMM(Number(params.value));
                 },
           },
         },
@@ -374,29 +370,17 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         formatter: (params: unknown) => {
           const ps = params as Array<{ seriesName: string; value: [number, number] }>;
           if (!ps?.length) return "";
-          // Two series share each trace's name (min + max line) — collapse
-          // them into one min–max band readout per trace.
-          const band = new Map<string, { lo: number; hi: number }>();
+          const values = new Map<string, number>();
           for (const p of ps) {
-            const v = p.value[0];
-            const e = band.get(p.seriesName);
-            if (e) {
-              e.lo = Math.min(e.lo, v);
-              e.hi = Math.max(e.hi, v);
-            } else {
-              band.set(p.seriesName, { lo: v, hi: v });
-            }
+            const value = p.value[0];
+            if (Number.isFinite(value)) values.set(p.seriesName, value);
           }
-          return [...band.entries()]
-            .flatMap(([trace, mm]) => {
+          return [...values.entries()]
+            .flatMap(([trace, value]) => {
               const d = traceDisplays.get(trace);
               if (!d) return [];
               const color = tcL[trace as keyof typeof tcL] || c.fgMuted;
-              const val =
-                mm.lo === mm.hi
-                  ? mm.lo.toFixed(1)
-                  : `${mm.lo.toFixed(1)}–${mm.hi.toFixed(1)}`;
-              return [`<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${val}</span> <span style="color:${c.fgDim}">${d.unit}</span>`];
+              return [`<span style="color:${color}">■</span> <span style="color:${c.fgMuted}">${d.name}</span> <span style="color:${c.fg};font-weight:600">${value.toFixed(1)}</span> <span style="color:${c.fgDim}">${d.unit}</span>`];
             })
             .join("<br/>");
         },
@@ -411,12 +395,20 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     logTrackRange,
     rulerRange,
     tileRange,
+    tileDepthRange,
+    wideTilePreset,
     tileMode,
     tiles,
     settings.unitSystem,
     fsScale,
     traceDisplays,
     stream,
+    depthMin,
+    depthMax,
+    timeMin,
+    timeMax,
+    cursorDepth,
+    ropMPerMin,
   ]);
 
   useEffect(() => {
@@ -427,7 +419,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
     ec.setOption(buildOption(), { lazyUpdate: true });
 
     // Tile mode is a static historical snapshot — no live-ring subscription.
-    if (tileMode) return;
+    if (wideTilePreset) return;
 
     const flush = () => {
       pendingRaf.current = null;
@@ -451,7 +443,7 @@ export function LogTrack({ trackId, title, hz, stream }: LogTrackProps) {
         pendingRaf.current = null;
       }
     };
-  }, [stream, buildOption, showLive, tileMode]);
+  }, [stream, buildOption, showLive, wideTilePreset]);
 
   const trackMeta = TRACKS_META.find((t) => t.id === trackId);
   const trackWidth = trackMeta ? (trackWidths[trackId] ?? trackMeta.defaultWidth) : 180;

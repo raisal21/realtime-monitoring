@@ -1,9 +1,9 @@
-export const MIN_PX_PER_TICK = 44;
-export const MIN_TICKS = 4;
-export const MAX_TICKS = 10;
-export const MIN_ENVELOPE_BINS = 60;
-export const MAX_ENVELOPE_BINS = 240;
-export const PX_PER_ENVELOPE_BIN = 8;
+export const MIN_PX_PER_TICK = 56;
+export const MIN_TICKS = 8;
+export const MAX_TICKS = 14;
+export const MIN_ENVELOPE_BINS = 30;
+export const MAX_ENVELOPE_BINS = 120;
+export const PX_PER_ENVELOPE_BIN = 24;
 
 export function getTickCount(canvasPx: number): number {
   return Math.max(

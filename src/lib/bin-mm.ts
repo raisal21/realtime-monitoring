@@ -6,6 +6,7 @@ export type EnvelopePoint = [value: number, y: number];
 export interface Envelope {
   min: EnvelopePoint[];
   max: EnvelopePoint[];
+  line: EnvelopePoint[];
 }
 
 // Minimal ring surface the downsampler needs. This lets it accept any
@@ -14,6 +15,12 @@ interface ReadableRing {
   readonly size: number;
   field(name: string, i: number): number;
 }
+
+type SamplePoint = {
+  value: number;
+  y: number;
+  ordinal: number;
+};
 
 export interface BinMinMaxOptions {
   binCount: number;
@@ -34,9 +41,10 @@ export function binMinMax(
   const n = ring.size;
   const min: EnvelopePoint[] = [];
   const max: EnvelopePoint[] = [];
+  const line: EnvelopePoint[] = [];
   const cfg = typeof options === "number" ? { binCount: options } : options;
   const binCount = Math.floor(cfg.binCount);
-  if (n === 0 || binCount <= 0) return { min, max };
+  if (n === 0 || binCount <= 0) return { min, max, line };
 
   const yMin = cfg.yMin ?? -Infinity;
   const yMax = cfg.yMax ?? Infinity;
@@ -54,13 +62,13 @@ export function binMinMax(
     last = point;
     visibleCount++;
   }
-  if (visibleCount === 0) return { min, max };
+  if (visibleCount === 0) return { min, max, line };
 
   type BinState = {
-    loV: number;
-    hiV: number;
-    loY: number;
-    hiY: number;
+    first: SamplePoint;
+    last: SamplePoint;
+    lo: SamplePoint;
+    hi: SamplePoint;
   };
 
   const bins: Array<BinState | undefined> = [];
@@ -82,17 +90,22 @@ export function binMinMax(
     }
 
     const v = ring.field(trace, i);
+    const point: SamplePoint = { value: v, y, ordinal: visibleOrdinal };
     const bin = bins[currentBin];
     if (!bin) {
-      bins[currentBin] = { loV: v, hiV: v, loY: y, hiY: y };
+      bins[currentBin] = {
+        first: point,
+        last: point,
+        lo: point,
+        hi: point,
+      };
     } else {
-      if (v < bin.loV) {
-        bin.loV = v;
-        bin.loY = y;
+      bin.last = point;
+      if (v < bin.lo.value) {
+        bin.lo = point;
       }
-      if (v > bin.hiV) {
-        bin.hiV = v;
-        bin.hiY = y;
+      if (v > bin.hi.value) {
+        bin.hi = point;
       }
     }
     visibleOrdinal++;
@@ -100,15 +113,39 @@ export function binMinMax(
 
   for (const bin of bins) {
     if (!bin) continue;
-    min.push([bin.loV, bin.loY]);
-    max.push([bin.hiV, bin.hiY]);
+    min.push(toEnvelopePoint(bin.lo));
+    max.push(toEnvelopePoint(bin.hi));
+    appendLinePoints(line, [bin.first, bin.last, bin.lo, bin.hi]);
   }
 
   if (cfg.anchorEdges && first && last) {
     anchorEdge(min, first, last);
     anchorEdge(max, first, last);
   }
-  return { min, max };
+  return { min, max, line };
+}
+
+function toEnvelopePoint(point: SamplePoint): EnvelopePoint {
+  return [point.value, point.y];
+}
+
+function appendLinePoints(
+  target: EnvelopePoint[],
+  points: SamplePoint[],
+): void {
+  const seen = new Set<number>();
+  for (const point of points
+    .filter((p) => {
+      if (seen.has(p.ordinal)) return false;
+      seen.add(p.ordinal);
+      return true;
+    })
+    .sort((a, b) => a.ordinal - b.ordinal)) {
+    const next = toEnvelopePoint(point);
+    const previous = target.at(-1);
+    if (previous?.[0] === next[0] && previous[1] === next[1]) continue;
+    target.push(next);
+  }
 }
 
 function anchorEdge(

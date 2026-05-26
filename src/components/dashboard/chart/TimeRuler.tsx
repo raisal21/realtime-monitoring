@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from "react";
+import { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react/lib/core";
 import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
@@ -12,23 +12,22 @@ import {
   type ViewportSession,
 } from "@/lib/chart-viewport";
 import { getTickCount } from "@/lib/chart-ticks";
+import { formatLocalHHMM } from "@/lib/time-format";
+import {
+  projectTimeAtDepth,
+  tileDepthPoints,
+  type TileDepthPoint,
+} from "@/services/tiles-client";
+import { isTilePreset } from "@/lib/tile-resolution";
 
 const MS_PER_MIN = 60_000;
-
-// Local wall-clock — DashboardSubheader's LiveDepthReadout also shows local;
-// staying consistent across the dashboard.
-const msToHHMM = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getHours().toString().padStart(2, "0")}:${d
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
-};
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
   const chart = useStore(globalRigStore, (s) => s.chart);
+  const drillTiles = useStore(globalRigStore, (s) => s.chart.drillTiles);
+  const geoTiles = useStore(globalRigStore, (s) => s.chart.geoTiles);
   const setLogTrackRange = useStore(
     globalRigStore,
     (s) => s.setLogTrackRange,
@@ -52,17 +51,66 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     return () => obs.disconnect();
   }, []);
 
-  const { timeMin: sessionMin, timeMax: sessionMax } = useLiveSessionRange();
-  const session: ViewportSession = {
+  const {
+    depthMin,
+    depthMax,
+    timeMin: sessionMin,
+    timeMax: sessionMax,
+    cursorDepth,
+    ropMPerMin,
+  } = useLiveSessionRange();
+  const timeSession: ViewportSession = {
     min: sessionMin,
     max: sessionMax,
     cursor: sessionMax,
   };
-  const yRange = getViewport(chart, session, isPrimary, "time");
+  const depthSession: ViewportSession = {
+    min: depthMin,
+    max: depthMax,
+    cursor: cursorDepth,
+    ropMPerMin,
+  };
+  const yRange = getViewport(
+    chart,
+    chart.mode === "depth" ? depthSession : timeSession,
+    chart.mode === "depth" ? true : isPrimary,
+    chart.mode === "depth" ? "depth" : "time",
+  );
+  const wideTilePreset = isTilePreset(chart.rangePreset);
+
+  const tileDepth = useMemo<TileDepthPoint[]>(() => {
+    const drill = drillTiles ? tileDepthPoints(drillTiles) : [];
+    if (drill.length > 0) return drill;
+    return geoTiles ? tileDepthPoints(geoTiles) : [];
+  }, [drillTiles, geoTiles]);
+
+  const projectLiveTimeAtDepth = useCallback((depth: number): number | null => {
+    if (!Number.isFinite(depth)) return null;
+    const ring = globalRigStore.getState().drillRing;
+    const points: TileDepthPoint[] = [];
+    for (let i = 0; i < ring.size; i++) {
+      points.push({
+        timestamp: ring.field("timestamp", i),
+        depth: ring.field("depth", i),
+      });
+    }
+    return projectTimeAtDepth(points, depth);
+  }, []);
+
+  const timeAtAxisValue = useCallback((value: number): number | null => {
+    if (chart.mode !== "depth") return value;
+    if (wideTilePreset) return projectTimeAtDepth(tileDepth, value);
+    return projectTimeAtDepth(tileDepth, value) ?? projectLiveTimeAtDepth(value);
+  }, [chart.mode, projectLiveTimeAtDepth, tileDepth, wideTilePreset]);
+
+  const formatTimeAtAxisValue = useCallback((value: number): string => {
+    const timestamp = timeAtAxisValue(value);
+    return timestamp == null ? "--:--" : formatLocalHHMM(timestamp);
+  }, [timeAtAxisValue]);
 
   // Tick count adapts to canvas height via getTickCount helper. Values
   // won't land on round wall-clock minutes but density stays readable across
-  // resizes. msToHHMM formatter rounds to nearest minute. Crosshair
+  // resizes. formatLocalHHMM formatter rounds to nearest minute. Crosshair
   // projection uses raw bounds so the tooltip pixel matches the cursor.
   const tickCount = getTickCount(canvasH);
   const spanMs = yRange.max - yRange.min;
@@ -114,8 +162,14 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     }
   }, [chart.crosshairValue, axisMin, axisMax]);
 
-  const sliderAxisMin = sessionMin;
-  const sliderAxisMax = sessionMax;
+  const sliderAxisMin =
+    chart.mode === "depth"
+      ? (chart.tileDepthRange?.min ?? depthMin)
+      : (chart.tileRange?.min ?? sessionMin);
+  const sliderAxisMax =
+    chart.mode === "depth"
+      ? (chart.tileDepthRange?.max ?? depthMax)
+      : (chart.tileRange?.max ?? sessionMax);
   const handleDataZoom = useCallback(
     (params: unknown) => {
       // Non-primary ruler shows a projected window in the wrong unit for
@@ -166,11 +220,11 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
 
   const fsScale = FS_SCALE[settings.fontSize];
 
-  // Slider operates on full session range; start/end percentages reflect
-  // current visible window position within the session.
-  const sessionSpan = sessionMax - sessionMin || 1;
-  const sliderStartPct = ((yRange.min - sessionMin) / sessionSpan) * 100;
-  const sliderEndPct = ((yRange.max - sessionMin) / sessionSpan) * 100;
+  // Slider operates on full axis range; start/end percentages reflect the
+  // current visible window position within the active time/depth axis.
+  const sessionSpan = sliderAxisMax - sliderAxisMin || 1;
+  const sliderStartPct = ((yRange.min - sliderAxisMin) / sessionSpan) * 100;
+  const sliderEndPct = ((yRange.max - sliderAxisMin) / sessionSpan) * 100;
 
   const pendingRaf = useRef<number | null>(null);
 
@@ -216,7 +270,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
             hideOverlap: true,
-            formatter: (val: number) => msToHHMM(val),
+            formatter: (val: number) => formatTimeAtAxisValue(val),
           },
           splitLine: { show: false },
           axisPointer: {
@@ -229,7 +283,7 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
               formatter: (params: { value: number | string | Date }) =>
-                msToHHMM(Number(params.value)),
+                formatTimeAtAxisValue(Number(params.value)),
             },
           },
         },
@@ -319,7 +373,13 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
     sliderEndPct,
     showDataZoomSlider,
     tickIntervalMs,
+    formatTimeAtAxisValue,
   ]);
+
+  const topTimestamp = timeAtAxisValue(yRange.min);
+  const bottomTimestamp = timeAtAxisValue(yRange.max);
+  const topDate = topTimestamp == null ? null : new Date(topTimestamp);
+  const bottomDate = bottomTimestamp == null ? null : new Date(bottomTimestamp);
 
   // See DepthRuler for the why: prop-driven notMerge re-renders blow away
   // the axisPointer state installed by the crosshair effect, causing tooltip
@@ -389,11 +449,10 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             )}
           >
             <span className="font-['Barlow_Condensed',sans-serif] text-fs-7 uppercase tracking-wider opacity-75">
-              {MONTHS[new Date(yRange.min).getMonth()]}{" "}
-              {new Date(yRange.min).getDate()}
+              {topDate ? `${MONTHS[topDate.getMonth()]} ${topDate.getDate()}` : "--"}
             </span>
             <span className="font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums">
-              {msToHHMM(yRange.min)}
+              {formatTimeAtAxisValue(yRange.min)}
             </span>
           </div>
         </div>
@@ -420,11 +479,10 @@ export function TimeRuler({ isPrimary }: { isPrimary: boolean }) {
             )}
           >
             <span className="font-['Barlow_Condensed',sans-serif] text-fs-7 uppercase tracking-wider opacity-75">
-              {MONTHS[new Date(yRange.max).getMonth()]}{" "}
-              {new Date(yRange.max).getDate()}
+              {bottomDate ? `${MONTHS[bottomDate.getMonth()]} ${bottomDate.getDate()}` : "--"}
             </span>
             <span className="font-['Share_Tech_Mono',monospace] text-fs-8 tabular-nums">
-              {msToHHMM(yRange.max)}
+              {formatTimeAtAxisValue(yRange.max)}
             </span>
           </div>
         </div>

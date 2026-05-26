@@ -1,8 +1,8 @@
 import type { Envelope, EnvelopePoint } from "@/lib/bin-mm";
 
 // Mirrors witsml-socket-cs/Tiles.cs. GET /api/tiles returns pre-aggregated
-// min/max/avg per trace per time bucket — already the shape LogTrack's
-// BIN-MM envelope renders, so no client-side decimation happens here.
+// min/max/avg per trace per time bucket. Tile buckets do not preserve
+// intra-bucket order, so LogTrack draws avg as the single visible line.
 
 export type TileRes = "1s" | "10s" | "1m" | "5m" | "1h";
 
@@ -27,6 +27,12 @@ export interface TileResponse {
   bins: TileBin[];
 }
 
+export type TileRange = { min: number; max: number };
+
+export type TileDepthPoint = { timestamp: number; depth: number };
+
+type TileEnvelopeAxis = "time" | "depth";
+
 export type TileErrorKind = "bad-request" | "unavailable" | "network";
 
 export class TileFetchError extends Error {
@@ -45,8 +51,8 @@ export interface TileQuery {
   res: TileRes;
 }
 
-// Same-origin fetch — the Vite dev proxy forwards /api to the backend, so no
-// CORS handling is needed (witsml NAPKIN 2026-05-20 — Security posture).
+// Same-origin fetch - the Vite dev proxy forwards /api to the backend, so no
+// CORS handling is needed (witsml NAPKIN 2026-05-20 - Security posture).
 export async function fetchTiles(q: TileQuery): Promise<TileResponse> {
   const qs = new URLSearchParams({
     stream: q.stream,
@@ -71,7 +77,7 @@ export async function fetchTiles(q: TileQuery): Promise<TileResponse> {
       const body = (await resp.json()) as { message?: string };
       if (body?.message) message = body.message;
     } catch {
-      // non-JSON error body — keep the status-code message
+      // non-JSON error body - keep the status-code message
     }
     throw new TileFetchError("bad-request", message);
   }
@@ -83,19 +89,174 @@ function asStat(v: string | TileStat | undefined): TileStat | undefined {
   return v != null && typeof v === "object" ? v : undefined;
 }
 
-// Tile bins → BIN-MM envelope: one min point + one max point per bucket,
-// y-positioned at the bucket timestamp. Feeds LogTrack's envelope renderer —
-// the same path Layer 2's live ring uses, no second render path.
-export function tileEnvelope(tiles: TileResponse, trace: string): Envelope {
+// Tile bins -> envelope: keep min/max for safety data, but expose one
+// representative visible line because bucket extrema have no ordering.
+export function tileEnvelope(
+  tiles: TileResponse,
+  trace: string,
+  yAxis: TileEnvelopeAxis = "time",
+): Envelope {
   const min: EnvelopePoint[] = [];
   const max: EnvelopePoint[] = [];
+  const line: EnvelopePoint[] = [];
   for (const bin of tiles.bins) {
     const stat = asStat(bin[trace]);
     if (!stat) continue;
-    const y = Date.parse(bin.ts);
-    if (Number.isNaN(y)) continue;
+    const y = tileEnvelopeY(bin, yAxis);
+    if (y == null) continue;
     if (stat.min != null) min.push([stat.min, y]);
     if (stat.max != null) max.push([stat.max, y]);
+    const value = tileLineValue(stat);
+    if (value != null) line.push([value, y]);
   }
-  return { min, max };
+  return { min, max, line };
+}
+
+export function tileDataRange(tiles: TileResponse): TileRange | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const bin of tiles.bins) {
+    const ts = Date.parse(bin.ts);
+    if (!Number.isFinite(ts)) continue;
+    min = Math.min(min, ts);
+    max = Math.max(max, ts);
+  }
+  return min <= max ? { min, max } : null;
+}
+
+export function sharedTileDataRange(
+  drill: TileResponse,
+  geo: TileResponse,
+  requested: TileRange,
+): TileRange {
+  const drillRange = tileDataRange(drill);
+  const geoRange = tileDataRange(geo);
+  if (drillRange && geoRange) {
+    const min = Math.max(drillRange.min, geoRange.min);
+    const max = Math.min(drillRange.max, geoRange.max);
+    if (max >= min) return { min, max };
+    return {
+      min: Math.min(drillRange.min, geoRange.min),
+      max: Math.max(drillRange.max, geoRange.max),
+    };
+  }
+  return drillRange ?? geoRange ?? requested;
+}
+
+export function tileDepthRange(tiles: TileResponse): TileRange | null {
+  const points = tileDepthPoints(tiles);
+  let min = Infinity;
+  let max = -Infinity;
+  for (const point of points) {
+    min = Math.min(min, point.depth);
+    max = Math.max(max, point.depth);
+  }
+  return min <= max ? { min, max } : null;
+}
+
+export function sharedTileDepthRange(
+  drill: TileResponse,
+  geo: TileResponse,
+): TileRange | null {
+  return tileDepthRange(drill) ?? tileDepthRange(geo);
+}
+
+export function tileDepthPoints(tiles: TileResponse): TileDepthPoint[] {
+  const points: TileDepthPoint[] = [];
+  for (const bin of tiles.bins) {
+    const timestamp = Date.parse(bin.ts);
+    if (!Number.isFinite(timestamp)) continue;
+    const stat = asStat(bin.depth);
+    if (!stat) continue;
+    const depth = tileLineValue(stat);
+    if (depth == null || !Number.isFinite(depth)) continue;
+    points.push({ timestamp, depth });
+  }
+  return points.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+export function projectDepthAtTime(
+  points: readonly TileDepthPoint[],
+  timestamp: number,
+): number | null {
+  if (!Number.isFinite(timestamp) || points.length === 0) return null;
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (timestamp <= first.timestamp) return first.depth;
+  if (timestamp >= last.timestamp) return last.depth;
+
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const point = points[mid];
+    if (point.timestamp === timestamp) return point.depth;
+    if (point.timestamp < timestamp) lo = mid + 1;
+    else hi = mid - 1;
+  }
+
+  const prev = points[hi];
+  const next = points[lo];
+  if (!prev || !next) return null;
+  if (next.timestamp === prev.timestamp) return next.depth;
+  const t = (timestamp - prev.timestamp) / (next.timestamp - prev.timestamp);
+  return prev.depth + (next.depth - prev.depth) * t;
+}
+
+export function projectTimeAtDepth(
+  points: readonly TileDepthPoint[],
+  depth: number,
+): number | null {
+  if (!Number.isFinite(depth) || points.length === 0) return null;
+
+  let minDepth = Infinity;
+  let maxDepth = -Infinity;
+  let minDepthTime = points[0].timestamp;
+  let maxDepthTime = points[0].timestamp;
+  for (const point of points) {
+    if (point.depth < minDepth) {
+      minDepth = point.depth;
+      minDepthTime = point.timestamp;
+    }
+    if (point.depth > maxDepth) {
+      maxDepth = point.depth;
+      maxDepthTime = point.timestamp;
+    }
+  }
+  if (depth <= minDepth) return minDepthTime;
+  if (depth >= maxDepth) return maxDepthTime;
+
+  let projected: number | null = null;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const next = points[i];
+    const lo = Math.min(prev.depth, next.depth);
+    const hi = Math.max(prev.depth, next.depth);
+    if (depth < lo || depth > hi) continue;
+    if (next.depth === prev.depth) {
+      projected = next.timestamp;
+    } else {
+      const t = (depth - prev.depth) / (next.depth - prev.depth);
+      projected = prev.timestamp + (next.timestamp - prev.timestamp) * t;
+    }
+  }
+  return projected;
+}
+
+function tileEnvelopeY(bin: TileBin, yAxis: TileEnvelopeAxis): number | null {
+  if (yAxis === "time") {
+    const y = Date.parse(bin.ts);
+    return Number.isFinite(y) ? y : null;
+  }
+  const stat = asStat(bin.depth);
+  return stat ? tileLineValue(stat) : null;
+}
+
+function tileLineValue(stat: TileStat): number | null {
+  if (stat.avg != null) return stat.avg;
+  if (stat.min != null && stat.max != null) {
+    return (stat.min + stat.max) / 2;
+  }
+  return stat.min ?? stat.max ?? null;
 }

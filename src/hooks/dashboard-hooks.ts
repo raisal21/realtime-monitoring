@@ -19,8 +19,8 @@ export function useLiveSessionRange(): {
   return useStore(
     globalRigStore,
     useShallow((s) => {
-      const ring = s.drillRing;
-      if (ring.size === 0) {
+      const drill = s.drillRing;
+      if (drill.size === 0) {
         const now = Date.now();
         return {
           depthMin: 0,
@@ -31,19 +31,42 @@ export function useLiveSessionRange(): {
           ropMPerMin: 0.1,
         };
       }
-      const first = ring.first()!;
-      const last = ring.latest()!;
-      const rawMin = Math.min(first.depth, last.depth);
-      const rawMax = Math.max(first.depth, last.depth);
-      const span = rawMax - rawMin;
-      const dTimeMs = last.timestamp - first.timestamp;
-      const ropMPerMin = dTimeMs > 0 ? (rawMax - rawMin) / dTimeMs * 60_000 : 0.1;
+      const drillFirst = drill.first()!;
+      const drillLast = drill.latest()!;
+      let depthMin = Math.min(drillFirst.depth, drillLast.depth);
+      let depthMax = Math.max(drillFirst.depth, drillLast.depth);
+      let timeMin = drillFirst.timestamp;
+      let timeMax = drillLast.timestamp;
+
+      const geoFirst = s.geoRing.first();
+      const geoLast = s.geoRing.latest();
+      if (geoFirst && geoLast) {
+        const overlapTimeMin = Math.max(timeMin, geoFirst.timestamp);
+        const overlapTimeMax = Math.min(timeMax, geoLast.timestamp);
+        if (overlapTimeMax > overlapTimeMin) {
+          timeMin = overlapTimeMin;
+          timeMax = overlapTimeMax;
+        }
+
+        const geoDepthMin = Math.min(geoFirst.depth, geoLast.depth);
+        const geoDepthMax = Math.max(geoFirst.depth, geoLast.depth);
+        const overlapDepthMin = Math.max(depthMin, geoDepthMin);
+        const overlapDepthMax = Math.min(depthMax, geoDepthMax);
+        if (overlapDepthMax > overlapDepthMin) {
+          depthMin = overlapDepthMin;
+          depthMax = overlapDepthMax;
+        }
+      }
+
+      const span = depthMax - depthMin;
+      const dTimeMs = timeMax - timeMin;
+      const ropMPerMin = dTimeMs > 0 ? (depthMax - depthMin) / dTimeMs * 60_000 : 0.1;
       return {
-        depthMin: span < 1 ? rawMax - 30 : rawMin,
-        depthMax: rawMax,
-        timeMin: first.timestamp,
-        timeMax: last.timestamp,
-        cursorDepth: last.depth,
+        depthMin: span < 1 ? depthMax - 30 : depthMin,
+        depthMax,
+        timeMin,
+        timeMax,
+        cursorDepth: depthMax,
         ropMPerMin,
       };
     }),

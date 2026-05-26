@@ -14,6 +14,8 @@ import {
   getViewport,
   type ViewportSession,
 } from "@/lib/chart-viewport";
+import { formatLocalHHMM } from "@/lib/time-format";
+import { isTilePreset } from "@/lib/tile-resolution";
 
 // Flow baseline (gpm). Live stub holds rigState.flow around 1500; we render
 // the signed delta (flow - FLOW_BASELINE) so positive = "in", negative = "out".
@@ -23,13 +25,6 @@ const FLOW_SCALE = 200;
 // ruler can resolve, so stride-sample down to this many.
 const FLOW_MAX_BARS = 600;
 
-const minutesToHHMM = (min: number) => {
-  const wrapped = ((min % 1440) + 1440) % 1440;
-  const h = Math.floor(wrapped / 60);
-  const m = Math.floor(wrapped % 60);
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-};
-
 export function FlowRuler() {
   // Per-field selectors: avoid re-render on unrelated chart mutations
   // (crosshair, traceVisibility, track layout).
@@ -38,6 +33,7 @@ export function FlowRuler() {
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
   const tileRange = useStore(globalRigStore, (s) => s.chart.tileRange);
+  const tileDepthRange = useStore(globalRigStore, (s) => s.chart.tileDepthRange);
   const status = useStore(globalRigStore, (s) => s.status);
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
@@ -52,6 +48,7 @@ export function FlowRuler() {
   const { well } = useCurrentWell();
   const isLive = well?.id === LIVE_WELL_ID;
   const showLive = isLive && status === "ONLINE";
+  const wideTilePreset = isTilePreset(rangePreset);
 
   const chartRef = useRef<ReactECharts>(null);
   const pendingRaf = useRef<number | null>(null);
@@ -62,7 +59,7 @@ export function FlowRuler() {
       ? { min: depthMin, max: depthMax, cursor: cursorDepth, ropMPerMin }
       : { min: timeMin, max: timeMax, cursor: timeMax };
   const yRange = getViewport(
-    { rangePreset, rulerRange, logTrackRange, tileRange },
+    { rangePreset, rulerRange, logTrackRange, tileRange, tileDepthRange },
     session,
     true,
     mode,
@@ -158,7 +155,7 @@ export function FlowRuler() {
           const direction = isIn ? "◀ In" : "▶ Out";
           const color = isIn ? c.info : c.critical;
           const d = formatDepth(yVal, settings.unitSystem);
-          const label = mode === "depth" ? `${d.value} ${d.unit}` : minutesToHHMM(yVal);
+          const label = mode === "depth" ? `${d.value} ${d.unit}` : formatLocalHHMM(yVal);
           return [
             `<span style="color:${c.fgDim}">${label}</span>`,
             `<span style="color:${color}">${direction}: ${Math.abs(flow).toFixed(1)} gpm</span>`,
@@ -169,7 +166,7 @@ export function FlowRuler() {
   }, [mode, yRange.min, yRange.max, settings.unitSystem, fsScale]);
 
   useEffect(() => {
-    if (!showLive) return;
+    if (!showLive || wideTilePreset) return;
     const ec = chartRef.current?.getEchartsInstance();
     if (!ec) return;
 
@@ -197,7 +194,7 @@ export function FlowRuler() {
         pendingRaf.current = null;
       }
     };
-  }, [buildOption, showLive]);
+  }, [buildOption, showLive, wideTilePreset]);
 
   return (
     <div
@@ -241,6 +238,8 @@ export function FlowRuler() {
           <ChartPlaceholder text="No live feed for this well" />
         ) : status !== "ONLINE" ? (
           <ChartPlaceholder text="Connecting…" />
+        ) : wideTilePreset ? (
+          <ChartPlaceholder text="No hist" />
         ) : (
           <ReactECharts
             ref={chartRef}

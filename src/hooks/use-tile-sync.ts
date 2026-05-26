@@ -2,23 +2,27 @@ import { useEffect } from "react";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { PRESET_TO_MINUTES } from "@/data/dashboard-static";
-import { fetchTiles, TileFetchError } from "@/services/tiles-client";
+import {
+  fetchTiles,
+  sharedTileDepthRange,
+  sharedTileDataRange,
+  TileFetchError,
+} from "@/services/tiles-client";
 import { isTilePreset, pickResolution } from "@/lib/tile-resolution";
 import { log } from "@/utils/logger";
 
 const MS_PER_MIN = 60_000;
 
-// Owns tile lifecycle. A time-mode preset wider than the live ring triggers a
-// one-shot fetch of drill + geo tiles for [now − span, now]; anything else
-// clears tile state so the chart falls back to the live ring. Mount once.
+// Owns tile lifecycle. A preset wider than the live ring triggers a one-shot
+// fetch of drill + geo tiles for [now - span, now]; anything else clears tile
+// state so narrow presets fall back to the live ring. Mount once.
 export function useTileSync(): void {
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
-  const mode = useStore(globalRigStore, (s) => s.chart.mode);
 
   useEffect(() => {
     const store = globalRigStore.getState();
 
-    if (mode !== "time" || !isTilePreset(rangePreset)) {
+    if (!isTilePreset(rangePreset)) {
       store.clearTiles();
       return;
     }
@@ -34,9 +38,10 @@ export function useTileSync(): void {
     const fromMs = toMs - spanMin * MS_PER_MIN;
     const from = new Date(fromMs).toISOString();
     const to = new Date(toMs).toISOString();
+    const requestedRange = { min: fromMs, max: toMs };
 
     let cancelled = false;
-    store.setTileLoading();
+    store.setTileLoading(requestedRange);
 
     Promise.all([
       fetchTiles({ stream: "drill", from, to, res }),
@@ -46,7 +51,12 @@ export function useTileSync(): void {
         if (cancelled) return;
         globalRigStore
           .getState()
-          .setTiles(drill, geo, { min: fromMs, max: toMs });
+          .setTiles(
+            drill,
+            geo,
+            sharedTileDataRange(drill, geo, requestedRange),
+            sharedTileDepthRange(drill, geo),
+          );
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -59,5 +69,5 @@ export function useTileSync(): void {
     return () => {
       cancelled = true;
     };
-  }, [rangePreset, mode]);
+  }, [rangePreset]);
 }

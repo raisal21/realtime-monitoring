@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from "react";
+import { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react/lib/core";
 import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
@@ -6,16 +6,24 @@ import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE } from "@/store/app-store";
 import { useLiveSessionRange } from "@/hooks/dashboard-hooks";
 import { getChartColors } from "@/lib/echarts-theme";
-import { formatDepth, mToFt } from "@/lib/units";
+import { formatDepth } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import {
   getViewport,
   type ViewportSession,
 } from "@/lib/chart-viewport";
 import { getTickCount } from "@/lib/chart-ticks";
+import {
+  projectDepthAtTime,
+  tileDepthPoints,
+  type TileDepthPoint,
+} from "@/services/tiles-client";
+import { isTilePreset } from "@/lib/tile-resolution";
 
 export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
   const chart = useStore(globalRigStore, (s) => s.chart);
+  const drillTiles = useStore(globalRigStore, (s) => s.chart.drillTiles);
+  const geoTiles = useStore(globalRigStore, (s) => s.chart.geoTiles);
   const setLogTrackRange = useStore(
     globalRigStore,
     (s) => s.setLogTrackRange,
@@ -39,14 +47,83 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     return () => obs.disconnect();
   }, []);
 
-  const { depthMin: sessionMin, depthMax: sessionMax, cursorDepth, ropMPerMin } = useLiveSessionRange();
-  const session: ViewportSession = {
+  const {
+    depthMin: sessionMin,
+    depthMax: sessionMax,
+    timeMin,
+    timeMax,
+    cursorDepth,
+    ropMPerMin,
+  } = useLiveSessionRange();
+  const wideTilePreset = isTilePreset(chart.rangePreset);
+  const depthSession: ViewportSession = {
     min: sessionMin,
     max: sessionMax,
     cursor: cursorDepth,
     ropMPerMin,
   };
-  const yRange = getViewport(chart, session, isPrimary, "depth");
+  const timeSession: ViewportSession = {
+    min: timeMin,
+    max: timeMax,
+    cursor: timeMax,
+  };
+  const yRange = getViewport(
+    chart,
+    chart.mode === "time" ? timeSession : depthSession,
+    chart.mode === "time" ? true : isPrimary,
+    chart.mode === "time" ? "time" : "depth",
+  );
+
+  const tileDepth = useMemo<TileDepthPoint[]>(() => {
+    const drill = drillTiles ? tileDepthPoints(drillTiles) : [];
+    if (drill.length > 0) return drill;
+    return geoTiles ? tileDepthPoints(geoTiles) : [];
+  }, [drillTiles, geoTiles]);
+
+  const projectLiveDepthAtTime = useCallback((timestamp: number): number | null => {
+    if (!Number.isFinite(timestamp)) return null;
+    const ring = globalRigStore.getState().drillRing;
+    const n = ring.size;
+    if (n === 0) return null;
+
+    const firstTime = ring.field("timestamp", 0);
+    const lastTime = ring.field("timestamp", n - 1);
+    if (timestamp <= firstTime) return ring.field("depth", 0);
+    if (timestamp >= lastTime) return ring.field("depth", n - 1);
+
+    let lo = 0;
+    let hi = n - 1;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const t = ring.field("timestamp", mid);
+      if (t === timestamp) return ring.field("depth", mid);
+      if (t < timestamp) lo = mid + 1;
+      else hi = mid - 1;
+    }
+
+    const prevTime = ring.field("timestamp", hi);
+    const nextTime = ring.field("timestamp", lo);
+    const prevDepth = ring.field("depth", hi);
+    const nextDepth = ring.field("depth", lo);
+    if (nextTime === prevTime) return nextDepth;
+    const t = (timestamp - prevTime) / (nextTime - prevTime);
+    return prevDepth + (nextDepth - prevDepth) * t;
+  }, []);
+
+  const depthAtAxisValue = useCallback((value: number): number | null => {
+    if (chart.mode !== "time") return value;
+    if (wideTilePreset) return projectDepthAtTime(tileDepth, value);
+    if (chart.tileStatus === "ready" && chart.tileRange !== null) {
+      return projectDepthAtTime(tileDepth, value);
+    }
+    return projectDepthAtTime(tileDepth, value) ?? projectLiveDepthAtTime(value);
+  }, [chart.mode, chart.tileRange, chart.tileStatus, projectLiveDepthAtTime, tileDepth, wideTilePreset]);
+
+  const formatDepthAtAxisValue = useCallback((value: number): string => {
+    const depth = depthAtAxisValue(value);
+    if (depth == null) return "--";
+    return formatDepth(depth, settings.unitSystem).value;
+  }, [depthAtAxisValue, settings.unitSystem]);
 
   // Tick count adapts to canvas height via getTickCount helper. Tick values
   // won't land on round numbers but density stays readable across resizes.
@@ -103,8 +180,14 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     }
   }, [chart.crosshairValue, axisMin, axisMax]);
 
-  const sliderAxisMin = sessionMin;
-  const sliderAxisMax = sessionMax;
+  const sliderAxisMin =
+    chart.mode === "depth" && chart.tileDepthRange
+      ? chart.tileDepthRange.min
+      : sessionMin;
+  const sliderAxisMax =
+    chart.mode === "depth" && chart.tileDepthRange
+      ? chart.tileDepthRange.max
+      : sessionMax;
   const handleDataZoom = useCallback(
     (params: unknown) => {
       // Non-primary ruler shows a projected window in the wrong unit for
@@ -156,12 +239,12 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
 
   const fsScale = FS_SCALE[settings.fontSize];
 
-  // Slider operates on the full session range (so its handles always represent
-  // the current zoom *within the session*); start/end percentages reflect the
-  // current visible window.
-  const sessionSpan = sessionMax - sessionMin || 1;
-  const sliderStartPct = ((yRange.min - sessionMin) / sessionSpan) * 100;
-  const sliderEndPct = ((yRange.max - sessionMin) / sessionSpan) * 100;
+  // Slider operates on the full axis range (so its handles always represent
+  // the current zoom *within the active axis*); start/end percentages reflect
+  // the current visible window.
+  const sessionSpan = sliderAxisMax - sliderAxisMin || 1;
+  const sliderStartPct = ((yRange.min - sliderAxisMin) / sessionSpan) * 100;
+  const sliderEndPct = ((yRange.max - sliderAxisMin) / sessionSpan) * 100;
 
   const pendingRaf = useRef<number | null>(null);
 
@@ -207,10 +290,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
             fontFamily: "Share Tech Mono, monospace",
             color: labelColor,
             hideOverlap: true,
-            formatter: (val: number) => {
-              const out = settings.unitSystem === "imperial" ? mToFt(val) : val;
-              return Math.round(out).toLocaleString();
-            },
+            formatter: (val: number) => formatDepthAtAxisValue(val),
           },
           splitLine: { show: false },
           axisPointer: {
@@ -223,9 +303,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               fontFamily: "Share Tech Mono, monospace",
               padding: [3, 6],
               formatter: (params: { value: number | string | Date }) => {
-                const v = Number(params.value);
-                const out = settings.unitSystem === "imperial" ? mToFt(v) : v;
-                return Math.round(out).toLocaleString();
+                return formatDepthAtAxisValue(Number(params.value));
               },
             },
           },
@@ -306,7 +384,6 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
       ],
     };
   }, [
-    settings.unitSystem,
     fsScale,
     isPrimary,
     axisMin,
@@ -317,6 +394,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
     sliderEndPct,
     showDataZoomSlider,
     tickInterval,
+    formatDepthAtAxisValue,
   ]);
 
   // Imperative apply: prop-driven re-render with notMerge would blow away the
@@ -388,7 +466,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
-            {formatDepth(yRange.min, settings.unitSystem).value}
+            {formatDepthAtAxisValue(yRange.min)}
           </span>
         </div>
         <div className="flex flex-1">
@@ -413,7 +491,7 @@ export function DepthRuler({ isPrimary }: { isPrimary: boolean }) {
               isPrimary ? "text-(--theme-accent)" : "text-(--theme-fg-dim)",
             )}
           >
-            {formatDepth(yRange.max, settings.unitSystem).value}
+            {formatDepthAtAxisValue(yRange.max)}
           </span>
         </div>
       </div>

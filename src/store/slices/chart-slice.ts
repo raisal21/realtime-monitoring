@@ -19,6 +19,7 @@ export type ChartState = {
   drillTiles: TileResponse | null;
   geoTiles: TileResponse | null;
   tileRange: Range | null;
+  tileDepthRange: Range | null;
   wellProfileSlider: boolean;
   rulerSlider: boolean;
   traceVisibility: Record<string, boolean>;
@@ -36,8 +37,13 @@ interface ChartActions {
   setRangePreset: (preset: RangePreset) => void;
   setRulerRange: (min: number, max: number) => void;
   setLogTrackRange: (min: number, max: number) => void;
-  setTileLoading: () => void;
-  setTiles: (drill: TileResponse, geo: TileResponse, range: Range) => void;
+  setTileLoading: (range?: Range) => void;
+  setTiles: (
+    drill: TileResponse,
+    geo: TileResponse,
+    range: Range,
+    depthRange: Range | null,
+  ) => void;
   setTileError: (message: string) => void;
   clearTiles: () => void;
   setSliderMode: (value: boolean) => void;
@@ -64,6 +70,7 @@ const chartInitial: ChartState = {
   drillTiles: null,
   geoTiles: null,
   tileRange: null,
+  tileDepthRange: null,
   wellProfileSlider: false,
   rulerSlider: false,
   crosshairValue: null,
@@ -169,12 +176,17 @@ export const createChartSlice: StateCreator<
       },
     })),
 
-  setTileLoading: () =>
+  setTileLoading: (range) =>
     set((s) => ({
-      chart: { ...s.chart, tileStatus: "loading", tileError: null },
+      chart: {
+        ...s.chart,
+        tileStatus: "loading",
+        tileError: null,
+        tileRange: range ?? s.chart.tileRange,
+      },
     })),
 
-  setTiles: (drill, geo, range) =>
+  setTiles: (drill, geo, range, depthRange) =>
     set((s) => ({
       chart: {
         ...s.chart,
@@ -183,6 +195,7 @@ export const createChartSlice: StateCreator<
         drillTiles: drill,
         geoTiles: geo,
         tileRange: range,
+        tileDepthRange: depthRange,
       },
     })),
 
@@ -191,11 +204,13 @@ export const createChartSlice: StateCreator<
       chart: { ...s.chart, tileStatus: "error", tileError: message },
     })),
 
-  // No-op when already cleared — useTileSync calls this on every narrow /
-  // depth-mode render, and a same-reference return skips the store update.
+  // No-op when already cleared — useTileSync calls this on every narrow render,
+  // and a same-reference return skips the store update.
   clearTiles: () =>
     set((s) =>
-      s.chart.tileStatus === "idle" && s.chart.tileRange === null
+      s.chart.tileStatus === "idle" &&
+      s.chart.tileRange === null &&
+      s.chart.tileDepthRange === null
         ? s
         : {
             chart: {
@@ -205,6 +220,7 @@ export const createChartSlice: StateCreator<
               drillTiles: null,
               geoTiles: null,
               tileRange: null,
+              tileDepthRange: null,
             },
           },
     ),

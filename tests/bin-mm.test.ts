@@ -19,7 +19,7 @@ function makeRing(samples: readonly Sample[]) {
 }
 
 function allY(env: Envelope): number[] {
-  return [...env.min, ...env.max].map(([, y]) => y);
+  return [...env.min, ...env.max, ...env.line].map(([, y]) => y);
 }
 
 test("returns empty envelopes for an empty ring", () => {
@@ -30,7 +30,7 @@ test("returns empty envelopes for an empty ring", () => {
     anchorEdges: true,
   });
 
-  assert.deepEqual(env, { min: [], max: [] });
+  assert.deepEqual(env, { min: [], max: [], line: [] });
 });
 
 test("anchors a single visible sample without duplicating it", () => {
@@ -43,6 +43,7 @@ test("anchors a single visible sample without duplicating it", () => {
 
   assert.deepEqual(env.min, [[42, 5]]);
   assert.deepEqual(env.max, [[42, 5]]);
+  assert.deepEqual(env.line, [[42, 5]]);
 });
 
 test("preserves the numeric binCount call shape", () => {
@@ -66,6 +67,12 @@ test("preserves the numeric binCount call shape", () => {
     [3, 0],
     [5, 20],
   ]);
+  assert.deepEqual(env.line, [
+    [3, 0],
+    [1, 10],
+    [5, 20],
+    [2, 30],
+  ]);
 });
 
 test("anchors first and last visible samples at viewport edges", () => {
@@ -86,6 +93,8 @@ test("anchors first and last visible samples at viewport edges", () => {
   assert.deepEqual(env.max[0], [50, 0]);
   assert.deepEqual(env.min.at(-1), [55, 40]);
   assert.deepEqual(env.max.at(-1), [55, 40]);
+  assert.deepEqual(env.line[0], [50, 0]);
+  assert.deepEqual(env.line.at(-1), [55, 40]);
 });
 
 test("filters bins to the requested viewport", () => {
@@ -105,6 +114,8 @@ test("filters bins to the requested viewport", () => {
   assert.ok(allY(env).every((y) => y >= 10 && y <= 30));
   assert.deepEqual(env.min[0], [4, 10]);
   assert.deepEqual(env.max.at(-1), [2, 30]);
+  assert.deepEqual(env.line[0], [4, 10]);
+  assert.deepEqual(env.line.at(-1), [2, 30]);
 });
 
 test("keeps one-sample outliers inside the min/max envelope", () => {
@@ -121,4 +132,5 @@ test("keeps one-sample outliers inside the min/max envelope", () => {
   });
 
   assert.ok(env.max.some(([value, y]) => value === 999 && y === 55));
+  assert.ok(env.line.some(([value, y]) => value === 999 && y === 55));
 });

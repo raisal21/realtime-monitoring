@@ -17,7 +17,7 @@ const DEFAULT_PRESET_MIN = 60;
 export function getViewport(
   chart: Pick<
     ChartState,
-    "rangePreset" | "rulerRange" | "logTrackRange" | "tileRange"
+    "rangePreset" | "rulerRange" | "logTrackRange" | "tileRange" | "tileDepthRange"
   >,
   session: ViewportSession,
   isPrimary: boolean,
@@ -25,9 +25,9 @@ export function getViewport(
 ): ViewportRange {
   if (chart.logTrackRange) return chart.logTrackRange;
   if (chart.rulerRange) return chart.rulerRange;
-  // Tile mode: a wide preset's window comes from the fetched tile range, not
-  // the live ring — and tiles bucket by time only (Layer 3, time mode).
+  // Tile mode: wide presets use fetched tile ranges instead of the live ring.
   if (mode === "time" && chart.tileRange) return chart.tileRange;
+  if (mode === "depth" && chart.tileDepthRange) return chart.tileDepthRange;
 
   if (!isPrimary) {
     return { min: session.min, max: session.max };

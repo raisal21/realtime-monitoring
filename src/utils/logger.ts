@@ -4,7 +4,11 @@
 // Logger
 // =============================================================================
 
-const logLevel = import.meta.env.VITE_LOG_LEVEL;
+const env =
+  (import.meta as ImportMeta & {
+    env?: Record<string, string | undefined>;
+  }).env ?? {};
+const logLevel = env.VITE_LOG_LEVEL;
 
 export const log = {
   debug: (msg: string) =>

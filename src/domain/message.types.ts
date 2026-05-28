@@ -5,6 +5,8 @@ import {
   WelcomePayload,
   SubsAckPayload,
   UnsubsAckPayload,
+  TileSubscribeAckPayload,
+  TileUnsubscribeAckPayload,
   AlarmSeverity,
   ServerSchema,
   ClosingPayload,
@@ -22,6 +24,10 @@ export type ConnectionStatus =
 export type WelcomeMessage = z.infer<typeof WelcomePayload>;
 export type SubsAckMessage = z.infer<typeof SubsAckPayload>;
 export type UnsubsAckMessage = z.infer<typeof UnsubsAckPayload>;
+export type TileSubscribeAckMessage = z.infer<typeof TileSubscribeAckPayload>;
+export type TileUnsubscribeAckMessage = z.infer<
+  typeof TileUnsubscribeAckPayload
+>;
 export type AlarmSeverity = z.infer<typeof AlarmSeverity>;
 export type ClosingMessage = z.infer<typeof ClosingPayload>;
 

@@ -1,28 +1,32 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { PRESET_TO_MINUTES } from "@/data/dashboard-static";
-import {
-  fetchTiles,
-  sharedTileDepthRange,
-  sharedTileDataRange,
-  TileFetchError,
-} from "@/services/tiles-client";
 import { isTilePreset, pickResolution } from "@/lib/tile-resolution";
-import { log } from "@/utils/logger";
 
 const MS_PER_MIN = 60_000;
+const TILE_STREAMS: ("drill" | "geo")[] = ["drill", "geo"];
 
-// Owns tile lifecycle. A preset wider than the live ring triggers a one-shot
-// fetch of drill + geo tiles for [now - span, now]; anything else clears tile
-// state so narrow presets fall back to the live ring. Mount once.
+// Owns the live tile subscription lifecycle for presets wider than the raw
+// live ring; narrow presets keep using the 101/102 telemetry stream.
 export function useTileSync(): void {
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
+  const status = useStore(globalRigStore, (s) => s.status);
+  const sendMsg = useStore(globalRigStore, (s) => s.sendMsg);
+  const nextSubscriptionId = useRef(0);
+  const activeSubscriptionId = useRef<number | null>(null);
 
   useEffect(() => {
     const store = globalRigStore.getState();
 
     if (!isTilePreset(rangePreset)) {
+      if (activeSubscriptionId.current !== null && status === "ONLINE" && sendMsg) {
+        sendMsg({
+          messageType: "TILE_UNSUBSCRIBE",
+          payload: { subscriptionId: activeSubscriptionId.current },
+        });
+      }
+      activeSubscriptionId.current = null;
       store.clearTiles();
       return;
     }
@@ -36,38 +40,45 @@ export function useTileSync(): void {
 
     const toMs = Date.now();
     const fromMs = toMs - spanMin * MS_PER_MIN;
-    const from = new Date(fromMs).toISOString();
-    const to = new Date(toMs).toISOString();
     const requestedRange = { min: fromMs, max: toMs };
 
-    let cancelled = false;
-    store.setTileLoading(requestedRange);
+    if (status !== "ONLINE" || !sendMsg) return;
 
-    Promise.all([
-      fetchTiles({ stream: "drill", from, to, res }),
-      fetchTiles({ stream: "geo", from, to, res }),
-    ])
-      .then(([drill, geo]) => {
-        if (cancelled) return;
-        globalRigStore
-          .getState()
-          .setTiles(
-            drill,
-            geo,
-            sharedTileDataRange(drill, geo, requestedRange),
-            sharedTileDepthRange(drill, geo),
-          );
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        const message =
-          e instanceof TileFetchError ? e.message : "Tile fetch failed";
-        log.warn(`[TILES] ${message}`);
-        globalRigStore.getState().setTileError(message);
-      });
+    nextSubscriptionId.current =
+      nextSubscriptionId.current >= 0xffffffff
+        ? 1
+        : nextSubscriptionId.current + 1;
+    const subscriptionId = nextSubscriptionId.current;
+    activeSubscriptionId.current = subscriptionId;
+
+    store.setTileSubscription(
+      {
+        subscriptionId,
+        spanMinutes: spanMin,
+        res,
+        streams: TILE_STREAMS,
+      },
+      requestedRange,
+    );
+
+    sendMsg({
+      messageType: "TILE_SUBSCRIBE",
+      payload: {
+        subscriptionId,
+        spanMinutes: spanMin,
+        res,
+        streams: TILE_STREAMS,
+      },
+    });
 
     return () => {
-      cancelled = true;
+      if (activeSubscriptionId.current === subscriptionId) {
+        activeSubscriptionId.current = null;
+      }
+      globalRigStore.getState().sendMsg?.({
+        messageType: "TILE_UNSUBSCRIBE",
+        payload: { subscriptionId },
+      });
     };
-  }, [rangePreset]);
+  }, [rangePreset, sendMsg, status]);
 }

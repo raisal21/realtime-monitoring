@@ -6,7 +6,7 @@ import type { Envelope, EnvelopePoint } from "@/lib/bin-mm";
 
 export type TileRes = "1s" | "10s" | "1m" | "5m" | "1h";
 
-interface TileStat {
+export interface TileStat {
   min: number | null;
   max: number | null;
   avg: number | null;
@@ -14,7 +14,7 @@ interface TileStat {
 
 // `ts` is the bucket timestamp (ISO8601); every other key is a trace name
 // carrying a TileStat — the backend serializes traces as JSON extension data.
-interface TileBin {
+export interface TileBin {
   ts: string;
   [trace: string]: string | TileStat | undefined;
 }
@@ -50,6 +50,14 @@ export interface TileQuery {
   to: string; // ISO8601
   res: TileRes;
 }
+
+const TILE_BUCKET_MS: Record<TileRes, number> = {
+  "1s": 1_000,
+  "10s": 10_000,
+  "1m": 60_000,
+  "5m": 5 * 60_000,
+  "1h": 60 * 60_000,
+};
 
 // Same-origin fetch - the Vite dev proxy forwards /api to the backend, so no
 // CORS handling is needed (witsml NAPKIN 2026-05-20 - Security posture).
@@ -141,6 +149,67 @@ export function sharedTileDataRange(
     };
   }
   return drillRange ?? geoRange ?? requested;
+}
+
+export function mergeTileResponse(
+  current: TileResponse | null,
+  incoming: TileResponse,
+  replaceFromUnixMs: number,
+): TileResponse {
+  const merged = new Map<string, TileBin>();
+  for (const bin of current?.bins ?? []) {
+    const ts = Date.parse(bin.ts);
+    if (!Number.isFinite(ts) || ts >= replaceFromUnixMs) continue;
+    merged.set(String(ts), bin);
+  }
+  for (const bin of incoming.bins) {
+    const ts = Date.parse(bin.ts);
+    if (!Number.isFinite(ts)) continue;
+    merged.set(String(ts), bin);
+  }
+  const bins = [...merged.entries()]
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, bin]) => bin);
+
+  return {
+    stream: incoming.stream,
+    res: incoming.res,
+    from: incoming.from,
+    to: incoming.to,
+    bins,
+  };
+}
+
+export function projectOpenTileBucket(
+  tiles: TileResponse,
+  toUnixMs: number,
+): TileResponse {
+  const bucketMs = TILE_BUCKET_MS[tiles.res as TileRes];
+  if (!bucketMs || !Number.isFinite(toUnixMs) || tiles.bins.length === 0) {
+    return tiles;
+  }
+
+  let lastIndex = -1;
+  let lastTs = -Infinity;
+  for (let i = 0; i < tiles.bins.length; i++) {
+    const ts = Date.parse(tiles.bins[i].ts);
+    if (!Number.isFinite(ts) || ts < lastTs) continue;
+    lastTs = ts;
+    lastIndex = i;
+  }
+  if (lastIndex < 0) return tiles;
+
+  const currentBucketStart = Math.floor(toUnixMs / bucketMs) * bucketMs;
+  if (lastTs < currentBucketStart || lastTs > toUnixMs) return tiles;
+
+  const bins = tiles.bins.map((bin, index) =>
+    index === lastIndex ? { ...bin, ts: new Date(toUnixMs).toISOString() } : bin,
+  );
+  return {
+    ...tiles,
+    to: new Date(toUnixMs).toISOString(),
+    bins,
+  };
 }
 
 export function tileDepthRange(tiles: TileResponse): TileRange | null {

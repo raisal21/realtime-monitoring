@@ -1,12 +1,30 @@
 import type { StateCreator } from "zustand";
 import { TRACKS_META, RANGE_PRESETS_QUICK } from "@/data/dashboard-static";
-import type { TileResponse } from "@/services/tiles-client";
+import {
+  mergeTileResponse,
+  projectOpenTileBucket,
+  sharedTileDepthRange,
+  sharedTileDataRange,
+  tileDataRange,
+  tileDepthRange,
+  type TileRange,
+  type TileRes,
+  type TileResponse,
+} from "@/services/tiles-client";
+import type { ParsedTileFrame } from "@/services/binary-parser";
 import type { GlobalRigState } from "../store.types";
 
 export type ChartMode = "time" | "depth";
 export type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
 type TileStatus = "idle" | "loading" | "ready" | "error";
 type Range = { min: number; max: number };
+export type TileStreamName = "drill" | "geo";
+export type ActiveTileSubscription = {
+  subscriptionId: number;
+  spanMinutes: number;
+  res: TileRes;
+  streams: TileStreamName[];
+};
 
 export type ChartState = {
   mode: ChartMode;
@@ -20,6 +38,8 @@ export type ChartState = {
   geoTiles: TileResponse | null;
   tileRange: Range | null;
   tileDepthRange: Range | null;
+  activeTileSubscriptionId: number | null;
+  tileSubscription: ActiveTileSubscription | null;
   wellProfileSlider: boolean;
   rulerSlider: boolean;
   traceVisibility: Record<string, boolean>;
@@ -38,6 +58,10 @@ interface ChartActions {
   setRulerRange: (min: number, max: number) => void;
   setLogTrackRange: (min: number, max: number) => void;
   setTileLoading: (range?: Range) => void;
+  setTileSubscription: (
+    subscription: ActiveTileSubscription,
+    range?: Range,
+  ) => void;
   setTiles: (
     drill: TileResponse,
     geo: TileResponse,
@@ -46,6 +70,8 @@ interface ChartActions {
   ) => void;
   setTileError: (message: string) => void;
   clearTiles: () => void;
+  applyTileSnapshot: (frame: ParsedTileFrame) => void;
+  applyTileUpdate: (frame: ParsedTileFrame) => void;
   setSliderMode: (value: boolean) => void;
   toggleTraceVisibility: (trace: string) => void;
   setTrackOrder: (order: string[]) => void;
@@ -71,6 +97,8 @@ const chartInitial: ChartState = {
   geoTiles: null,
   tileRange: null,
   tileDepthRange: null,
+  activeTileSubscriptionId: null,
+  tileSubscription: null,
   wellProfileSlider: false,
   rulerSlider: false,
   crosshairValue: null,
@@ -186,6 +214,21 @@ export const createChartSlice: StateCreator<
       },
     })),
 
+  setTileSubscription: (subscription, range) =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        tileStatus: "loading",
+        tileError: null,
+        drillTiles: null,
+        geoTiles: null,
+        tileRange: range ?? null,
+        tileDepthRange: null,
+        activeTileSubscriptionId: subscription.subscriptionId,
+        tileSubscription: subscription,
+      },
+    })),
+
   setTiles: (drill, geo, range, depthRange) =>
     set((s) => ({
       chart: {
@@ -221,9 +264,58 @@ export const createChartSlice: StateCreator<
               geoTiles: null,
               tileRange: null,
               tileDepthRange: null,
+              activeTileSubscriptionId: null,
+              tileSubscription: null,
             },
           },
     ),
+
+  applyTileSnapshot: (frame) =>
+    set((s) => {
+      if (s.chart.activeTileSubscriptionId !== frame.subscriptionId) return s;
+      const tiles = projectOpenTileBucket(frame.tiles, frame.toUnixMs);
+      const drillTiles =
+        frame.stream === "drill" ? tiles : s.chart.drillTiles;
+      const geoTiles = frame.stream === "geo" ? tiles : s.chart.geoTiles;
+      const headerRange = { min: frame.fromUnixMs, max: frame.toUnixMs };
+      return {
+        chart: {
+          ...s.chart,
+          tileStatus: "ready",
+          tileError: null,
+          drillTiles,
+          geoTiles,
+          tileRange: combineTileDataRange(drillTiles, geoTiles, headerRange),
+          tileDepthRange: combineTileDepthRange(drillTiles, geoTiles),
+        },
+      };
+    }),
+
+  applyTileUpdate: (frame) =>
+    set((s) => {
+      if (s.chart.activeTileSubscriptionId !== frame.subscriptionId) return s;
+      const tiles = projectOpenTileBucket(frame.tiles, frame.toUnixMs);
+      const drillTiles =
+        frame.stream === "drill"
+          ? mergeTileResponse(s.chart.drillTiles, tiles, frame.replaceFromUnixMs)
+          : s.chart.drillTiles;
+      const geoTiles =
+        frame.stream === "geo"
+          ? mergeTileResponse(s.chart.geoTiles, tiles, frame.replaceFromUnixMs)
+          : s.chart.geoTiles;
+      const headerRange = { min: frame.fromUnixMs, max: frame.toUnixMs };
+      return {
+        chart: {
+          ...s.chart,
+          tileStatus: "ready",
+          tileError: null,
+          drillTiles,
+          geoTiles,
+          tileRange: combineTileDataRange(drillTiles, geoTiles, headerRange),
+          tileDepthRange: combineTileDepthRange(drillTiles, geoTiles),
+        },
+      };
+    }),
 
   setSliderMode: (value) =>
     set((s) => ({
@@ -278,3 +370,24 @@ export const createChartSlice: StateCreator<
 
   resetChart: () => set({ chart: chartInitial }),
 });
+
+function combineTileDepthRange(
+  drill: TileResponse | null,
+  geo: TileResponse | null,
+): TileRange | null {
+  if (drill && geo) return sharedTileDepthRange(drill, geo);
+  if (drill) return tileDepthRange(drill);
+  if (geo) return tileDepthRange(geo);
+  return null;
+}
+
+function combineTileDataRange(
+  drill: TileResponse | null,
+  geo: TileResponse | null,
+  fallback: TileRange,
+): TileRange {
+  if (drill && geo) return sharedTileDataRange(drill, geo, fallback);
+  if (drill) return tileDataRange(drill) ?? fallback;
+  if (geo) return tileDataRange(geo) ?? fallback;
+  return fallback;
+}

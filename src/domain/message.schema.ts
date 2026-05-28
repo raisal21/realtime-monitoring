@@ -21,6 +21,20 @@ export const UnsubsAckPayload = z.strictObject({
   currentSubscriptions: z.array(z.number()),
 });
 
+export const TileSubscribeAckPayload = z.strictObject({
+  subscriptionId: z.number(),
+  accepted: z.array(z.string()),
+  rejected: z.array(z.string()),
+  spanMinutes: z.number(),
+  res: z.string(),
+  cadenceMs: z.number(),
+});
+
+export const TileUnsubscribeAckPayload = z.strictObject({
+  subscriptionId: z.number(),
+  removed: z.boolean(),
+});
+
 export const AlarmSeverity = z.enum(["INFO", "WARNING", "CRITICAL"]);
 
 const AlarmAcknowledgement = z.strictObject({
@@ -67,6 +81,16 @@ export const ServerSchema = z.discriminatedUnion("messageType", [
     messageType: z.literal("UNSUBSCRIBE_ACK"),
     timestamp: z.number(),
     payload: UnsubsAckPayload,
+  }),
+  z.strictObject({
+    messageType: z.literal("TILE_SUBSCRIBE_ACK"),
+    timestamp: z.number(),
+    payload: TileSubscribeAckPayload,
+  }),
+  z.strictObject({
+    messageType: z.literal("TILE_UNSUBSCRIBE_ACK"),
+    timestamp: z.number(),
+    payload: TileUnsubscribeAckPayload,
   }),
   z.strictObject({
     messageType: z.literal("ALARM_RAISED"),

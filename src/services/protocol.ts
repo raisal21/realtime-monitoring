@@ -6,6 +6,8 @@ import type {
   WelcomeMessage,
   SubsAckMessage,
   UnsubsAckMessage,
+  TileSubscribeAckMessage,
+  TileUnsubscribeAckMessage,
   ClosingMessage,
 } from "@/domain/message.types";
 
@@ -30,6 +32,24 @@ export function handleUnsubscribeAck(
 ): UnsubsAckMessage {
   log.debug(
     `[PROTOCOL] UNSUBSCRIBE_ACK — removed=[${msg.payload.removed}] notFound=[${msg.payload.notFound}]`,
+  );
+  return msg.payload;
+}
+
+export function handleTileSubscribeAck(
+  msg: Extract<ServerMessage, { messageType: "TILE_SUBSCRIBE_ACK" }>,
+): TileSubscribeAckMessage {
+  log.debug(
+    `[PROTOCOL] TILE_SUBSCRIBE_ACK — id=${msg.payload.subscriptionId} accepted=[${msg.payload.accepted}] rejected=[${msg.payload.rejected}] cadence=${msg.payload.cadenceMs}`,
+  );
+  return msg.payload;
+}
+
+export function handleTileUnsubscribeAck(
+  msg: Extract<ServerMessage, { messageType: "TILE_UNSUBSCRIBE_ACK" }>,
+): TileUnsubscribeAckMessage {
+  log.debug(
+    `[PROTOCOL] TILE_UNSUBSCRIBE_ACK — id=${msg.payload.subscriptionId} removed=${msg.payload.removed}`,
   );
   return msg.payload;
 }

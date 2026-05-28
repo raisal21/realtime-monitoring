@@ -4,15 +4,21 @@ import { createRigClient, connect, disconnect } from "@/services/rig-client";
 import {
   handleClosing,
   handleSubscribeAck,
+  handleTileSubscribeAck,
+  handleTileUnsubscribeAck,
   handleUnsubscribeAck,
 } from "@/services/protocol";
 import { createBackoff } from "@/utils/backoff";
 import { parseServerMessage } from "@/domain/message.schema";
 import { log } from "@/utils/logger";
-import { StreamDef, FAST_RETRY_MS } from "@/domain/constants";
+import { StreamDef, FAST_RETRY_MS, TileFrameType } from "@/domain/constants";
 import type { ConnectResult } from "./rig-client";
 import type { ConnectionStatus } from "@/domain/message.types";
-import { readDrillBuff, readGeoBuff } from "@/services/binary-parser";
+import {
+  readDrillBuff,
+  readGeoBuff,
+  readTileBuff,
+} from "@/services/binary-parser";
 import { globalRigStore } from "@/store/index-store";
 
 // =============================================================================
@@ -146,6 +152,25 @@ export function createConnectionManager(
             );
           }
         }
+
+        if (msg.messageType === "TILE_SUBSCRIBE_ACK") {
+          const ack = handleTileSubscribeAck(msg);
+          if (ack.accepted.length === 0) {
+            globalRigStore
+              .getState()
+              .setTileError("Tile subscription was rejected");
+          }
+          if (ack.rejected.length > 0) {
+            log.warn(
+              `[CONNECTION] TILE_SUBSCRIBE_ACK — rejected: [${ack.rejected}]`,
+            );
+          }
+        }
+
+        if (msg.messageType === "TILE_UNSUBSCRIBE_ACK") {
+          handleTileUnsubscribeAck(msg);
+        }
+
         if (msg.messageType === "CLOSING") {
           const closing = handleClosing(msg);
           log.warn(
@@ -182,6 +207,16 @@ export function createConnectionManager(
 
           if (geoData) {
             globalRigStore.getState().insertGeoPoint(geoData);
+          }
+        } else if (
+          streamId === TileFrameType.SNAPSHOT ||
+          streamId === TileFrameType.UPDATE
+        ) {
+          const tileFrame = readTileBuff(value);
+          if (tileFrame?.kind === "snapshot") {
+            globalRigStore.getState().applyTileSnapshot(tileFrame);
+          } else if (tileFrame?.kind === "update") {
+            globalRigStore.getState().applyTileUpdate(tileFrame);
           }
         } else {
           log.warn(`[PARSER] Unexpected streamId: ${streamId}`);

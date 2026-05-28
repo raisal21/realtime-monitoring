@@ -2,7 +2,40 @@ import { z } from "zod";
 import { log } from "@/utils/logger";
 import { DrillSchema, GeoSchema } from "@/domain/message.schema";
 import type { DrillUpdate, GeoUpdate } from "@/domain/message.types";
-import { PROTOCOL_VERSION } from "@/domain/constants";
+import {
+  PROTOCOL_VERSION,
+  TileFrameType,
+  TileResCode,
+  TileStreamCode,
+} from "@/domain/constants";
+import type { TileResponse, TileRes } from "@/services/tiles-client";
+
+const TILE_HEADER_BYTES = 40;
+const TILE_TRACE_MASK_LIMIT = 0x003f;
+
+const TILE_TRACES = {
+  drill: ["depth", "rpm", "wob", "torque", "hkld", "spp"],
+  geo: ["depth", "gamma", "rop", "h2s", "inc", "azi"],
+} as const;
+
+type TileStreamName = keyof typeof TILE_TRACES;
+
+const RES_BY_CODE = new Map<number, TileRes>(
+  Object.entries(TileResCode).map(([res, code]) => [code, res as TileRes]),
+);
+
+export type ParsedTileFrame = {
+  frameType: TileFrameType;
+  kind: "snapshot" | "update";
+  subscriptionId: number;
+  stream: TileStreamName;
+  res: TileRes;
+  traceMask: number;
+  fromUnixMs: number;
+  toUnixMs: number;
+  replaceFromUnixMs: number;
+  tiles: TileResponse;
+};
 
 export const readDrillBuff = (buffer: ArrayBuffer): DrillUpdate | null => {
   const view = new DataView(buffer);
@@ -79,3 +112,108 @@ export const readGeoBuff = (buffer: ArrayBuffer): GeoUpdate | null => {
 
   return validation.data;
 };
+
+export const readTileBuff = (buffer: ArrayBuffer): ParsedTileFrame | null => {
+  if (buffer.byteLength < TILE_HEADER_BYTES) {
+    log.error("Insufficient buffer length for tile packet!");
+    return null;
+  }
+
+  const view = new DataView(buffer);
+  const frameType = view.getUint8(0);
+  if (
+    frameType !== TileFrameType.SNAPSHOT &&
+    frameType !== TileFrameType.UPDATE
+  ) {
+    log.warn(`[PARSER] Unexpected tile frameType: ${frameType}`);
+    return null;
+  }
+
+  const protocol = view.getUint8(1);
+  if (protocol !== PROTOCOL_VERSION) {
+    log.warn(`[PARSER] Unsupported tile protocol version: ${protocol}`);
+  }
+
+  const subscriptionId = view.getUint32(4);
+  const stream = decodeTileStream(view.getUint8(8));
+  const res = RES_BY_CODE.get(view.getUint8(9));
+  const traceMask = view.getUint16(10);
+  if (!stream || !res || traceMask === 0 || (traceMask & ~TILE_TRACE_MASK_LIMIT) !== 0) {
+    log.warn(
+      `[PARSER] Invalid tile header stream=${view.getUint8(8)} res=${view.getUint8(9)} mask=${traceMask}`,
+    );
+    return null;
+  }
+
+  const enabledCount = countEnabledTraces(traceMask);
+  const fromUnixMs = Number(view.getBigInt64(12));
+  const toUnixMs = Number(view.getBigInt64(20));
+  const replaceFromUnixMs = Number(view.getBigInt64(28));
+  const binCount = view.getUint32(36);
+  const binBytes = 8 + enabledCount * 3 * 4;
+  const expectedBytes = TILE_HEADER_BYTES + binCount * binBytes;
+  if (buffer.byteLength !== expectedBytes) {
+    log.warn(
+      `[PARSER] Invalid tile packet length: expected=${expectedBytes} actual=${buffer.byteLength}`,
+    );
+    return null;
+  }
+
+  const bins = [];
+  let offset = TILE_HEADER_BYTES;
+  const traces = TILE_TRACES[stream];
+  for (let i = 0; i < binCount; i++) {
+    const tsUnixMs = Number(view.getBigInt64(offset));
+    offset += 8;
+    const bin: TileResponse["bins"][number] = {
+      ts: new Date(tsUnixMs).toISOString(),
+    };
+
+    for (let bit = 0; bit < traces.length; bit++) {
+      if ((traceMask & (1 << bit)) === 0) continue;
+      const min = view.getFloat32(offset);
+      const max = view.getFloat32(offset + 4);
+      const avg = view.getFloat32(offset + 8);
+      offset += 12;
+      bin[traces[bit]] = {
+        min: Number.isNaN(min) ? null : min,
+        max: Number.isNaN(max) ? null : max,
+        avg: Number.isNaN(avg) ? null : avg,
+      };
+    }
+    bins.push(bin);
+  }
+
+  return {
+    frameType,
+    kind: frameType === TileFrameType.SNAPSHOT ? "snapshot" : "update",
+    subscriptionId,
+    stream,
+    res,
+    traceMask,
+    fromUnixMs,
+    toUnixMs,
+    replaceFromUnixMs,
+    tiles: {
+      stream,
+      res,
+      from: new Date(fromUnixMs).toISOString(),
+      to: new Date(toUnixMs).toISOString(),
+      bins,
+    },
+  };
+};
+
+function decodeTileStream(code: number): TileStreamName | null {
+  if (code === TileStreamCode.DRILL) return "drill";
+  if (code === TileStreamCode.GEO) return "geo";
+  return null;
+}
+
+function countEnabledTraces(traceMask: number): number {
+  let count = 0;
+  for (let bit = 0; bit < TILE_TRACES.drill.length; bit++) {
+    if ((traceMask & (1 << bit)) !== 0) count++;
+  }
+  return count;
+}

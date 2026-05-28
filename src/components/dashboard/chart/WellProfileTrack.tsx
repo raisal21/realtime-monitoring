@@ -16,6 +16,12 @@ import { getChartColors } from "@/lib/echarts-theme";
 import { cn } from "@/lib/utils";
 import { LIVE_WELL_ID } from "@/data/wells";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
+import {
+  clampRangeToBounds,
+  profileMinutesToEpochMs,
+  resolveWellProfileActiveBounds,
+  shouldShowWellProfileSlider,
+} from "@/lib/well-profile-slider";
 
 // Pre-resolve session-minute for each WP_DATA entry — used by the inverse
 // lookup below; avoids re-parsing date strings on every drag tick.
@@ -57,8 +63,14 @@ export function WellProfileTrack() {
   // Per-field selectors: avoid re-render on unrelated chart mutations
   // (crosshair, traceVisibility, log-track range, track layout).
   const mode = useStore(globalRigStore, (s) => s.chart.mode);
+  const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
   const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
   const rulerRange = useStore(globalRigStore, (s) => s.chart.rulerRange);
+  const tileRange = useStore(globalRigStore, (s) => s.chart.tileRange);
+  const tileDepthRange = useStore(
+    globalRigStore,
+    (s) => s.chart.tileDepthRange,
+  );
   const wellProfileSlider = useStore(
     globalRigStore,
     (s) => s.chart.wellProfileSlider,
@@ -70,18 +82,58 @@ export function WellProfileTrack() {
   const showLive = isLive && status === "ONLINE";
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
-  const { depthMin: sessionDepthMin, depthMax: sessionDepthMax, timeMin: sessionTimeMin, timeMax: sessionTimeMax, cursorDepth } = useLiveSessionRange();
+  const {
+    depthMin: sessionDepthMin,
+    depthMax: sessionDepthMax,
+    timeMin: sessionTimeMin,
+    timeMax: sessionTimeMax,
+    cursorDepth,
+  } = useLiveSessionRange();
 
   const chartRef = useRef<ReactECharts>(null);
   const pendingRaf = useRef<number | null>(null);
+  const activeBounds = useMemo(
+    () =>
+      resolveWellProfileActiveBounds({
+        mode,
+        rangePreset,
+        tileRange,
+        tileDepthRange,
+        sessionDepthMin,
+        sessionDepthMax,
+        sessionTimeMin,
+        sessionTimeMax,
+      }),
+    [
+      mode,
+      rangePreset,
+      tileRange,
+      tileDepthRange,
+      sessionDepthMin,
+      sessionDepthMax,
+      sessionTimeMin,
+      sessionTimeMax,
+    ],
+  );
+  const activeProfileSeries = useMemo(
+    () =>
+      mode === "depth"
+        ? WP_DEPTHS
+        : profileMinutesToEpochMs(WP_SESSION_MIN, activeBounds.max),
+    [activeBounds.max, mode],
+  );
+  const showSlider = shouldShowWellProfileSlider(
+    mode,
+    wellProfileSlider,
+    liveMode,
+  );
 
   // Well-profile y-axis is a category axis of dates, so dataZoom emits
   // start/end as category indices. Map indices → wall-clock date via
   // WELL_PROFILE_DATA, then translate to the current chart mode's units
   // and write to the Ruler scope (well-profile slider drives Time/Depth Ruler).
-  // Well profile spans Mar 12 → Apr 28; session covers only the last 7 days
-  // (Apr 22 → Apr 29 / 13900..15200 ft), so clamp dispatched values to the
-  // session window — pre-session entries have no log data to display.
+  // Clamp to the active data window. Wide presets use tile bounds, while 1h
+  // and not-yet-ready tiles fall back to the live session bounds.
   const handleDataZoom = useCallback(
     (params: unknown) => {
       type DZ = {
@@ -108,28 +160,14 @@ export function WellProfileTrack() {
       hiIdx = Math.max(0, Math.min(WP_LAST_IDX, hiIdx));
 
       // Interpolate continuous depth/time at the fractional index, then clamp
-      // to the session window — pre-session entries have no log data.
-      if (mode === "depth") {
-        const dMin = sessionDepthMin;
-        const dMax = sessionDepthMax;
-        const a = lerpAtIdx(WP_DEPTHS, loIdx);
-        const b = lerpAtIdx(WP_DEPTHS, hiIdx);
-        const lo = Math.max(dMin, Math.min(dMax, Math.min(a, b)));
-        const hi = Math.max(dMin, Math.min(dMax, Math.max(a, b)));
-        if (hi <= lo) return; // empty overlap with session — keep current range
-        setRulerRange(lo, hi);
-      } else {
-        const tMin = sessionTimeMin;
-        const tMax = sessionTimeMax;
-        const a = lerpAtIdx(WP_SESSION_MIN, loIdx);
-        const b = lerpAtIdx(WP_SESSION_MIN, hiIdx);
-        const lo = Math.max(tMin, Math.min(tMax, Math.min(a, b)));
-        const hi = Math.max(tMin, Math.min(tMax, Math.max(a, b)));
-        if (hi <= lo) return;
-        setRulerRange(lo, hi);
-      }
+      // to the active data window.
+      const a = lerpAtIdx(activeProfileSeries, loIdx);
+      const b = lerpAtIdx(activeProfileSeries, hiIdx);
+      const next = clampRangeToBounds(a, b, activeBounds);
+      if (!next) return;
+      setRulerRange(next.min, next.max);
     },
-    [mode, setRulerRange, sessionDepthMin, sessionDepthMax, sessionTimeMin, sessionTimeMax],
+    [activeBounds, activeProfileSeries, setRulerRange],
   );
 
   // Map current rulerRange back to a fractional WP index so the slider handles
@@ -138,16 +176,15 @@ export function WellProfileTrack() {
   // nearest of 14 entries). Required because the option object is rebuilt on
   // each dispatch with `notMerge` and would otherwise reset start/end.
   const sliderRange = useMemo(() => {
-    const r = rulerRange;
-    if (!r) return { startPct: 0, endPct: 100 };
-    const series = mode === "depth" ? WP_DEPTHS : WP_SESSION_MIN;
+    const r = rulerRange ?? activeBounds;
+    const series = activeProfileSeries;
     const s = idxAt(series, r.min);
     const e = idxAt(series, r.max);
     return {
       startPct: (Math.min(s, e) / WP_LAST_IDX) * 100,
       endPct: (Math.max(s, e) / WP_LAST_IDX) * 100,
     };
-  }, [rulerRange, mode]);
+  }, [activeBounds, activeProfileSeries, rulerRange]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
@@ -302,7 +339,7 @@ export function WellProfileTrack() {
         },
       ],
       dataZoom:
-        wellProfileSlider && !liveMode
+        showSlider
           ? [
               {
                 type: "inside" as const,
@@ -350,7 +387,7 @@ export function WellProfileTrack() {
     };
 
     return opt;
-  }, [settings.unitSystem, wellProfileSlider, liveMode, sliderRange.startPct, sliderRange.endPct, fsScale, showLive, cursorDepth]);
+  }, [settings.unitSystem, showSlider, sliderRange.startPct, sliderRange.endPct, fsScale, showLive, cursorDepth]);
 
   useEffect(() => {
     if (!showLive) return;

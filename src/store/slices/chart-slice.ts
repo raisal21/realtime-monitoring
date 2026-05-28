@@ -124,7 +124,6 @@ const chartInitial: ChartState = {
 const enterSliderMode = (s: ChartState): ChartState => ({
   ...s,
   liveMode: false,
-  rangePreset: null,
   wellProfileSlider: true,
   rulerSlider: true,
 });

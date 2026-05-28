@@ -17,10 +17,10 @@ import {
   WELL_PROFILE_END_DATE,
   SESSION_START_DATE,
   SESSION_END_DATE,
-  dateToSessionMinute,
   sessionMinuteToDate,
   wellProfileDepthAt,
 } from "@/data/dashboard-static";
+import { useLiveSessionRange } from "@/hooks/dashboard-hooks";
 import {
   Popover,
   PopoverContent,
@@ -34,6 +34,23 @@ import { TimePicker } from "@/components/ui/TimePicker";
 import { LiveBadge, RangePresetButton } from "@/components/ui/display";
 import { Button, Surface } from "@/components/ui/core";
 import { cn } from "@/lib/utils";
+
+function isValidDate(date: Date | undefined): date is Date {
+  return date instanceof Date && Number.isFinite(date.getTime());
+}
+
+function minuteOfDay(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function timeAxisValueToDate(value: number): Date | null {
+  if (!Number.isFinite(value)) return null;
+  const date =
+    Math.abs(value) > 1_000_000_000_000
+      ? new Date(value)
+      : sessionMinuteToDate(value);
+  return isValidDate(date) ? date : null;
+}
 
 // =============================================================================
 // Local reducer (avoids cascading setState-in-effect)
@@ -94,12 +111,13 @@ function useRulerSync(
   useEffect(() => {
     if (state.mode !== "time") return;
     const r = state.rulerRange ?? axisRange;
-    const startWall = sessionMinuteToDate(r.min);
-    const endWall = sessionMinuteToDate(r.max);
+    const startWall = timeAxisValueToDate(r.min);
+    const endWall = timeAxisValueToDate(r.max);
+    if (!startWall || !endWall) return;
     dispatch({
       type: "SYNC_FROM_RULER",
-      min: startWall.getHours() * 60 + startWall.getMinutes(),
-      max: endWall.getHours() * 60 + endWall.getMinutes(),
+      min: minuteOfDay(startWall),
+      max: minuteOfDay(endWall),
       fromDate: new Date(startWall.getFullYear(), startWall.getMonth(), startWall.getDate()),
       toDate: new Date(endWall.getFullYear(), endWall.getMonth(), endWall.getDate()),
     });
@@ -108,11 +126,15 @@ function useRulerSync(
 
 export function ZoomPopoverContent() {
   const { state, dispatch } = useChart();
+  const { timeMin, timeMax } = useLiveSessionRange();
 
-  const axisRange =
-    state.mode === "time"
-      ? WELL_SESSION.timeAxis.range
-      : WELL_SESSION.depthAxis.range;
+  const axisRange = useMemo(
+    () =>
+      state.mode === "time"
+        ? (state.tileRange ?? { min: timeMin, max: timeMax })
+        : WELL_SESSION.depthAxis.range,
+    [state.mode, state.tileRange, timeMin, timeMax],
+  );
 
   // Calendar bounds depend on mode: time mode is constrained by the session
   // wall-clock window; depth mode is constrained by the well-profile span,
@@ -134,11 +156,17 @@ export function ZoomPopoverContent() {
   // TimePicker holds minutes-of-day (0–1439). Default to the visible window's
   // local time-of-day; in time mode that is rulerRange % 1440, in depth mode
   // we just default to 00:00 / 23:59 since the field is conceptually moot.
-  const initialDraftMin = state.mode === "time"
-    ? ((state.rulerRange?.min ?? 0) % 1440 + 1440) % 1440
+  const initialTimeStart = state.mode === "time" && state.rulerRange
+    ? timeAxisValueToDate(state.rulerRange.min)
+    : null;
+  const initialTimeEnd = state.mode === "time" && state.rulerRange
+    ? timeAxisValueToDate(state.rulerRange.max)
+    : null;
+  const initialDraftMin = state.mode === "time" && initialTimeStart
+    ? minuteOfDay(initialTimeStart)
     : 0;
-  const initialDraftMax = state.mode === "time"
-    ? ((state.rulerRange?.max ?? 1439) % 1440 + 1440) % 1440
+  const initialDraftMax = state.mode === "time" && initialTimeEnd
+    ? minuteOfDay(initialTimeEnd)
     : 1439;
 
   // Single reducer avoids cascading renders from multiple setStates in an effect.
@@ -175,10 +203,10 @@ export function ZoomPopoverContent() {
   // Sync local state from store when ruler range changes externally.
   useRulerSync(state, axisRange, localDispatch);
 
-  const fromLabel = local.fromDate
+  const fromLabel = isValidDate(local.fromDate)
     ? format(local.fromDate, "MMM dd, yyyy")
     : "—";
-  const toLabel = local.toDate
+  const toLabel = isValidDate(local.toDate)
     ? format(local.toDate, "MMM dd, yyyy")
     : "—";
 
@@ -189,18 +217,16 @@ export function ZoomPopoverContent() {
     let max: number;
 
     if (state.mode === "time") {
-      // Combine date (midnight) + minutes-of-day, convert to minutes since
-      // SESSION_START_DATE — the unit the Time Ruler renders.
+      // Combine date (midnight) + minutes-of-day into epoch-ms, matching the
+      // live/tile time axis used by rulers and LogTrack.
       const startMs =
         new Date(local.fromDate.getFullYear(), local.fromDate.getMonth(), local.fromDate.getDate()).getTime() +
         local.min * 60_000;
       const endMs =
         new Date(local.toDate.getFullYear(), local.toDate.getMonth(), local.toDate.getDate()).getTime() +
         local.max * 60_000;
-      const a = dateToSessionMinute(new Date(startMs));
-      const b = dateToSessionMinute(new Date(endMs));
-      min = Math.min(a, b);
-      max = Math.max(a, b);
+      min = Math.min(startMs, endMs);
+      max = Math.max(startMs, endMs);
     } else {
       // Depth mode: derive depth at each picked date via the well profile.
       const a = wellProfileDepthAt(local.fromDate);
@@ -211,7 +237,7 @@ export function ZoomPopoverContent() {
 
     if (min === max) return; // ignore empty range
 
-    // Reducer handles cascade: enters slider mode, clears live & preset.
+    // Reducer handles cascade: enters slider mode while preserving preset context.
     dispatch({ type: "SET_RULER_RANGE", min, max });
   }, [local.fromDate, local.toDate, local.min, local.max, state.mode, dispatch]);
 
@@ -375,7 +401,7 @@ export function ZoomPopoverContent() {
           size="md"
           fullWidth
           onClick={() => {
-            // Reducer cascades liveMode & rangePreset.
+            // Reducer leaves rangePreset intact so wide sliders keep tile data.
             dispatch({
               type: "SET_SLIDER_MODE",
               value: !(state.wellProfileSlider || state.rulerSlider),

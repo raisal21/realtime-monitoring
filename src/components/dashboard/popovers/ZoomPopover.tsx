@@ -33,6 +33,12 @@ import { Calendar } from "@/components/ui/Calendar";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { LiveBadge, RangePresetButton } from "@/components/ui/display";
 import { Button, Surface } from "@/components/ui/core";
+import {
+  capRangeToLatest,
+  clampRangeToHistoryExtent,
+  historyExtentDateBounds,
+  historyExtentTimeRange,
+} from "@/lib/history-extent";
 import { cn } from "@/lib/utils";
 
 function isValidDate(date: Date | undefined): date is Date {
@@ -136,32 +142,42 @@ export function ZoomPopoverContent() {
     [state.mode, state.tileRange, timeMin, timeMax],
   );
 
-  // Calendar bounds depend on mode: time mode is constrained by the session
-  // wall-clock window; depth mode is constrained by the well-profile span,
-  // since handleApply maps date → depth via wellProfileDepthAt.
+  const historyTimeRange = useMemo(
+    () => capRangeToLatest(historyExtentTimeRange(state.historyExtent)),
+    [state.historyExtent],
+  );
+
+  // Depth mode remains tied to the synthetic well-profile calendar. Time mode
+  // uses QuestDB extent metadata when the backend has returned it.
   const calendarBounds = useMemo(() => {
     if (state.mode === "time") {
-      return { from: SESSION_START_DATE, to: SESSION_END_DATE };
+      return historyTimeRange
+        ? historyExtentDateBounds(historyTimeRange)
+        : { from: SESSION_START_DATE, to: SESSION_END_DATE };
     }
     return { from: WELL_PROFILE_START_DATE, to: WELL_PROFILE_END_DATE };
-  }, [state.mode]);
+  }, [historyTimeRange, state.mode]);
 
+  const activeTimeRange =
+    state.mode === "time" ? (state.rulerRange ?? axisRange) : null;
+  const activeStartDate = activeTimeRange
+    ? timeAxisValueToDate(activeTimeRange.min)
+    : null;
+  const activeEndDate = activeTimeRange
+    ? timeAxisValueToDate(activeTimeRange.max)
+    : null;
   const initialFromDate = state.mode === "time"
-    ? SESSION_START_DATE
+    ? activeStartDate ?? calendarBounds.from
     : WELL_PROFILE_START_DATE;
   const initialToDate = state.mode === "time"
-    ? SESSION_END_DATE
+    ? activeEndDate ?? calendarBounds.to
     : WELL_PROFILE_END_DATE;
 
   // TimePicker holds minutes-of-day (0–1439). Default to the visible window's
   // local time-of-day; in time mode that is rulerRange % 1440, in depth mode
   // we just default to 00:00 / 23:59 since the field is conceptually moot.
-  const initialTimeStart = state.mode === "time" && state.rulerRange
-    ? timeAxisValueToDate(state.rulerRange.min)
-    : null;
-  const initialTimeEnd = state.mode === "time" && state.rulerRange
-    ? timeAxisValueToDate(state.rulerRange.max)
-    : null;
+  const initialTimeStart = activeStartDate;
+  const initialTimeEnd = activeEndDate;
   const initialDraftMin = state.mode === "time" && initialTimeStart
     ? minuteOfDay(initialTimeStart)
     : 0;
@@ -225,8 +241,14 @@ export function ZoomPopoverContent() {
       const endMs =
         new Date(local.toDate.getFullYear(), local.toDate.getMonth(), local.toDate.getDate()).getTime() +
         local.max * 60_000;
-      min = Math.min(startMs, endMs);
-      max = Math.max(startMs, endMs);
+      const clamped = clampRangeToHistoryExtent(
+        startMs,
+        endMs,
+        historyTimeRange,
+      );
+      if (!clamped) return;
+      min = clamped.min;
+      max = clamped.max;
     } else {
       // Depth mode: derive depth at each picked date via the well profile.
       const a = wellProfileDepthAt(local.fromDate);
@@ -239,7 +261,15 @@ export function ZoomPopoverContent() {
 
     // Reducer handles cascade: enters slider mode while preserving preset context.
     dispatch({ type: "SET_RULER_RANGE", min, max });
-  }, [local.fromDate, local.toDate, local.min, local.max, state.mode, dispatch]);
+  }, [
+    local.fromDate,
+    local.toDate,
+    local.min,
+    local.max,
+    state.mode,
+    historyTimeRange,
+    dispatch,
+  ]);
 
   return (
     <PopoverContent

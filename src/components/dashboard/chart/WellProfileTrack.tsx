@@ -1,12 +1,7 @@
-import { useEffect, useMemo, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import ReactECharts from "echarts-for-react/lib/core";
 import { echarts, type EChartsOption } from "@/lib/echarts";
-import {
-  WELL_PROFILE_DATA,
-  WELL_PROFILE_MAX_DEPTH_M,
-  parseWellProfileDate,
-  dateToSessionMinute,
-} from "@/data/dashboard-static";
+import { WELL_PROFILE_MAX_DEPTH_M } from "@/data/dashboard-static";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
 import { useSettings, FS_SCALE } from "@/store/app-store";
@@ -18,50 +13,83 @@ import { LIVE_WELL_ID } from "@/data/wells";
 import { useCurrentWell } from "@/contexts/CurrentWellContext";
 import {
   clampRangeToBounds,
-  profileMinutesToEpochMs,
   resolveWellProfileActiveBounds,
   shouldShowWellProfileSlider,
 } from "@/lib/well-profile-slider";
+import {
+  capRangeToLatest,
+  historyExtentTimeRange,
+  type NumericRange,
+} from "@/lib/history-extent";
+import {
+  normalizeProfileTimeRange,
+  profileDepthAxisRange,
+  wellProfilePointsFromTiles,
+  wellProfileTimeRangeFromPoints,
+} from "@/lib/well-profile-history";
 
-// Pre-resolve session-minute for each WP_DATA entry — used by the inverse
-// lookup below; avoids re-parsing date strings on every drag tick.
-const WP_LAST_IDX = WELL_PROFILE_DATA.length - 1;
-const WP_DEPTHS = WELL_PROFILE_DATA.map((d) => d.depth);
-const WP_SESSION_MIN = WELL_PROFILE_DATA.map((d) =>
-  dateToSessionMinute(parseWellProfileDate(d.date)),
-);
+type DataZoomPayload = {
+  start?: number;
+  end?: number;
+  startValue?: number;
+  endValue?: number;
+};
 
-// Linear interpolation between successive WP entries. The slider position is
-// a fractional index in [0, WP_LAST_IDX], so depth/time at that position is a
-// continuous quantity — gives smooth handle motion instead of snapping to one
-// of 14 discrete entries.
-function lerpAtIdx(values: readonly number[], idx: number): number {
-  if (idx <= 0) return values[0];
-  if (idx >= WP_LAST_IDX) return values[WP_LAST_IDX];
-  const lo = Math.floor(idx);
-  const t = idx - lo;
-  return values[lo] * (1 - t) + values[lo + 1] * t;
+function asFiniteNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
-// Inverse of lerpAtIdx for monotonically-increasing series (both depth and
-// session-minute over WP entries are monotonic). Returns fractional WP index
-// matching `value`.
-function idxAt(values: readonly number[], value: number): number {
-  if (value <= values[0]) return 0;
-  if (value >= values[WP_LAST_IDX]) return WP_LAST_IDX;
-  for (let i = 0; i < WP_LAST_IDX; i++) {
-    const a = values[i];
-    const b = values[i + 1];
-    if (value >= a && value <= b) {
-      return b === a ? i : i + (value - a) / (b - a);
-    }
+function resolveZoomRange(
+  params: unknown,
+  bounds: NumericRange,
+): NumericRange | null {
+  const payload = params as DataZoomPayload & { batch?: DataZoomPayload[] };
+  const raw = payload.batch?.[0] ?? payload;
+  const startValue = asFiniteNumber(raw.startValue);
+  const endValue = asFiniteNumber(raw.endValue);
+  if (startValue != null && endValue != null) {
+    return clampRangeToBounds(startValue, endValue, bounds);
   }
-  return WP_LAST_IDX;
+
+  const start = asFiniteNumber(raw.start);
+  const end = asFiniteNumber(raw.end);
+  if (start == null || end == null) return null;
+  const span = bounds.max - bounds.min;
+  const a = bounds.min + (Math.min(start, end) / 100) * span;
+  const b = bounds.min + (Math.max(start, end) / 100) * span;
+  return clampRangeToBounds(a, b, bounds);
+}
+
+function clampToProfileRange(
+  range: NumericRange | null | undefined,
+  bounds: NumericRange,
+): NumericRange {
+  if (!range) return bounds;
+  return clampRangeToBounds(range.min, range.max, bounds) ?? bounds;
+}
+
+function formatProfileTime(value: number): string {
+  if (!Number.isFinite(value)) return "--";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function Placeholder({ label }: { label: string }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center px-2 text-center">
+      <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
+        {label}
+      </span>
+    </div>
+  );
 }
 
 export function WellProfileTrack() {
-  // Per-field selectors: avoid re-render on unrelated chart mutations
-  // (crosshair, traceVisibility, log-track range, track layout).
   const mode = useStore(globalRigStore, (s) => s.chart.mode);
   const rangePreset = useStore(globalRigStore, (s) => s.chart.rangePreset);
   const liveMode = useStore(globalRigStore, (s) => s.chart.liveMode);
@@ -70,6 +98,27 @@ export function WellProfileTrack() {
   const tileDepthRange = useStore(
     globalRigStore,
     (s) => s.chart.tileDepthRange,
+  );
+  const historyExtentStatus = useStore(
+    globalRigStore,
+    (s) => s.chart.historyExtentStatus,
+  );
+  const historyExtent = useStore(globalRigStore, (s) => s.chart.historyExtent);
+  const wellProfileHistoryStatus = useStore(
+    globalRigStore,
+    (s) => s.chart.wellProfileHistoryStatus,
+  );
+  const wellProfileHistoryError = useStore(
+    globalRigStore,
+    (s) => s.chart.wellProfileHistoryError,
+  );
+  const wellProfileHistoryTiles = useStore(
+    globalRigStore,
+    (s) => s.chart.wellProfileHistoryTiles,
+  );
+  const wellProfileHistoryRange = useStore(
+    globalRigStore,
+    (s) => s.chart.wellProfileHistoryRange,
   );
   const wellProfileSlider = useStore(
     globalRigStore,
@@ -92,6 +141,10 @@ export function WellProfileTrack() {
 
   const chartRef = useRef<ReactECharts>(null);
   const pendingRaf = useRef<number | null>(null);
+  const manualTimeBounds = useMemo(
+    () => capRangeToLatest(historyExtentTimeRange(historyExtent)),
+    [historyExtent],
+  );
   const activeBounds = useMemo(
     () =>
       resolveWellProfileActiveBounds({
@@ -99,6 +152,7 @@ export function WellProfileTrack() {
         rangePreset,
         tileRange,
         tileDepthRange,
+        manualTimeBounds,
         sessionDepthMin,
         sessionDepthMax,
         sessionTimeMin,
@@ -109,94 +163,62 @@ export function WellProfileTrack() {
       rangePreset,
       tileRange,
       tileDepthRange,
+      manualTimeBounds,
       sessionDepthMin,
       sessionDepthMax,
       sessionTimeMin,
       sessionTimeMax,
     ],
   );
-  const activeProfileSeries = useMemo(
+  const profilePoints = useMemo(
+    () => wellProfilePointsFromTiles(wellProfileHistoryTiles),
+    [wellProfileHistoryTiles],
+  );
+  const profileTimeRange = useMemo(
     () =>
-      mode === "depth"
-        ? WP_DEPTHS
-        : profileMinutesToEpochMs(WP_SESSION_MIN, activeBounds.max),
-    [activeBounds.max, mode],
+      normalizeProfileTimeRange(
+        wellProfileTimeRangeFromPoints(profilePoints) ?? wellProfileHistoryRange,
+      ),
+    [profilePoints, wellProfileHistoryRange],
+  );
+  const depthAxisRange = useMemo(
+    () => profileDepthAxisRange(profilePoints, WELL_PROFILE_MAX_DEPTH_M),
+    [profilePoints],
   );
   const showSlider = shouldShowWellProfileSlider(
     mode,
     wellProfileSlider,
     liveMode,
   );
+  const sliderRange = useMemo(
+    () =>
+      profileTimeRange
+        ? clampToProfileRange(rulerRange ?? activeBounds, profileTimeRange)
+        : activeBounds,
+    [activeBounds, profileTimeRange, rulerRange],
+  );
 
-  // Well-profile y-axis is a category axis of dates, so dataZoom emits
-  // start/end as category indices. Map indices → wall-clock date via
-  // WELL_PROFILE_DATA, then translate to the current chart mode's units
-  // and write to the Ruler scope (well-profile slider drives Time/Depth Ruler).
-  // Clamp to the active data window. Wide presets use tile bounds, while 1h
-  // and not-yet-ready tiles fall back to the live session bounds.
   const handleDataZoom = useCallback(
     (params: unknown) => {
-      type DZ = {
-        start?: number; end?: number;
-        startValue?: number; endValue?: number;
-      };
-      const p = params as DZ & { batch?: DZ[] };
-      const raw: DZ = p.batch?.[0] ?? p;
-
-      // Resolve to fractional indices over WELL_PROFILE_DATA — slider may emit
-      // numeric `startValue`/`endValue` OR percentage `start`/`end` (the latter
-      // happens when the dataZoom is configured with controlled start/end).
-      let loIdx: number, hiIdx: number;
-      if (raw.startValue !== undefined && raw.endValue !== undefined) {
-        loIdx = Math.min(raw.startValue, raw.endValue);
-        hiIdx = Math.max(raw.startValue, raw.endValue);
-      } else if (raw.start !== undefined && raw.end !== undefined) {
-        loIdx = (Math.min(raw.start, raw.end) / 100) * WP_LAST_IDX;
-        hiIdx = (Math.max(raw.start, raw.end) / 100) * WP_LAST_IDX;
-      } else {
-        return;
-      }
-      loIdx = Math.max(0, Math.min(WP_LAST_IDX, loIdx));
-      hiIdx = Math.max(0, Math.min(WP_LAST_IDX, hiIdx));
-
-      // Interpolate continuous depth/time at the fractional index, then clamp
-      // to the active data window.
-      const a = lerpAtIdx(activeProfileSeries, loIdx);
-      const b = lerpAtIdx(activeProfileSeries, hiIdx);
-      const next = clampRangeToBounds(a, b, activeBounds);
+      if (!showSlider || !profileTimeRange) return;
+      const next = resolveZoomRange(params, profileTimeRange);
       if (!next) return;
       setRulerRange(next.min, next.max);
     },
-    [activeBounds, activeProfileSeries, setRulerRange],
+    [profileTimeRange, setRulerRange, showSlider],
   );
-
-  // Map current rulerRange back to a fractional WP index so the slider handles
-  // stay exactly where the user dragged to. Inverse-interpolation against the
-  // monotonic depth/time series gives sub-entry precision (no snapping to the
-  // nearest of 14 entries). Required because the option object is rebuilt on
-  // each dispatch with `notMerge` and would otherwise reset start/end.
-  const sliderRange = useMemo(() => {
-    const r = rulerRange ?? activeBounds;
-    const series = activeProfileSeries;
-    const s = idxAt(series, r.min);
-    const e = idxAt(series, r.max);
-    return {
-      startPct: (Math.min(s, e) / WP_LAST_IDX) * 100,
-      endPct: (Math.max(s, e) / WP_LAST_IDX) * 100,
-    };
-  }, [activeBounds, activeProfileSeries, rulerRange]);
 
   const option = useMemo((): EChartsOption => {
     const c = getChartColors();
-    const data = WELL_PROFILE_DATA;
-    const maxDepthM = WELL_PROFILE_MAX_DEPTH_M;
     const latest = globalRigStore.getState().drillRing.latest();
     const currentDepthM = showLive && latest ? latest.depth : cursorDepth;
+    const yRange = profileTimeRange ?? {
+      min: sessionTimeMin,
+      max: sessionTimeMax,
+    };
+    const data = profilePoints.map((point) => [point.depth, point.timestamp]);
 
-    const dates = data.map((d) => d.date) as string[];
-    const depths = data.map((d) => d.depth);
-
-    const opt: EChartsOption = {
+    return {
       animation: false,
       backgroundColor: c.surface,
       grid: {
@@ -225,17 +247,21 @@ export function WellProfileTrack() {
         appendToBody: true,
         extraCssText: "z-index: 20",
         formatter: (params: unknown) => {
-          const ps = params as Array<{ axisValue: string; value: number }>;
-          if (!ps?.[0]) return "";
-          const { axisValue, value } = ps[0];
-          const d = formatDepth(value, settings.unitSystem);
-          return `<span style="color:${c.fgMuted}">${axisValue}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${d.value} ${d.unit}</span>`;
+          const ps = params as Array<{ axisValue: number; value: number[] }>;
+          const first = ps?.[0];
+          if (!first) return "";
+          const depth = Number(first.value?.[0]);
+          const timestamp = Number(first.value?.[1] ?? first.axisValue);
+          const d = formatDepth(depth, settings.unitSystem);
+          return `<span style="color:${c.fgMuted}">${formatProfileTime(
+            timestamp,
+          )}</span>&nbsp;&nbsp;<span style="color:${c.accent};font-weight:600">${d.value} ${d.unit}</span>`;
         },
       },
       xAxis: {
         type: "value",
-        min: 0,
-        max: maxDepthM,
+        min: depthAxisRange.min,
+        max: depthAxisRange.max,
         inverse: false,
         axisLine: { show: false },
         axisTick: { show: false },
@@ -261,55 +287,39 @@ export function WellProfileTrack() {
           lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
         },
       },
-      yAxis: [
-        {
-          type: "category",
-          data: dates,
-          inverse: true,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { show: false },
-          splitLine: {
+      yAxis: {
+        type: "value",
+        min: yRange.min,
+        max: yRange.max,
+        inverse: true,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { show: false },
+        splitLine: {
+          show: true,
+          lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
+        },
+        axisPointer: {
+          show: true,
+          label: {
             show: true,
-            lineStyle: { color: c.borderSubtle, width: 0.5, type: "dashed" },
-          },
-          axisPointer: {
-            show: true,
-            label: {
-              show: true,
-              backgroundColor: c.accent,
-              color: c.fg,
-              borderWidth: 0,
-              fontSize: 8 * fsScale,
-              fontFamily: "Share Tech Mono, monospace",
-              padding: [3, 6],
-              formatter: (params: { value: number | string | Date }) => {
-                const idx = dates.indexOf(String(params.value));
-                return idx >= 0 ? dates[idx] : String(params.value);
-              },
-            },
+            backgroundColor: c.accent,
+            color: c.fg,
+            borderWidth: 0,
+            fontSize: 8 * fsScale,
+            fontFamily: "Share Tech Mono, monospace",
+            padding: [3, 6],
+            formatter: (params: { value: number | string | Date }) =>
+              formatProfileTime(Number(params.value)),
           },
         },
-        // Hidden value axis spanning the WP_DATA index range — the slider
-        // operates on this so the visible category axis (yAxisIndex 0) keeps
-        // showing the full well history. Needs a paired anchor series below
-        // (otherwise the slider renders but emits no datazoom events).
-        {
-          type: "value",
-          min: 0,
-          max: dates.length - 1,
-          inverse: true,
-          show: false,
-          axisPointer: { show: false },
-        },
-      ],
+      },
       series: [
         {
           type: "line",
-          yAxisIndex: 0,
           xAxisIndex: 0,
-          data: depths,
-          step: "end" as const,
+          yAxisIndex: 0,
+          data,
           symbol: "none",
           lineStyle: { color: c.accent, width: 1.5, opacity: 0.95 },
           endLabel: {
@@ -322,38 +332,23 @@ export function WellProfileTrack() {
             padding: [1, 3],
           },
         },
-        // Invisible anchor series so dataZoom on yAxisIndex 1 has data to bind
-        // to; without this the slider renders but never emits zoom events.
-        {
-          type: "line" as const,
-          xAxisIndex: 0,
-          yAxisIndex: 1,
-          data: [
-            [0, 0],
-            [0, dates.length - 1],
-          ],
-          showSymbol: false,
-          lineStyle: { opacity: 0 },
-          silent: true,
-          tooltip: { show: false },
-        },
       ],
       dataZoom:
-        showSlider
+        showSlider && profileTimeRange
           ? [
               {
                 type: "inside" as const,
-                yAxisIndex: 1,
+                yAxisIndex: 0,
                 filterMode: "none" as const,
                 zoomOnMouseWheel: true,
                 moveOnMouseMove: true,
                 moveOnMouseWheel: true,
-                start: sliderRange.startPct,
-                end: sliderRange.endPct,
+                startValue: sliderRange.min,
+                endValue: sliderRange.max,
               },
               {
                 type: "slider" as const,
-                yAxisIndex: 1,
+                yAxisIndex: 0,
                 orient: "vertical" as const,
                 left: 0,
                 right: 0,
@@ -370,24 +365,36 @@ export function WellProfileTrack() {
                 filterMode: "none" as const,
                 showDataShadow: false,
                 showDetail: false,
-                start: sliderRange.startPct,
-                end: sliderRange.endPct,
+                startValue: sliderRange.min,
+                endValue: sliderRange.max,
               },
             ]
           : [
               {
                 type: "inside" as const,
-                yAxisIndex: 1,
+                yAxisIndex: 0,
                 filterMode: "none" as const,
                 zoomOnMouseWheel: false,
-                moveOnMouseMove: true,
-                moveOnMouseWheel: true,
+                moveOnMouseMove: false,
+                moveOnMouseWheel: false,
               },
             ],
     };
-
-    return opt;
-  }, [settings.unitSystem, showSlider, sliderRange.startPct, sliderRange.endPct, fsScale, showLive, cursorDepth]);
+  }, [
+    cursorDepth,
+    depthAxisRange.max,
+    depthAxisRange.min,
+    fsScale,
+    profilePoints,
+    profileTimeRange,
+    sessionTimeMax,
+    sessionTimeMin,
+    settings.unitSystem,
+    showLive,
+    showSlider,
+    sliderRange.max,
+    sliderRange.min,
+  ]);
 
   useEffect(() => {
     if (!showLive) return;
@@ -398,8 +405,7 @@ export function WellProfileTrack() {
       if (!inst) return;
       const latest = globalRigStore.getState().drillRing.latest();
       if (!latest) return;
-      const cur = latest.depth;
-      const formatted = formatDepth(cur, settings.unitSystem).value;
+      const formatted = formatDepth(latest.depth, settings.unitSystem).value;
       inst.setOption(
         {
           series: [
@@ -429,6 +435,19 @@ export function WellProfileTrack() {
     };
   }, [showLive, settings.unitSystem]);
 
+  const hasProfile = profilePoints.length > 0 && profileTimeRange !== null;
+  const loadingProfile =
+    historyExtentStatus === "idle" ||
+    historyExtentStatus === "loading" ||
+    wellProfileHistoryStatus === "idle" ||
+    wellProfileHistoryStatus === "loading";
+  const profilePlaceholder =
+    wellProfileHistoryStatus === "error"
+      ? (wellProfileHistoryError ?? "Profile unavailable")
+      : loadingProfile
+        ? "Loading profile"
+        : "No profile history";
+
   return (
     <div
       className={cn(
@@ -441,23 +460,17 @@ export function WellProfileTrack() {
       <div className="px-2 h-10 flex flex-col justify-center border-b border-(--theme-border) flex-shrink-0">
         <span className="section-heading">Well Profile</span>
         <div className="flex items-center gap-1 mt-0.5">
-          <span className="label-mono">time × depth</span>
+          <span className="label-mono">time x depth</span>
         </div>
       </div>
 
       <div className="relative flex-1 overflow-hidden">
         {!isLive ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
-              No live feed for this well
-            </span>
-          </div>
+          <Placeholder label="No live feed for this well" />
         ) : status !== "ONLINE" ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="font-['Share_Tech_Mono',monospace] text-fs-10 text-(--theme-fg-dim) uppercase tracking-[0.1em]">
-              Connecting…
-            </span>
-          </div>
+          <Placeholder label="Connecting..." />
+        ) : !hasProfile ? (
+          <Placeholder label={profilePlaceholder} />
         ) : (
           <ReactECharts
             ref={chartRef}

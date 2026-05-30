@@ -4,10 +4,12 @@ import { useEffect, useRef, lazy, Suspense } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { useStore } from "zustand";
 import { globalRigStore } from "@/store/index-store";
-import { getWellById } from "@/data/wells";
+import { getWellById, LIVE_WELL_ID } from "@/data/wells";
 import { useChart } from "@/store/app-store";
 import { useKeyboardShortcuts } from "@/hooks/dashboard-hooks";
+import { useHistoryExtentSync } from "@/hooks/use-history-extent-sync";
 import { useTileSync } from "@/hooks/use-tile-sync";
+import { useWellProfileHistorySync } from "@/hooks/use-well-profile-history-sync";
 import { DashboardSubheader } from "@/components/dashboard/shell/DashboardSubheader";
 import { Footer } from "@/components/dashboard/shell/Footer";
 import { LeftToolRail } from "@/components/dashboard/rail/LeftToolRail";
@@ -46,7 +48,12 @@ export default function Dashboard() {
   const setLeftRail = useStore(globalRigStore, (s) => s.setLeftRail);
   const { state: chart } = useChart();
   const { role } = useAuth();
+  const currentWell = wellId ? getWellById(wellId) : null;
+  const historyWellId =
+    wellId && !currentWell ? null : (currentWell?.id ?? LIVE_WELL_ID);
   useKeyboardShortcuts();
+  useHistoryExtentSync(historyWellId);
+  useWellProfileHistorySync(historyWellId);
   useTileSync();
 
   const allowedStreams = role ? ROLE_STREAMS[role] : null;
@@ -89,7 +96,7 @@ export default function Dashboard() {
     : 0;
   const chartRightInset = STRIP_WIDTH + (showAlarmSidebar ? STRIP_WIDTH : 0);
 
-  if (wellId && !getWellById(wellId)) {
+  if (wellId && !currentWell) {
     return <Navigate to="/wells" replace />;
   }
 

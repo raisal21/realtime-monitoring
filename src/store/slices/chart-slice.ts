@@ -13,11 +13,13 @@ import {
 } from "@/services/tiles-client";
 import type { ParsedTileFrame } from "@/services/binary-parser";
 import type { GlobalRigState } from "../store.types";
+import type { HistoryExtentMessage } from "@/domain/message.types";
 
 export type ChartMode = "time" | "depth";
 export type RangePreset = (typeof RANGE_PRESETS_QUICK)[number]["id"];
-type TileStatus = "idle" | "loading" | "ready" | "error";
-type Range = { min: number; max: number };
+export type TileStatus = "idle" | "loading" | "ready" | "error";
+export type HistoryExtentStatus = "idle" | "loading" | "ready" | "error";
+export type Range = { min: number; max: number };
 export type TileStreamName = "drill" | "geo";
 export type ActiveTileSubscription = {
   subscriptionId: number;
@@ -32,12 +34,21 @@ export type ChartState = {
   rangePreset: RangePreset | null;
   rulerRange: Range | null;
   logTrackRange: Range | null;
+  customTileRange: Range | null;
   tileStatus: TileStatus;
   tileError: string | null;
   drillTiles: TileResponse | null;
   geoTiles: TileResponse | null;
   tileRange: Range | null;
   tileDepthRange: Range | null;
+  historyExtentStatus: HistoryExtentStatus;
+  historyExtentError: string | null;
+  historyExtent: HistoryExtentMessage | null;
+  wellProfileHistoryStatus: TileStatus;
+  wellProfileHistoryError: string | null;
+  wellProfileHistoryTiles: TileResponse | null;
+  wellProfileHistoryRange: Range | null;
+  activeWellProfileHistoryRequestId: number | null;
   activeTileSubscriptionId: number | null;
   tileSubscription: ActiveTileSubscription | null;
   wellProfileSlider: boolean;
@@ -70,6 +81,12 @@ interface ChartActions {
   ) => void;
   setTileError: (message: string) => void;
   clearTiles: () => void;
+  setHistoryExtentLoading: () => void;
+  setHistoryExtent: (extent: HistoryExtentMessage) => void;
+  setHistoryExtentError: (message: string) => void;
+  setWellProfileHistoryRequest: (subscriptionId: number, range: Range) => void;
+  setWellProfileHistoryError: (message: string) => void;
+  clearWellProfileHistory: () => void;
   applyTileSnapshot: (frame: ParsedTileFrame) => void;
   applyTileUpdate: (frame: ParsedTileFrame) => void;
   setSliderMode: (value: boolean) => void;
@@ -91,12 +108,21 @@ const chartInitial: ChartState = {
   rangePreset: "1h",
   rulerRange: null,
   logTrackRange: null,
+  customTileRange: null,
   tileStatus: "idle",
   tileError: null,
   drillTiles: null,
   geoTiles: null,
   tileRange: null,
   tileDepthRange: null,
+  historyExtentStatus: "idle",
+  historyExtentError: null,
+  historyExtent: null,
+  wellProfileHistoryStatus: "idle",
+  wellProfileHistoryError: null,
+  wellProfileHistoryTiles: null,
+  wellProfileHistoryRange: null,
+  activeWellProfileHistoryRequestId: null,
   activeTileSubscriptionId: null,
   tileSubscription: null,
   wellProfileSlider: false,
@@ -134,6 +160,7 @@ const enterLiveMode = (s: ChartState, preset: RangePreset = "1h"): ChartState =>
   rangePreset: s.rangePreset ?? preset,
   rulerRange: null,
   logTrackRange: null,
+  customTileRange: null,
   wellProfileSlider: false,
   rulerSlider: false,
 });
@@ -171,7 +198,13 @@ export const createChartSlice: StateCreator<
     })),
 
   setRangePreset: (preset) =>
-    set((s) => ({ chart: { ...s.chart, rangePreset: preset } })),
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        rangePreset: preset,
+        customTileRange: null,
+      },
+    })),
 
   setRulerRange: (min, max) =>
     set((s) => {
@@ -185,6 +218,8 @@ export const createChartSlice: StateCreator<
           ...s.chart,
           rulerRange: { min, max },
           logTrackRange: nextInner,
+          customTileRange:
+            s.chart.mode === "time" ? { min, max } : s.chart.customTileRange,
           liveMode: false,
           wellProfileSlider: true,
           rulerSlider: true,
@@ -252,7 +287,8 @@ export const createChartSlice: StateCreator<
     set((s) =>
       s.chart.tileStatus === "idle" &&
       s.chart.tileRange === null &&
-      s.chart.tileDepthRange === null
+      s.chart.tileDepthRange === null &&
+      s.chart.customTileRange === null
         ? s
         : {
             chart: {
@@ -263,14 +299,101 @@ export const createChartSlice: StateCreator<
               geoTiles: null,
               tileRange: null,
               tileDepthRange: null,
+              customTileRange: null,
               activeTileSubscriptionId: null,
               tileSubscription: null,
             },
           },
     ),
 
+  setHistoryExtentLoading: () =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        historyExtentStatus: "loading",
+        historyExtentError: null,
+        historyExtent: null,
+      },
+    })),
+
+  setHistoryExtent: (extent) =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        historyExtentStatus: "ready",
+        historyExtentError: null,
+        historyExtent: extent,
+      },
+    })),
+
+  setHistoryExtentError: (message) =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        historyExtentStatus: "error",
+        historyExtentError: message,
+        historyExtent: null,
+      },
+    })),
+
+  setWellProfileHistoryRequest: (subscriptionId, range) =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        wellProfileHistoryStatus: "loading",
+        wellProfileHistoryError: null,
+        wellProfileHistoryTiles: null,
+        wellProfileHistoryRange: range,
+        activeWellProfileHistoryRequestId: subscriptionId,
+      },
+    })),
+
+  setWellProfileHistoryError: (message) =>
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        wellProfileHistoryStatus: "error",
+        wellProfileHistoryError: message,
+        wellProfileHistoryTiles: null,
+        wellProfileHistoryRange: null,
+        activeWellProfileHistoryRequestId: null,
+      },
+    })),
+
+  clearWellProfileHistory: () =>
+    set((s) =>
+      s.chart.wellProfileHistoryStatus === "idle" &&
+      s.chart.wellProfileHistoryTiles === null &&
+      s.chart.wellProfileHistoryRange === null &&
+      s.chart.activeWellProfileHistoryRequestId === null
+        ? s
+        : {
+            chart: {
+              ...s.chart,
+              wellProfileHistoryStatus: "idle",
+              wellProfileHistoryError: null,
+              wellProfileHistoryTiles: null,
+              wellProfileHistoryRange: null,
+              activeWellProfileHistoryRequestId: null,
+            },
+          },
+    ),
+
   applyTileSnapshot: (frame) =>
     set((s) => {
+      if (s.chart.activeWellProfileHistoryRequestId === frame.subscriptionId) {
+        if (frame.stream !== "drill") return s;
+        const headerRange = { min: frame.fromUnixMs, max: frame.toUnixMs };
+        return {
+          chart: {
+            ...s.chart,
+            wellProfileHistoryStatus: "ready",
+            wellProfileHistoryError: null,
+            wellProfileHistoryTiles: frame.tiles,
+            wellProfileHistoryRange: tileDataRange(frame.tiles) ?? headerRange,
+          },
+        };
+      }
       if (s.chart.activeTileSubscriptionId !== frame.subscriptionId) return s;
       const tiles = projectOpenTileBucket(frame.tiles, frame.toUnixMs);
       const drillTiles =
@@ -292,6 +415,9 @@ export const createChartSlice: StateCreator<
 
   applyTileUpdate: (frame) =>
     set((s) => {
+      if (s.chart.activeWellProfileHistoryRequestId === frame.subscriptionId) {
+        return s;
+      }
       if (s.chart.activeTileSubscriptionId !== frame.subscriptionId) return s;
       const tiles = projectOpenTileBucket(frame.tiles, frame.toUnixMs);
       const drillTiles =

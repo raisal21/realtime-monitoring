@@ -4,7 +4,7 @@ import type { Envelope, EnvelopePoint } from "@/lib/bin-mm";
 // min/max/avg per trace per time bucket. Tile buckets do not preserve
 // intra-bucket order, so LogTrack draws avg as the single visible line.
 
-export type TileRes = "1s" | "10s" | "1m" | "5m" | "1h";
+export type TileRes = "1s" | "10s" | "1m" | "5m" | "1h" | "6h";
 
 export interface TileStat {
   min: number | null;
@@ -57,6 +57,7 @@ const TILE_BUCKET_MS: Record<TileRes, number> = {
   "1m": 60_000,
   "5m": 5 * 60_000,
   "1h": 60 * 60_000,
+  "6h": 6 * 60 * 60_000,
 };
 
 // Same-origin fetch - the Vite dev proxy forwards /api to the backend, so no

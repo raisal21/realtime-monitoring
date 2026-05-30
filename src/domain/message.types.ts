@@ -7,6 +7,7 @@ import {
   UnsubsAckPayload,
   TileSubscribeAckPayload,
   TileUnsubscribeAckPayload,
+  HistoryExtentPayload,
   AlarmSeverity,
   ServerSchema,
   ClosingPayload,
@@ -28,6 +29,7 @@ export type TileSubscribeAckMessage = z.infer<typeof TileSubscribeAckPayload>;
 export type TileUnsubscribeAckMessage = z.infer<
   typeof TileUnsubscribeAckPayload
 >;
+export type HistoryExtentMessage = z.infer<typeof HistoryExtentPayload>;
 export type AlarmSeverity = z.infer<typeof AlarmSeverity>;
 export type ClosingMessage = z.infer<typeof ClosingPayload>;
 

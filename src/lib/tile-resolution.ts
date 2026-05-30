@@ -20,10 +20,11 @@ const RES_LADDER: ReadonlyArray<{ res: TileRes; maxSpanMin: number }> = [
   { res: "1m", maxSpanMin: 120 },
   { res: "5m", maxSpanMin: 720 },
   { res: "1h", maxSpanMin: 10080 },
+  { res: "6h", maxSpanMin: 43200 },
 ];
 
 // Picks the finest resolution whose MaxSpan covers `spanMinutes`. Returns
-// null when the span exceeds every resolution's cap (> 7 days).
+// null when the span exceeds every resolution's cap (> 30 days).
 export function pickResolution(spanMinutes: number): TileRes | null {
   for (const { res, maxSpanMin } of RES_LADDER) {
     if (spanMinutes <= maxSpanMin) return res;

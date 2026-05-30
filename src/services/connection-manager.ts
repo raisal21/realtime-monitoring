@@ -110,6 +110,12 @@ export function createConnectionManager(
             code: msg.error.code,
             message: msg.error.message,
           });
+          if (
+            msg.error.code === "HISTORY_EXTENT_FAILED" ||
+            msg.error.code === "INVALID_HISTORY_STREAM"
+          ) {
+            globalRigStore.getState().setHistoryExtentError(msg.error.message);
+          }
           continue;
         }
 
@@ -169,6 +175,10 @@ export function createConnectionManager(
 
         if (msg.messageType === "TILE_UNSUBSCRIBE_ACK") {
           handleTileUnsubscribeAck(msg);
+        }
+
+        if (msg.messageType === "HISTORY_EXTENT") {
+          globalRigStore.getState().setHistoryExtent(msg.payload);
         }
 
         if (msg.messageType === "CLOSING") {

@@ -68,7 +68,6 @@ export function ExplorerSidebar({ wells, selectedId, onSelectWell }: ExplorerSid
             drillingStatus={w.status}
             selected={selectedId === w.id}
             onClick={() => onSelectWell(w)}
-            onEnter={w.status === "drilling" ? () => {} : undefined}
             wellType={w.wellType}
             metrics={getWellMetrics(w)}
           />

@@ -7,6 +7,7 @@ type ActiveBoundsInput = {
   rangePreset: RangePreset | null;
   tileRange: ViewportRange | null;
   tileDepthRange: ViewportRange | null;
+  manualTimeBounds?: ViewportRange | null;
   sessionDepthMin: number;
   sessionDepthMax: number;
   sessionTimeMin: number;
@@ -18,11 +19,15 @@ export function resolveWellProfileActiveBounds({
   rangePreset,
   tileRange,
   tileDepthRange,
+  manualTimeBounds,
   sessionDepthMin,
   sessionDepthMax,
   sessionTimeMin,
   sessionTimeMax,
 }: ActiveBoundsInput): ViewportRange {
+  if (mode === "time" && manualTimeBounds) {
+    return manualTimeBounds;
+  }
   const wideTilePreset = isTilePreset(rangePreset);
   if (wideTilePreset && mode === "depth" && tileDepthRange) {
     return tileDepthRange;

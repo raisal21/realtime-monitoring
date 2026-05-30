@@ -11,10 +11,9 @@ import {
 import type { TileResponse, TileRes } from "@/services/tiles-client";
 
 const TILE_HEADER_BYTES = 40;
-const TILE_TRACE_MASK_LIMIT = 0x003f;
 
 const TILE_TRACES = {
-  drill: ["depth", "rpm", "wob", "torque", "hkld", "spp"],
+  drill: ["depth", "rpm", "wob", "torque", "hkld", "spp", "flow"],
   geo: ["depth", "gamma", "rop", "h2s", "inc", "azi"],
 } as const;
 
@@ -138,14 +137,16 @@ export const readTileBuff = (buffer: ArrayBuffer): ParsedTileFrame | null => {
   const stream = decodeTileStream(view.getUint8(8));
   const res = RES_BY_CODE.get(view.getUint8(9));
   const traceMask = view.getUint16(10);
-  if (!stream || !res || traceMask === 0 || (traceMask & ~TILE_TRACE_MASK_LIMIT) !== 0) {
+  const traces = stream ? TILE_TRACES[stream] : null;
+  const traceMaskLimit = traces ? (1 << traces.length) - 1 : 0;
+  if (!stream || !res || !traces || traceMask === 0 || (traceMask & ~traceMaskLimit) !== 0) {
     log.warn(
       `[PARSER] Invalid tile header stream=${view.getUint8(8)} res=${view.getUint8(9)} mask=${traceMask}`,
     );
     return null;
   }
 
-  const enabledCount = countEnabledTraces(traceMask);
+  const enabledCount = countEnabledTraces(traceMask, traces.length);
   const fromUnixMs = Number(view.getBigInt64(12));
   const toUnixMs = Number(view.getBigInt64(20));
   const replaceFromUnixMs = Number(view.getBigInt64(28));
@@ -161,7 +162,6 @@ export const readTileBuff = (buffer: ArrayBuffer): ParsedTileFrame | null => {
 
   const bins = [];
   let offset = TILE_HEADER_BYTES;
-  const traces = TILE_TRACES[stream];
   for (let i = 0; i < binCount; i++) {
     const tsUnixMs = Number(view.getBigInt64(offset));
     offset += 8;
@@ -210,9 +210,9 @@ function decodeTileStream(code: number): TileStreamName | null {
   return null;
 }
 
-function countEnabledTraces(traceMask: number): number {
+function countEnabledTraces(traceMask: number, traceCount: number): number {
   let count = 0;
-  for (let bit = 0; bit < TILE_TRACES.drill.length; bit++) {
+  for (let bit = 0; bit < traceCount; bit++) {
     if ((traceMask & (1 << bit)) !== 0) count++;
   }
   return count;

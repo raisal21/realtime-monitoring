@@ -30,6 +30,18 @@ describe("resolveWellProfileActiveBounds", () => {
     );
   });
 
+  it("uses manual history bounds for time mode before active tile range", () => {
+    assert.deepEqual(
+      resolveWellProfileActiveBounds({
+        ...base,
+        mode: "time",
+        rangePreset: "7d",
+        manualTimeBounds: { min: -30_000, max: 40_000 },
+      }),
+      { min: -30_000, max: 40_000 },
+    );
+  });
+
   it("uses tileDepthRange for depth mode wide presets", () => {
     assert.deepEqual(
       resolveWellProfileActiveBounds({

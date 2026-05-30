@@ -35,6 +35,26 @@ export const TileUnsubscribeAckPayload = z.strictObject({
   removed: z.boolean(),
 });
 
+export const HistoryExtentBasePayload = z.strictObject({
+  minTimeMs: z.number().nullable(),
+  maxTimeMs: z.number().nullable(),
+  minDepth: z.number().nullable(),
+  maxDepth: z.number().nullable(),
+});
+
+export const HistorySharedExtentPayload = HistoryExtentBasePayload.extend({
+  timeMode: z.string(),
+  depthSource: z.string(),
+  warning: z.string().nullable().optional(),
+});
+
+export const HistoryExtentPayload = z.strictObject({
+  wellId: z.string(),
+  streams: z.record(z.string(), HistoryExtentBasePayload),
+  shared: HistorySharedExtentPayload,
+  warnings: z.array(z.string()),
+});
+
 export const AlarmSeverity = z.enum(["INFO", "WARNING", "CRITICAL"]);
 
 const AlarmAcknowledgement = z.strictObject({
@@ -91,6 +111,11 @@ export const ServerSchema = z.discriminatedUnion("messageType", [
     messageType: z.literal("TILE_UNSUBSCRIBE_ACK"),
     timestamp: z.number(),
     payload: TileUnsubscribeAckPayload,
+  }),
+  z.strictObject({
+    messageType: z.literal("HISTORY_EXTENT"),
+    timestamp: z.number(),
+    payload: HistoryExtentPayload,
   }),
   z.strictObject({
     messageType: z.literal("ALARM_RAISED"),

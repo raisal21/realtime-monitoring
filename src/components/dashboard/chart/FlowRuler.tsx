@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import ReactECharts from "echarts-for-react/lib/core";
 import { echarts, type EChartsOption } from "@/lib/echarts";
 import { useStore } from "zustand";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/chart-viewport";
 import { formatLocalHHMM } from "@/lib/time-format";
 import { isTilePreset } from "@/lib/tile-resolution";
+import { tileFlowBars } from "@/lib/flow-ruler";
 
 // Flow baseline (gpm). Live stub holds rigState.flow around 1500; we render
 // the signed delta (flow - FLOW_BASELINE) so positive = "in", negative = "out".
@@ -34,6 +35,7 @@ export function FlowRuler() {
   const logTrackRange = useStore(globalRigStore, (s) => s.chart.logTrackRange);
   const tileRange = useStore(globalRigStore, (s) => s.chart.tileRange);
   const tileDepthRange = useStore(globalRigStore, (s) => s.chart.tileDepthRange);
+  const drillTiles = useStore(globalRigStore, (s) => s.chart.drillTiles);
   const status = useStore(globalRigStore, (s) => s.status);
   const { state: settings } = useSettings();
   const fsScale = FS_SCALE[settings.fontSize];
@@ -64,21 +66,36 @@ export function FlowRuler() {
     true,
     mode,
   );
+  const historicalBars = useMemo(
+    () =>
+      wideTilePreset
+        ? tileFlowBars(
+            drillTiles,
+            mode === "depth" ? "depth" : "time",
+            { min: yRange.min, max: yRange.max },
+            FLOW_BASELINE,
+          )
+        : [],
+    [drillTiles, mode, wideTilePreset, yRange.min, yRange.max],
+  );
 
   const buildOption = useCallback((): EChartsOption => {
     const c = getChartColors();
 
-    const ring = globalRigStore.getState().drillRing;
-    const yKey = mode === "depth" ? "depth" : "timestamp";
-    // Stride-sample the ring so the bar count stays bounded regardless of
-    // how deep the ring has filled; keep only samples inside the viewport.
-    const n = ring.size;
-    const stride = Math.max(1, Math.ceil(n / FLOW_MAX_BARS));
-    const bars: [number, number][] = [];
-    for (let i = 0; i < n; i += stride) {
-      const y = ring.field(yKey, i);
-      if (y < yRange.min || y > yRange.max) continue;
-      bars.push([ring.field("flow", i) - FLOW_BASELINE, y]);
+    let bars: [number, number][] = historicalBars;
+    if (!wideTilePreset) {
+      const ring = globalRigStore.getState().drillRing;
+      const yKey = mode === "depth" ? "depth" : "timestamp";
+      // Stride-sample the ring so the bar count stays bounded regardless of
+      // how deep the ring has filled; keep only samples inside the viewport.
+      const n = ring.size;
+      const stride = Math.max(1, Math.ceil(n / FLOW_MAX_BARS));
+      bars = [];
+      for (let i = 0; i < n; i += stride) {
+        const y = ring.field(yKey, i);
+        if (y < yRange.min || y > yRange.max) continue;
+        bars.push([ring.field("flow", i) - FLOW_BASELINE, y]);
+      }
     }
 
     return {
@@ -163,7 +180,15 @@ export function FlowRuler() {
         },
       },
     };
-  }, [mode, yRange.min, yRange.max, settings.unitSystem, fsScale]);
+  }, [
+    historicalBars,
+    mode,
+    wideTilePreset,
+    yRange.min,
+    yRange.max,
+    settings.unitSystem,
+    fsScale,
+  ]);
 
   useEffect(() => {
     if (!showLive || wideTilePreset) return;
@@ -238,13 +263,13 @@ export function FlowRuler() {
           <ChartPlaceholder text="No live feed for this well" />
         ) : status !== "ONLINE" ? (
           <ChartPlaceholder text="Connecting…" />
-        ) : wideTilePreset ? (
+        ) : wideTilePreset && historicalBars.length === 0 ? (
           <ChartPlaceholder text="No hist" />
         ) : (
           <ReactECharts
             ref={chartRef}
             echarts={echarts}
-            option={{}}
+            option={wideTilePreset ? buildOption() : {}}
             style={{ width: "100%", height: "100%" }}
             opts={{ renderer: "canvas" }}
             notMerge={false}

@@ -15,7 +15,8 @@ import {
 } from "../src/services/tiles-client.ts";
 
 const HEADER_BYTES = 40;
-const FULL_MASK = 0x003f;
+const DRILL_FULL_MASK = 0x007f;
+const GEO_FULL_MASK = 0x003f;
 const T0 = Date.parse("2026-05-26T00:00:00.000Z");
 const T1 = Date.parse("2026-05-26T00:05:00.000Z");
 const T2 = Date.parse("2026-05-26T00:10:00.000Z");
@@ -87,7 +88,7 @@ function makeTileFrame(opts: {
 
 function countBits(mask: number): number {
   let count = 0;
-  for (let bit = 0; bit < 6; bit++) {
+  for (let bit = 0; bit < 16; bit++) {
     if ((mask & (1 << bit)) !== 0) count++;
   }
   return count;
@@ -114,6 +115,22 @@ function makeTiles(
   };
 }
 
+function makeDepthTiles(
+  timestamps: readonly number[],
+  values: readonly number[],
+): TileResponse {
+  return {
+    stream: "drill",
+    res: "6h",
+    from: new Date(timestamps[0] ?? T0).toISOString(),
+    to: new Date(timestamps.at(-1) ?? T0).toISOString(),
+    bins: timestamps.map((ts, i) => ({
+      ts: new Date(ts).toISOString(),
+      depth: { min: values[i], max: values[i], avg: values[i] },
+    })),
+  };
+}
+
 function makeParsedFrame(opts: {
   kind: "snapshot" | "update";
   subscriptionId: number;
@@ -130,7 +147,7 @@ function makeParsedFrame(opts: {
     subscriptionId: opts.subscriptionId,
     stream: opts.stream,
     res: "5m",
-    traceMask: FULL_MASK,
+    traceMask: opts.stream === "drill" ? DRILL_FULL_MASK : GEO_FULL_MASK,
     fromUnixMs: opts.fromUnixMs,
     toUnixMs: opts.toUnixMs,
     replaceFromUnixMs: opts.replaceFromUnixMs,
@@ -144,7 +161,7 @@ test("tile parser decodes big-endian snapshot header and NaN stats", () => {
     subscriptionId: 0x01020304,
     streamCode: TileStreamCode.DRILL,
     resCode: TileResCode["5m"],
-    traceMask: FULL_MASK,
+    traceMask: DRILL_FULL_MASK,
     fromUnixMs: T0,
     toUnixMs: T2,
     replaceFromUnixMs: T0,
@@ -158,6 +175,7 @@ test("tile parser decodes big-endian snapshot header and NaN stats", () => {
           [1, 2, 1.5],
           [200, 210, 205],
           [3000, 3100, 3050],
+          [1400, 1600, 1500],
         ],
       },
     ],
@@ -170,13 +188,14 @@ test("tile parser decodes big-endian snapshot header and NaN stats", () => {
   assert.equal(parsed.subscriptionId, 0x01020304);
   assert.equal(parsed.stream, "drill");
   assert.equal(parsed.res, "5m");
-  assert.equal(parsed.traceMask, FULL_MASK);
+  assert.equal(parsed.traceMask, DRILL_FULL_MASK);
   assert.equal(parsed.fromUnixMs, T0);
   assert.equal(parsed.toUnixMs, T2);
   assert.equal(parsed.replaceFromUnixMs, T0);
   assert.equal(parsed.tiles.bins[0].ts, new Date(T1).toISOString());
   assert.equal(stat(parsed.tiles.bins[0].depth).avg, null);
   assert.equal(stat(parsed.tiles.bins[0].rpm).avg, 100);
+  assert.equal(stat(parsed.tiles.bins[0].flow).avg, 1500);
 });
 
 test("tile parser honors trace masks and update frame type", () => {
@@ -212,25 +231,72 @@ test("tile parser honors trace masks and update frame type", () => {
   assert.equal(stat(parsed.tiles.bins[0].rop).avg, 35);
 });
 
+test("tile parser decodes 6h manual-range snapshot frames", () => {
+  const frame = makeTileFrame({
+    frameType: TileFrameType.SNAPSHOT,
+    subscriptionId: 30,
+    streamCode: TileStreamCode.DRILL,
+    resCode: TileResCode["6h"],
+    traceMask: DRILL_FULL_MASK,
+    fromUnixMs: T0,
+    toUnixMs: T3,
+    replaceFromUnixMs: T0,
+    bins: [
+      {
+        tsUnixMs: T0,
+        stats: Array.from({ length: 7 }, () => [1, 2, 3] as const),
+      },
+    ],
+  });
+
+  const parsed = readTileBuff(frame);
+
+  assert.ok(parsed);
+  assert.equal(parsed.res, "6h");
+  assert.equal(parsed.subscriptionId, 30);
+  assert.equal(stat(parsed.tiles.bins[0].flow).avg, 3);
+});
+
 test("tile parser rejects frame-size mismatches", () => {
   const frame = makeTileFrame({
     frameType: TileFrameType.SNAPSHOT,
     subscriptionId: 1,
     streamCode: TileStreamCode.DRILL,
     resCode: TileResCode["5m"],
-    traceMask: FULL_MASK,
+    traceMask: DRILL_FULL_MASK,
     fromUnixMs: T0,
     toUnixMs: T1,
     replaceFromUnixMs: T0,
     bins: [
       {
         tsUnixMs: T0,
-        stats: Array.from({ length: 6 }, () => [1, 2, 3] as const),
+        stats: Array.from({ length: 7 }, () => [1, 2, 3] as const),
       },
     ],
   });
 
   assert.equal(readTileBuff(frame.slice(0, frame.byteLength - 1)), null);
+});
+
+test("tile parser rejects masks beyond the stream trace count", () => {
+  const frame = makeTileFrame({
+    frameType: TileFrameType.SNAPSHOT,
+    subscriptionId: 1,
+    streamCode: TileStreamCode.GEO,
+    resCode: TileResCode["5m"],
+    traceMask: 0x0040,
+    fromUnixMs: T0,
+    toUnixMs: T1,
+    replaceFromUnixMs: T0,
+    bins: [
+      {
+        tsUnixMs: T0,
+        stats: [[1, 2, 3]],
+      },
+    ],
+  });
+
+  assert.equal(readTileBuff(frame), null);
 });
 
 test("tile merge replaces the previous and current tail buckets", () => {
@@ -377,4 +443,123 @@ test("tile store ignores stale subscription frames and merges active updates", a
     min: T0,
     max: T2_LIVE,
   });
+});
+
+test("tile store marks manual time ruler ranges as custom tile requests", async () => {
+  const { globalRigStore } = await import("../src/store/index-store.ts");
+  const store = globalRigStore.getState();
+  store.resetChart();
+
+  store.setMode("time");
+  store.setRulerRange(T0, T3);
+  assert.deepEqual(globalRigStore.getState().chart.customTileRange, {
+    min: T0,
+    max: T3,
+  });
+
+  store.setRangePreset("7d");
+  assert.equal(globalRigStore.getState().chart.customTileRange, null);
+
+  store.setMode("depth");
+  store.setRulerRange(1000, 1100);
+  assert.equal(globalRigStore.getState().chart.customTileRange, null);
+});
+
+test("tile store routes well profile snapshots without replacing chart tiles", async () => {
+  const { globalRigStore } = await import("../src/store/index-store.ts");
+  const store = globalRigStore.getState();
+  store.resetChart();
+  store.setTileSubscription(
+    {
+      subscriptionId: 42,
+      spanMinutes: 360,
+      res: "5m",
+      streams: ["drill", "geo"],
+    },
+    { min: T0, max: T3 },
+  );
+  store.setWellProfileHistoryRequest(1_000_000_001, { min: T0, max: T3 });
+
+  store.applyTileSnapshot(
+    makeParsedFrame({
+      kind: "snapshot",
+      subscriptionId: 42,
+      stream: "drill",
+      tiles: makeTiles([T0, T1], [0, 1]),
+      fromUnixMs: T0,
+      toUnixMs: T1,
+      replaceFromUnixMs: T0,
+    }),
+  );
+  assert.equal(globalRigStore.getState().chart.tileStatus, "ready");
+  assert.equal(globalRigStore.getState().chart.wellProfileHistoryTiles, null);
+
+  store.applyTileSnapshot(
+    makeParsedFrame({
+      kind: "snapshot",
+      subscriptionId: 1_000_000_000,
+      stream: "drill",
+      tiles: makeDepthTiles([T0], [1000]),
+      fromUnixMs: T0,
+      toUnixMs: T1,
+      replaceFromUnixMs: T0,
+    }),
+  );
+  assert.equal(globalRigStore.getState().chart.wellProfileHistoryTiles, null);
+
+  store.applyTileSnapshot(
+    makeParsedFrame({
+      kind: "snapshot",
+      subscriptionId: 1_000_000_001,
+      stream: "drill",
+      tiles: makeDepthTiles([T0, T3], [1000, 1100]),
+      fromUnixMs: T0,
+      toUnixMs: T3,
+      replaceFromUnixMs: T0,
+    }),
+  );
+  assert.equal(globalRigStore.getState().chart.wellProfileHistoryStatus, "ready");
+  assert.deepEqual(globalRigStore.getState().chart.wellProfileHistoryRange, {
+    min: T0,
+    max: T3,
+  });
+  assert.deepEqual(
+    globalRigStore
+      .getState()
+      .chart.wellProfileHistoryTiles?.bins.map((bin) => [
+        Date.parse(bin.ts),
+        stat(bin.depth).avg,
+      ]),
+    [
+      [T0, 1000],
+      [T3, 1100],
+    ],
+  );
+  assert.deepEqual(
+    globalRigStore
+      .getState()
+      .chart.drillTiles?.bins.map((bin) => [Date.parse(bin.ts), stat(bin.rpm).avg]),
+    [
+      [T0, 0],
+      [T1, 1],
+    ],
+  );
+
+  store.applyTileUpdate(
+    makeParsedFrame({
+      kind: "update",
+      subscriptionId: 1_000_000_001,
+      stream: "drill",
+      tiles: makeDepthTiles([T2], [1200]),
+      fromUnixMs: T0,
+      toUnixMs: T3,
+      replaceFromUnixMs: T2,
+    }),
+  );
+  assert.deepEqual(
+    globalRigStore
+      .getState()
+      .chart.wellProfileHistoryTiles?.bins.map((bin) => Date.parse(bin.ts)),
+    [T0, T3],
+  );
 });

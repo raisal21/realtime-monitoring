@@ -100,10 +100,6 @@ function buildPopupMetrics(well: Well, isActive: boolean): string {
 }
 
 export function buildPopupHTML(well: Well, col: string, isActive: boolean): string {
-  const activeBtnStyle = isActive
-    ? "background:#83a598;color:#0c0e10;"
-    : "background:#32302f;color:#5a524a;";
-
   return /* html */ `
     <div>
       <div class="pop-header">
@@ -116,15 +112,6 @@ export function buildPopupHTML(well: Well, col: string, isActive: boolean): stri
 
       <div class="pop-body">
         ${buildPopupMetrics(well, isActive)}
-      </div>
-
-      <div class="pop-btn-wrap">
-        <button
-          class="pop-btn"
-          onclick="window.__rtdc_enter('${well.id}')"
-          style="${activeBtnStyle}"
-          ${!isActive ? "disabled" : ""}
-        >${isActive ? "Enter Control Room →" : "Unavailable"}</button>
       </div>
     </div>`;
 }
@@ -186,7 +173,6 @@ export const POPUP_STYLES = `
   }
   .pop-body {
     padding: calc(10px * var(--fs-scale, 1)) calc(14px * var(--fs-scale, 1));
-    border-bottom: 1px solid #3c3836;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
@@ -203,30 +189,6 @@ export const POPUP_STYLES = `
     letter-spacing: 0.08em;
     line-height: 1.2;
   }
-  .pop-btn-wrap {
-    padding: calc(10px * var(--fs-scale, 1)) calc(14px * var(--fs-scale, 1));
-  }
-  .pop-btn {
-    width: 100%;
-    padding: calc(8px * var(--fs-scale, 1));
-    border: none;
-    border-radius: 3px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: calc(0.6875rem * var(--fs-scale, 1));
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    transition: all 0.15s;
-    cursor: pointer;
-  }
-  .pop-btn[disabled] {
-    cursor: not-allowed;
-  }
-
   .maplibregl-ctrl-group {
     background: var(--theme-surface) !important;
     border: 1px solid var(--theme-border) !important;

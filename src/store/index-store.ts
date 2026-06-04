@@ -215,11 +215,10 @@ export const globalRigStore = createStore<GlobalRigState>()(
         ui: s.ui,
         settings: s.settings,
       }),
-      // version 0 → 1: legacy `rtdc.unitSystem` is lifted into
+      // Migration note: legacy `rtdc.unitSystem` is lifted into
       // `settings.unitSystem` at slice-init time (see settings-slice.ts).
-      // version 1 → 2: `chart` dropped from allowlist; reload always boots
-      // into liveMode + 1h preset. Old `chart` key in persisted blob is
-      // ignored at hydrate by the new partialize shape.
+      // The former persisted `chart` slice is ignored so reload always boots
+      // into liveMode + 1h preset.
       migrate: (persisted) => persisted as GlobalRigState,
     },
   ),

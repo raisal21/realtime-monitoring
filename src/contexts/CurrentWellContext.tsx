@@ -1,4 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components -- hooks share this provider context instance */
 import { createContext, use, useMemo, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { getWellById, type Well } from "@/data/wells";

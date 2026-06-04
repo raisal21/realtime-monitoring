@@ -278,6 +278,8 @@ function RadialGaugeCard({
         },
       ],
     };
+    // `theme` is a repaint trigger: getChartColors reads CSS variables outside
+    // React's dependency graph, so exhaustive-deps cannot infer it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gauge, source, showLive, theme, unitSystem, fsScale]);
 

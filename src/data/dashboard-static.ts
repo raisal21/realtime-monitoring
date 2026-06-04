@@ -206,8 +206,8 @@ export const TICKER_NOMINAL_ENTRIES = [
 // =============================================================================
 // Unified session data
 // =============================================================================
-// Single source of truth for all chart components during UI mock-up.
-// Replace with Zustand store slices once WebSocket integration is active.
+// Deterministic session baseline shared by chart/ruler components when they
+// need stable bounds, projections, or placeholder history.
 
 // Session anchor: minute 0 of timeAxis.range maps to this wall-clock instant.
 export const SESSION_START_DATE = new Date(2026, 3, 22, 0, 0, 0); // Apr 22, 2026 00:00 (local)
@@ -218,10 +218,9 @@ const SESSION_TIME_MAX_MIN = (POINT_COUNT - 1) * TIME_STEP_MIN; // 10050 min ≈
 const SESSION_DEPTH_START_M = 4237;
 const SESSION_DEPTH_END_M = 4633;
 
-// Stateful generator: produces depth + traces + flow per sample, modeling
-// realistic drill / connect / trip / idle phases. Replaces the old "tile a
-// 51-point base pattern" approach which produced monotonic depth, periodic
-// connections, and decoupled flow.
+// Stateful generator: depth, traces, and flow stay coupled across drill,
+// connect, trip, and idle phases so rulers and tooltips share one plausible
+// operational session.
 
 const SESSION_TIME_POINTS: number[] = Array.from(
   { length: POINT_COUNT },
@@ -376,7 +375,8 @@ function generateSession(): SessionData {
     const sppDrillBase = 172 + depthDelta * 0.034;         // ~172 → ~185 bar
     const hkldDrillBase = 823 + depthDelta * 0.191;        // ~823 → ~900 kN
 
-    // Phase-dependent surface measurements & flow
+    // Surface measurements follow the operating phase so pressure, load, and
+    // flow tell the same operational story.
     if (phase === "drill") {
       out.rpm[i] = Math.round(120 + j(4));
       const wobV = r1(91.2 + j(5.3));

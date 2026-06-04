@@ -67,8 +67,8 @@ export default function Dashboard() {
   const showAckModal = role ? ROLE_FEATURES[role].ackModal : false;
 
   // Mount-only: force alarm sidebar open on Dashboard entry, overriding
-  // persisted "closed". Deps MUST stay [] — adding alarmSidebar would
-  // re-fire on every manual collapse and make the sidebar un-closable.
+  // persisted "closed". The sidebar must remain user-closable afterward, so
+  // this effect intentionally ignores later state changes.
   useEffect(() => {
     if (showAlarmSidebar && alarmSidebar === "closed") {
       globalRigStore.getState().toggleAlarmSidebar();

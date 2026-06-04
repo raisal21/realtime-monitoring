@@ -41,7 +41,7 @@ export interface SettingsSlice extends SettingsActions {
   settings: SettingsState;
 }
 
-// One-shot lift of pre-Phase-10 standalone localStorage keys into the
+// One-shot lift of legacy standalone localStorage keys into the
 // consolidated `rtdc-store` payload. Runs at module init; legacy keys are
 // removed so the next load reads only from persist middleware.
 function liftLegacyUnitSystem(): UnitSystem {

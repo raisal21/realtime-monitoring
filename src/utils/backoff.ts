@@ -39,8 +39,8 @@ export function createBackoff(): Backoff {
         return { shouldRetry: false, reason: "MAX_ELAPSED" };
       }
 
-      // Decorrelated jitter — distribusi lebih merata dibanding full jitter
-      // sleep = min(CAP, random(BASE, prev * 3))
+      // Decorrelated jitter spreads retries more evenly than full jitter while
+      // keeping the worst-case wait bounded by BACKOFF_CAP_MS.
       const delayMs = Math.min(
         BACKOFF_CAP_MS,
         getRandom(BACKOFF_BASE_MS, prevDelay * 3),
